@@ -1,0 +1,9 @@
+{
+  "name": "@sara/shared-config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared configuration package for Sara Core.",
+  "files": [
+    "tsconfig"
+  ]
+}
