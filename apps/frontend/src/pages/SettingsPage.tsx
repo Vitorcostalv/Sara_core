@@ -1,21 +1,42 @@
-import { SectionHeader } from "../components/SectionHeader";
+import { Gear, Warning } from "@phosphor-icons/react";
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader, Section, StatusPill } from "../components/ui";
 import { useUiStore } from "../state/ui.store";
 
 export function SettingsPage() {
   const { apiBaseUrl, setApiBaseUrl } = useUiStore();
 
   return (
-    <section className="page-grid">
-      <SectionHeader
+    <div className="page-stack">
+      <PageHeader
         title="Settings"
-        description="Configuracoes locais para desenvolvimento e integracao futura."
+        description="Local configuration layer for development and environment control."
+        icon={<Gear weight="duotone" />}
       />
-      <div className="panel">
-        <label className="field">
-          API Base URL
-          <input value={apiBaseUrl} onChange={(event) => setApiBaseUrl(event.target.value)} />
-        </label>
-      </div>
-    </section>
+
+      <Section title="Connection Defaults" subtitle="These values control frontend-to-backend communication.">
+        <Card>
+          <CardHeader>
+            <CardTitle>API Connection</CardTitle>
+          </CardHeader>
+          <CardContent className="stack-sm">
+            <Input
+              label="API Base URL"
+              name="apiBaseUrl"
+              value={apiBaseUrl}
+              onChange={(event) => setApiBaseUrl(event.target.value)}
+              placeholder="http://localhost:3333/api/v1"
+              hint="Use local endpoint only in this phase."
+            />
+            <div className="inline-row">
+              <StatusPill tone="warning">
+                <Warning weight="duotone" />
+                Offline services not integrated yet
+              </StatusPill>
+              <Button variant="secondary">Save defaults</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </Section>
+    </div>
   );
 }

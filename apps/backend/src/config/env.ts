@@ -10,7 +10,7 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   BACKEND_HOST: z.string().default("0.0.0.0"),
   BACKEND_PORT: z.coerce.number().int().positive().default(3333),
-  CORS_ORIGIN: z.string().default("http://localhost:5173"),
+  CORS_ORIGIN: z.string().default("http://localhost:5180"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_PATH: z.string().default(path.resolve(repositoryRoot, "database", "sara_core.db"))
 });

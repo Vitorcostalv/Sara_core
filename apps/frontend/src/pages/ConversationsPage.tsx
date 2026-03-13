@@ -1,15 +1,27 @@
-import { SectionHeader } from "../components/SectionHeader";
+import { ClockCounterClockwise, Waveform } from "@phosphor-icons/react";
+import { Card, EmptyState, PageHeader, Section } from "../components/ui";
 
 export function ConversationsPage() {
   return (
-    <section className="page-grid">
-      <SectionHeader
+    <div className="page-stack">
+      <PageHeader
         title="Conversations"
-        description="Area para historico de conversas e auditoria de turnos."
+        description="Timeline and audit trail for conversation turns and future tool usage traces."
+        icon={<ClockCounterClockwise weight="duotone" />}
       />
-      <div className="panel">
-        <p>Placeholder para timeline de conversation_turns e tool_calls.</p>
-      </div>
-    </section>
+
+      <Section
+        title="Conversation Timeline"
+        subtitle="Chronological visualization of turns, metadata and local execution events."
+      >
+        <Card>
+          <EmptyState
+            icon={<Waveform weight="duotone" />}
+            title="No conversations stored"
+            description="New interactions will appear here as soon as local conversation logging is integrated."
+          />
+        </Card>
+      </Section>
+    </div>
   );
 }
