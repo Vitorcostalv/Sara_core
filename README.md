@@ -77,3 +77,5 @@ npm run dev
 - Arquitetura inicial: `docs/architecture/initial-architecture.md`
 - Convencoes do projeto: `docs/conventions/project-conventions.md`
 - Modelo de dados: `database/schema/README.md`
+- Endpoints API: `docs/api/endpoints.md`
+- Contratos tipados API: `docs/api/contracts.md`

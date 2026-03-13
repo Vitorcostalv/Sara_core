@@ -1,17 +1,18 @@
-# Sara Core Data Model (Phase 1)
+# Sara Core Data Model (MVP)
 
 ## `user_profile`
-Representa o perfil local principal do usuario dono da instÃ¢ncia Sara Core.
-Na migration inicial, um perfil padrao `local-user` e criado para bootstrap local.
+Representa o perfil local principal do usuario da instancia Sara Core.
+O registro `local-user` e criado no bootstrap e mantido pelo modulo `user_profile`.
+Campos adicionais da migration 004: `preferred_name`, `full_name`, `email`, `birth_date`.
 
 ## `facts`
-Armazena fatos persistidos sobre o usuario, preferÃªncias e contexto Ãºtil para memÃ³ria da assistente.
+Armazena fatos persistidos sobre o usuario para memoria semantica local.
 
 ## `tasks`
-Registra tarefas do dia a dia com status, prioridade e data limite opcional.
+Registra tarefas com status, prioridade e data limite opcional.
 
 ## `conversation_turns`
-HistÃ³rico de turnos de conversa para auditoria e futura recuperaÃ§Ã£o de contexto.
+Historico de turnos de conversa para auditoria e contexto.
 
 ## `tool_calls`
-Rastreamento de chamadas de ferramentas relacionadas a um turno de conversa.
+Rastreamento de chamadas internas de ferramentas vinculadas a turnos.

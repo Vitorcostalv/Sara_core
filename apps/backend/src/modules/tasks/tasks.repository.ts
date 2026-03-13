@@ -58,7 +58,7 @@ export class TasksRepository {
         SELECT id, user_id, title, description, status, priority, due_date, created_at, updated_at
         FROM tasks
         ${whereSql}
-        ORDER BY updated_at DESC
+        ORDER BY updated_at DESC, id DESC
         LIMIT ? OFFSET ?
       `
       )

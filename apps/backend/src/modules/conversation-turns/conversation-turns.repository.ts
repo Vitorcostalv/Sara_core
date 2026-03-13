@@ -55,7 +55,7 @@ export class ConversationTurnsRepository {
         SELECT id, user_id, role, content, source, created_at
         FROM conversation_turns
         ${whereSql}
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT ? OFFSET ?
       `
       )
