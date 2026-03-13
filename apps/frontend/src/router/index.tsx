@@ -5,6 +5,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { FactsPage } from "../pages/FactsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { TasksPage } from "../pages/TasksPage";
+import { ToolCallsPage } from "../pages/ToolCallsPage";
 
 export const appRouter = createBrowserRouter([
   {
@@ -15,6 +16,7 @@ export const appRouter = createBrowserRouter([
       { path: "tasks", element: <TasksPage /> },
       { path: "facts", element: <FactsPage /> },
       { path: "conversations", element: <ConversationsPage /> },
+      { path: "tool-calls", element: <ToolCallsPage /> },
       { path: "settings", element: <SettingsPage /> }
     ]
   }

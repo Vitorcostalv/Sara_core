@@ -5,30 +5,32 @@ import {
   Gear,
   House,
   ListChecks,
-  Microphone,
-  SignOut,
-  Sparkle,
+  Pulse,
+  SlidersHorizontal,
   User,
-  Waveform
+  Wrench,
+  Waveform,
+  SignOut
 } from "@phosphor-icons/react";
 import { useLocation } from "react-router-dom";
 import { SidebarNavItem } from "../components/layout/SidebarNavItem";
-import { TopbarAction } from "../components/layout/TopbarAction";
 import { Button, StatusPill } from "../components/ui";
 
 const navItems = [
   { to: "/", label: "Dashboard", subtitle: "Overview", icon: House, end: true },
-  { to: "/tasks", label: "Tasks", subtitle: "Day planning", icon: ListChecks },
-  { to: "/facts", label: "Memories", subtitle: "Facts memory", icon: Database },
-  { to: "/conversations", label: "History", subtitle: "Conversation log", icon: ClockCounterClockwise },
-  { to: "/settings", label: "Settings", subtitle: "Local setup", icon: Gear }
+  { to: "/facts", label: "Memorias", subtitle: "Facts memory", icon: Database },
+  { to: "/tasks", label: "Tarefas", subtitle: "Execution board", icon: ListChecks },
+  { to: "/conversations", label: "Historico", subtitle: "Conversation turns", icon: ClockCounterClockwise },
+  { to: "/tool-calls", label: "Tool Calls", subtitle: "Execution trace", icon: Wrench },
+  { to: "/settings", label: "Perfil", subtitle: "User settings", icon: Gear }
 ];
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
+  "/facts": "Memorias",
   "/tasks": "Tasks",
-  "/facts": "Memories",
   "/conversations": "Conversations",
+  "/tool-calls": "Tool Calls",
   "/settings": "Settings"
 };
 
@@ -74,9 +76,18 @@ export function AppShell({ children }: PropsWithChildren) {
             <h2>{currentTitle}</h2>
           </div>
           <div className="app-topbar__actions">
-            <TopbarAction icon={Microphone} label="Voice stack pending integration" />
-            <TopbarAction icon={Sparkle} label="Local intelligence layer pending integration" />
-            <TopbarAction icon={User} label="Active profile" />
+            <span className="topbar-chip">
+              <Pulse weight="duotone" />
+              API Online
+            </span>
+            <span className="topbar-chip">
+              <SlidersHorizontal weight="duotone" />
+              Typed Contracts
+            </span>
+            <span className="topbar-chip">
+              <User weight="duotone" />
+              Local Profile
+            </span>
           </div>
         </header>
 
