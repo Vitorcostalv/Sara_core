@@ -58,7 +58,7 @@ export class FactsRepository {
         SELECT id, user_id, key, value, category, is_important, created_at, updated_at
         FROM facts
         ${whereSql}
-        ORDER BY updated_at DESC
+        ORDER BY updated_at DESC, id DESC
         LIMIT ? OFFSET ?
       `
       )

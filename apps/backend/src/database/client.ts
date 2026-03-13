@@ -3,7 +3,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { env } from "../config/env";
 
-const databaseFile = path.resolve(env.databasePath);
+const databaseFile = env.databasePath;
 const databaseDir = path.dirname(databaseFile);
 
 if (!fs.existsSync(databaseDir)) {

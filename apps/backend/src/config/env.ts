@@ -21,12 +21,16 @@ if (!parsed.success) {
   throw new Error(`Invalid environment variables: ${parsed.error.message}`);
 }
 
+const resolvedDatabasePath = path.isAbsolute(parsed.data.DATABASE_PATH)
+  ? parsed.data.DATABASE_PATH
+  : path.resolve(repositoryRoot, parsed.data.DATABASE_PATH);
+
 export const env = {
   nodeEnv: parsed.data.NODE_ENV,
   host: parsed.data.BACKEND_HOST,
   port: parsed.data.BACKEND_PORT,
   corsOrigin: parsed.data.CORS_ORIGIN,
   logLevel: parsed.data.LOG_LEVEL,
-  databasePath: parsed.data.DATABASE_PATH,
+  databasePath: resolvedDatabasePath,
   repositoryRoot
 };

@@ -70,7 +70,7 @@ export class ToolCallsRepository {
         SELECT id, conversation_turn_id, tool_name, input_payload, output_payload, status, duration_ms, created_at
         FROM tool_calls
         ${whereSql}
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT ? OFFSET ?
       `
       )
