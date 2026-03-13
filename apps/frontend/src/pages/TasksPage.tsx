@@ -1,15 +1,33 @@
-import { SectionHeader } from "../components/SectionHeader";
+import { CheckCircle, ListChecks } from "@phosphor-icons/react";
+import { Button, Card, EmptyState, PageHeader, Section } from "../components/ui";
 
 export function TasksPage() {
   return (
-    <section className="page-grid">
-      <SectionHeader
+    <div className="page-stack">
+      <PageHeader
         title="Tasks"
-        description="Area para gerenciamento de tarefas do usuario. Integracao com API sera adicionada depois."
+        description="Track daily tasks, priorities and execution status with a clean operational view."
+        icon={<ListChecks weight="duotone" />}
+        actions={
+          <Button variant="primary" disabled>
+            New Task
+          </Button>
+        }
       />
-      <div className="panel">
-        <p>Placeholder para lista de tarefas, filtros e criacao de tarefas.</p>
-      </div>
-    </section>
+
+      <Section
+        title="Task Pipeline"
+        subtitle="Task CRUD and filters will be connected in the next implementation step."
+      >
+        <Card>
+          <EmptyState
+            icon={<CheckCircle weight="duotone" />}
+            title="No tasks yet"
+            description="Create your first task to start organizing Sara daily flows."
+            actionLabel="Create first task"
+          />
+        </Card>
+      </Section>
+    </div>
   );
 }

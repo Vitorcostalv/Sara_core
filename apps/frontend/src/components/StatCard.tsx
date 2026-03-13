@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Card } from "./ui";
 
 interface StatCardProps {
   label: string;
@@ -9,13 +10,13 @@ interface StatCardProps {
 
 export function StatCard({ label, value, hint, icon }: StatCardProps) {
   return (
-    <article className="stat-card">
-      <div className="stat-card-top">
+    <Card className="stat-card">
+      <div className="stat-card__top">
         <span>{label}</span>
-        {icon ? <span>{icon}</span> : null}
+        {icon ? <span className="stat-card__icon">{icon}</span> : null}
       </div>
-      <strong>{value}</strong>
-      <small>{hint}</small>
-    </article>
+      <strong className="stat-card__value">{value}</strong>
+      <small className="stat-card__hint">{hint}</small>
+    </Card>
   );
 }
