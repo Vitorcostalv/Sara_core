@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/modules/tasks/tasks.service.test.ts src/modules/facts/facts.repository.test.ts",
     "db:migrate": "tsx src/database/migrate.ts",
     "db:reset": "tsx src/database/reset.ts"
   },
