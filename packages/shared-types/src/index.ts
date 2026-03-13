@@ -1,4 +1,24 @@
 export type ISODateString = string;
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface ApiItemResponse<TData> {
+  data: TData;
+}
+
+export interface ApiListResponse<TData> {
+  data: TData[];
+  meta: PaginationMeta;
+}
 
 export interface UserProfile {
   id: string;
@@ -12,15 +32,16 @@ export interface UserProfile {
 export interface Fact {
   id: string;
   userId: string;
+  key: string;
+  value: string;
   category: string;
-  content: string;
-  source: "user" | "assistant" | "system";
-  confidence: number;
+  isImportant: boolean;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
 
 export type TaskStatus = "pending" | "in_progress" | "done" | "archived";
+export type TaskPriority = 1 | 2 | 3 | 4 | 5;
 
 export interface Task {
   id: string;
@@ -28,30 +49,35 @@ export interface Task {
   title: string;
   description: string | null;
   status: TaskStatus;
-  priority: number;
-  dueAt: ISODateString | null;
+  priority: TaskPriority;
+  dueDate: ISODateString | null;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
 
-export type SpeakerRole = "user" | "assistant" | "system";
+export type ConversationRole = "user" | "assistant" | "system";
+export type ConversationSource = string;
 
 export interface ConversationTurn {
   id: string;
-  sessionId: string;
-  role: SpeakerRole;
+  userId: string;
+  role: ConversationRole;
   content: string;
-  tokenCount: number | null;
+  source: ConversationSource;
   createdAt: ISODateString;
 }
 
+export type ToolCallStatus = "success" | "error" | "running";
+
 export interface ToolCall {
   id: string;
-  turnId: string;
+  conversationTurnId: string;
   toolName: string;
-  inputJson: string;
-  outputJson: string | null;
-  status: "success" | "error" | "running";
-  startedAt: ISODateString;
-  endedAt: ISODateString | null;
+  inputPayload: JsonValue;
+  outputPayload: JsonValue | null;
+  status: ToolCallStatus;
+  durationMs: number | null;
+  createdAt: ISODateString;
 }
+
+export type SpeakerRole = ConversationRole;
