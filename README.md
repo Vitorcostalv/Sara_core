@@ -51,6 +51,11 @@ npm run db:migrate
 npm run dev
 ```
 
+5. Acesso local:
+
+- Frontend: `http://localhost:5180`
+- Backend: `http://localhost:3333`
+
 ## Scripts principais
 
 - `npm run dev`: sobe backend + frontend
