@@ -1,0 +1,2 @@
+-- Optional dev seed placeholder.
+-- Keep this file intentionally empty in phase 1 foundation.

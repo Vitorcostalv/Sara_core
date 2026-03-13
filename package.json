@@ -1,0 +1,28 @@
+{
+  "name": "sara-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sara Core monorepo foundation for a local/offline personal assistant.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c cyan,magenta \"npm run dev -w @sara/backend\" \"npm run dev -w @sara/frontend\"",
+    "dev:backend": "npm run dev -w @sara/backend",
+    "dev:frontend": "npm run dev -w @sara/frontend",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:migrate": "npm run db:migrate -w @sara/backend",
+    "db:reset": "npm run db:reset -w @sara/backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
+
