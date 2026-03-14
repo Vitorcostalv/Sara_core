@@ -116,14 +116,41 @@ export function ConversationsPage() {
   const [filters, setFilters] = useState<ConversationFilters>({ role: "", source: "" });
   const [form, setForm] = useState<ConversationForm>(initialForm);
 
+  const stopCurrentStream = () => {
+    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    mediaStreamRef.current = null;
+  };
+
+  const resetCaptureResources = () => {
+    const recorder = mediaRecorderRef.current;
+
+    if (recorder) {
+      recorder.onstop = null;
+      recorder.ondataavailable = null;
+      recorder.onerror = null;
+
+      if (recorder.state !== "inactive") {
+        try {
+          recorder.stop();
+        } catch {
+          // Recorder may already be transitioning to inactive.
+        }
+      }
+    }
+
+    chunksRef.current = [];
+    mediaRecorderRef.current = null;
+    stopCurrentStream();
+  };
+
   // ── voice effects ──
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     return () => {
       isMountedRef.current = false;
-      const recorder = mediaRecorderRef.current;
-      if (recorder && recorder.state !== "inactive") recorder.stop();
-      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      resetCaptureResources();
     };
   }, []);
 
@@ -138,11 +165,6 @@ export function ConversationsPage() {
 
   // ── voice handlers ──
 
-  const stopCurrentStream = () => {
-    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
-    mediaStreamRef.current = null;
-  };
-
   const uploadAudio = async () => {
     setCaptureStatus("uploading");
     const recorder = mediaRecorderRef.current;
@@ -150,21 +172,17 @@ export function ConversationsPage() {
       recorder?.mimeType && recorder.mimeType.length > 0
         ? recorder.mimeType
         : "audio/webm";
-    const audioBlob = new Blob(chunksRef.current, { type: blobType });
-
-    chunksRef.current = [];
-    mediaRecorderRef.current = null;
-    stopCurrentStream();
-
-    if (audioBlob.size === 0) {
-      if (isMountedRef.current) {
-        setVoiceError("Nenhum áudio foi capturado. Tente gravar novamente.");
-        setCaptureStatus("idle");
-      }
-      return;
-    }
 
     try {
+      const audioBlob = new Blob(chunksRef.current, { type: blobType });
+
+      if (audioBlob.size === 0) {
+        if (isMountedRef.current) {
+          setVoiceError("Nenhum áudio foi capturado. Tente gravar novamente.");
+        }
+        return;
+      }
+
       const response = await sendVoiceInteraction({ audioBlob });
       if (isMountedRef.current) {
         setVoiceResult(response);
@@ -184,7 +202,12 @@ export function ConversationsPage() {
         setVoiceError("Falha ao enviar o áudio para o backend.");
       }
     } finally {
-      if (isMountedRef.current) setCaptureStatus("idle");
+      resetCaptureResources();
+
+      if (isMountedRef.current) {
+        setRecordingSeconds(0);
+        setCaptureStatus("idle");
+      }
     }
   };
 
@@ -195,6 +218,8 @@ export function ConversationsPage() {
       return;
     }
     try {
+      resetCaptureResources();
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const supportedMimeType = getSupportedRecorderMimeType();
       const recorder = supportedMimeType
@@ -209,13 +234,22 @@ export function ConversationsPage() {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       recorder.onstop = () => void uploadAudio();
+      recorder.onerror = () => {
+        resetCaptureResources();
+
+        if (isMountedRef.current) {
+          setCaptureStatus("idle");
+          setVoiceError("Falha durante a gravação de áudio. Tente novamente.");
+        }
+      };
       recorder.start();
 
       setRecordingSeconds(0);
       setCaptureStatus("recording");
       setVoiceError(null);
     } catch {
-      stopCurrentStream();
+      resetCaptureResources();
+      setCaptureStatus("idle");
       setVoiceError(
         "Não foi possível acessar o microfone. Verifique as permissões do navegador."
       );
@@ -226,7 +260,17 @@ export function ConversationsPage() {
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state !== "recording") return;
     setCaptureStatus("uploading");
-    recorder.stop();
+
+    try {
+      recorder.stop();
+    } catch {
+      resetCaptureResources();
+
+      if (isMountedRef.current) {
+        setCaptureStatus("idle");
+        setVoiceError("Não foi possível finalizar a gravação. Tente novamente.");
+      }
+    }
   };
 
   // ── conversation list handlers ──
