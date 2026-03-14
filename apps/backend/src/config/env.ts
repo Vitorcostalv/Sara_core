@@ -12,8 +12,19 @@ const EnvSchema = z.object({
   BACKEND_PORT: z.coerce.number().int().positive().default(3333),
   CORS_ORIGIN: z.string().optional(),
   CORS_ORIGINS: z.string().optional(),
-  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
-  DATABASE_PATH: z.string().default(path.resolve(repositoryRoot, "database", "sara_core.db"))
+  STT_PROVIDER: z.string().default("vosk"),
+  STT_MODEL_PATH: z.string().default(
+    path.resolve(repositoryRoot, "services", "stt", "models", "pt-br")
+  ),
+  STT_AUDIO_MAX_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+  STT_FFMPEG_PATH: z.string().default("ffmpeg"),
+  STT_PYTHON_PATH: z.string().default("python"),
+  LOG_LEVEL: z
+    .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
+    .default("info"),
+  DATABASE_PATH: z
+    .string()
+    .default(path.resolve(repositoryRoot, "database", "sara_core.db")),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
@@ -22,27 +33,31 @@ if (!parsed.success) {
   throw new Error(`Invalid environment variables: ${parsed.error.message}`);
 }
 
+// Database path
 const resolvedDatabasePath = path.isAbsolute(parsed.data.DATABASE_PATH)
   ? parsed.data.DATABASE_PATH
   : path.resolve(repositoryRoot, parsed.data.DATABASE_PATH);
 
+// STT model path
+const resolvedSttModelPath = path.isAbsolute(parsed.data.STT_MODEL_PATH)
+  ? parsed.data.STT_MODEL_PATH
+  : path.resolve(repositoryRoot, parsed.data.STT_MODEL_PATH);
+
+// CORS origins — aceita singular ou plural, normaliza e deduplica
 const DEFAULT_CORS_ORIGINS = "http://localhost:5180,http://127.0.0.1:5180";
 
-function normalizeCorsOrigin(origin: string) {
-  const trimmedOrigin = origin.trim();
-
-  if (trimmedOrigin.length === 0) {
-    return "";
-  }
-
+function normalizeCorsOrigin(origin: string): string {
+  const trimmed = origin.trim();
+  if (trimmed.length === 0) return "";
   try {
-    return new URL(trimmedOrigin).origin;
+    return new URL(trimmed).origin;
   } catch {
-    throw new Error(`Invalid CORS origin in environment: ${trimmedOrigin}`);
+    throw new Error(`Invalid CORS origin in environment: ${trimmed}`);
   }
 }
 
-const rawCorsOrigins = parsed.data.CORS_ORIGINS ?? parsed.data.CORS_ORIGIN ?? DEFAULT_CORS_ORIGINS;
+const rawCorsOrigins =
+  parsed.data.CORS_ORIGINS ?? parsed.data.CORS_ORIGIN ?? DEFAULT_CORS_ORIGINS;
 
 const corsOrigins = Array.from(
   new Set(
@@ -62,7 +77,12 @@ export const env = {
   host: parsed.data.BACKEND_HOST,
   port: parsed.data.BACKEND_PORT,
   corsOrigins,
+  sttProvider: parsed.data.STT_PROVIDER,
+  sttModelPath: resolvedSttModelPath,
+  sttAudioMaxBytes: parsed.data.STT_AUDIO_MAX_BYTES,
+  sttFfmpegPath: parsed.data.STT_FFMPEG_PATH,
+  sttPythonPath: parsed.data.STT_PYTHON_PATH,
   logLevel: parsed.data.LOG_LEVEL,
   databasePath: resolvedDatabasePath,
-  repositoryRoot
+  repositoryRoot,
 };

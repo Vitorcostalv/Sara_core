@@ -48,6 +48,30 @@ interface PaginatedResponse<T> {
 - `ConversationRole`: `user | assistant | system`
 - `ToolCallStatus`: `running | success | error`
 
+## Voice interaction payload
+
+`POST /api/v1/voice/interactions`
+
+Request:
+- `multipart/form-data`
+- `audio`: arquivo de audio (obrigatorio)
+- `language`: string opcional (`pt-BR` por padrao)
+
+Response:
+
+```json
+{
+  "transcription": "texto transcrito",
+  "assistantText": "Entendi: texto transcrito",
+  "audioReplyUrl": null,
+  "wakeWordDetected": null
+}
+```
+
+Observacoes:
+- `audioReplyUrl` fica `null` neste MVP (TTS futuro).
+- `wakeWordDetected` fica `null` neste MVP (wake word futuro).
+
 ## User profile payload
 
 `PATCH /api/v1/user-profile`

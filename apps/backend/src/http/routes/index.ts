@@ -5,6 +5,7 @@ import { healthRoutes } from "../../modules/health/health.routes";
 import { tasksRoutes } from "../../modules/tasks/tasks.routes";
 import { toolCallsRoutes } from "../../modules/tool-calls/tool-calls.routes";
 import { userProfileRoutes } from "../../modules/user-profile/user-profile.routes";
+import { voiceRoutes } from "../../modules/voice/voice.routes";
 
 export const apiRouter = Router();
 
@@ -14,3 +15,4 @@ apiRouter.use("/facts", factsRoutes);
 apiRouter.use("/conversation-turns", conversationTurnsRoutes);
 apiRouter.use("/tool-calls", toolCallsRoutes);
 apiRouter.use("/user-profile", userProfileRoutes);
+apiRouter.use("/voice", voiceRoutes);
