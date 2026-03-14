@@ -11,7 +11,7 @@ const EnvSchema = z.object({
   BACKEND_HOST: z.string().default("0.0.0.0"),
   BACKEND_PORT: z.coerce.number().int().positive().default(3333),
   CORS_ORIGIN: z.string().default("http://localhost:5180"),
-  STT_PROVIDER: z.enum(["vosk"]).default("vosk"),
+  STT_PROVIDER: z.string().default("vosk"),
   STT_MODEL_PATH: z.string().default(path.resolve(repositoryRoot, "services", "stt", "models", "pt-br")),
   STT_AUDIO_MAX_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
   STT_FFMPEG_PATH: z.string().default("ffmpeg"),

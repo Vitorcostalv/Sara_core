@@ -29,8 +29,10 @@ export interface ProcessVoiceInteractionInput {
   language?: string;
 }
 
+type SttProviderFactory = () => SttProvider;
+
 export class VoiceService {
-  constructor(private readonly sttProvider: SttProvider) {}
+  constructor(private readonly providerFactory: SttProviderFactory) {}
 
   processVoiceInteraction(input: ProcessVoiceInteractionInput): VoiceInteractionResponse {
     if (input.audioBuffer.length === 0) {
@@ -68,7 +70,8 @@ export class VoiceService {
         sampleRate
       });
 
-      const transcription = this.sttProvider.transcribe({
+      const sttProvider = this.providerFactory();
+      const transcription = sttProvider.transcribe({
         audioPcmPath: pcmAudioPath,
         sampleRate,
         language: input.language
@@ -103,7 +106,9 @@ export class VoiceService {
 }
 
 function createSttProvider(): SttProvider {
-  switch (env.sttProvider) {
+  const normalizedProvider = env.sttProvider.trim().toLowerCase();
+
+  switch (normalizedProvider) {
     case "vosk":
       return new VoskSttProvider(env.sttModelPath);
     default:
@@ -111,4 +116,4 @@ function createSttProvider(): SttProvider {
   }
 }
 
-export const voiceService = new VoiceService(createSttProvider());
+export const voiceService = new VoiceService(createSttProvider);

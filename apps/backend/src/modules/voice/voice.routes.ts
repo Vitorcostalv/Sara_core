@@ -1,26 +1,42 @@
 import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
-import multer from "multer";
 import { env } from "../../config/env";
 import { AppError } from "../../core/errors/app-error";
 import { voiceController } from "./voice.controller";
 import { isSupportedAudioMimeType, supportedAudioMimeTypes } from "./voice.schemas";
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: env.sttAudioMaxBytes,
-    files: 1
-  }
-});
+type MulterModule = typeof import("multer");
 
 type UploadedAudioRequest = Request & {
   file?: Express.Multer.File;
 };
 
 function parseVoiceUpload(req: Request, res: Response, next: NextFunction): void {
+  let multerModule: MulterModule;
+
+  try {
+    multerModule = require("multer") as MulterModule;
+  } catch {
+    next(
+      new AppError(
+        "VOICE_UPLOAD_DEPENDENCY_MISSING",
+        500,
+        "Multer dependency is missing. Run npm install before using voice uploads."
+      )
+    );
+    return;
+  }
+
+  const upload = multerModule({
+    storage: multerModule.memoryStorage(),
+    limits: {
+      fileSize: env.sttAudioMaxBytes,
+      files: 1
+    }
+  });
+
   upload.single("audio")(req, res, (error: unknown) => {
-    if (error instanceof multer.MulterError) {
+    if (error instanceof multerModule.MulterError) {
       if (error.code === "LIMIT_FILE_SIZE") {
         next(
           new AppError(

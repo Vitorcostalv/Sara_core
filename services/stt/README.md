@@ -14,6 +14,8 @@ services/stt/
       ivector/
 ```
 
+Se o zip do modelo vier com pasta extra (ex.: `pt-br/vosk-model-small-pt-0.3/...`), mova o conteudo interno para `pt-br` para manter o `STT_MODEL_PATH` funcionando.
+
 ## Configuracao por ambiente
 
 No `.env` da raiz:

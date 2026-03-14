@@ -1,0 +1,207 @@
+
+> sara-core@0.1.0 dev:backend
+> npm run dev -w @sara/backend
+
+
+> @sara/backend@0.1.0 dev
+> tsx watch src/server.ts
+
+[2026-03-14 15:42:35.988 -0300] [32mINFO[39m (7852): [36mSara Core backend started[39m
+    [35mhost[39m: "0.0.0.0"
+    [35mport[39m: 3333
+[2026-03-14 15:42:42.420 -0300] [32mINFO[39m (7852): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 1,
+      "method": "GET",
+      "url": "/api/v1/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "user-agent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; pt-BR) WindowsPowerShell/5.1.26100.7705",
+        "host": "localhost:3333",
+        "connection": "Keep-Alive"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59394
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-powered-by": "Express",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "112",
+        "etag": "W/\"70-j+DHYPLHQ8MSzQ2/rIGa662Bib4\""
+      }
+    }
+    [35mresponseTime[39m: 4
+[2026-03-14 15:42:59.077 -0300] [32mINFO[39m (7852): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 2,
+      "method": "GET",
+      "url": "/api/v1/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "user-agent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; pt-BR) WindowsPowerShell/5.1.26100.7705",
+        "host": "localhost:3333",
+        "connection": "Keep-Alive"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 54041
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-powered-by": "Express",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "112",
+        "etag": "W/\"70-umrXqNawOse3Wwtx3C8BAF3Za3g\""
+      }
+    }
+    [35mresponseTime[39m: 0
+[2026-03-14 15:43:05.287 -0300] [32mINFO[39m (7852): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 3,
+      "method": "POST",
+      "url": "/api/v1/voice/interactions",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "user-agent": "curl/8.16.0",
+        "accept": "*/*",
+        "content-length": "216671",
+        "content-type": "multipart/form-data; boundary=------------------------ZZYSgtrbvAW9CTNOlKe3cT"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59376
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-powered-by": "Express",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "126",
+        "etag": "W/\"7e-cwl7UgB9tWBCFn76vB+Sjjh1RRQ\""
+      }
+    }
+    [35mresponseTime[39m: 841
+[2026-03-14 15:43:20.854 -0300] [32mINFO[39m (7852): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 4,
+      "method": "POST",
+      "url": "/api/v1/voice/interactions",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "user-agent": "curl/8.16.0",
+        "accept": "*/*"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51371
+    }
+    [35mres[39m: {
+      "statusCode": 400,
+      "headers": {
+        "x-powered-by": "Express",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "118",
+        "etag": "W/\"76-N752nDocdo0iOPE2M4gVcg0kosQ\""
+      }
+    }
+    [35mresponseTime[39m: 1
+[2026-03-14 15:43:32.828 -0300] [32mINFO[39m (7852): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 5,
+      "method": "POST",
+      "url": "/api/v1/voice/interactions",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "user-agent": "curl/8.16.0",
+        "accept": "*/*",
+        "content-length": "321",
+        "content-type": "multipart/form-data; boundary=------------------------dQlA69PegxchD71bl6Gs7m"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 54602
+    }
+    [35mres[39m: {
+      "statusCode": 415,
+      "headers": {
+        "x-powered-by": "Express",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "251",
+        "etag": "W/\"fb-e1nbgrb7a9cnJJGV6Rl5fge2/ao\""
+      }
+    }
+    [35mresponseTime[39m: 1
+[2026-03-14 15:43:33.096 -0300] [32mINFO[39m (7852): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 6,
+      "method": "POST",
+      "url": "/api/v1/voice/interactions",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "user-agent": "curl/8.16.0",
+        "accept": "*/*",
+        "content-length": "11534645",
+        "content-type": "multipart/form-data; boundary=------------------------eydpjF3FMPq1t9ii1FIUzt",
+        "expect": "100-continue"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 54604
+    }
+    [35mres[39m: {
+      "statusCode": 413,
+      "headers": {
+        "x-powered-by": "Express",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "126",
+        "etag": "W/\"7e-Q/NwB1WAjIFyLmxWa9BFF1r6A0I\""
+      }
+    }
+    [35mresponseTime[39m: 20
+[2026-03-14 15:44:06.266 -0300] [32mINFO[39m (7852): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 7,
+      "method": "GET",
+      "url": "/api/v1/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "user-agent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; pt-BR) WindowsPowerShell/5.1.26100.7705",
+        "host": "localhost:3333",
+        "connection": "Keep-Alive"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51670
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-powered-by": "Express",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "112",
+        "etag": "W/\"70-/EKj7ogV+UBKtYtfGkHwp+e0ZVw\""
+      }
+    }
+    [35mresponseTime[39m: 0
