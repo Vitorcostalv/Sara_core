@@ -1,7 +1,7 @@
 export const tokens = {
   typography: {
     family:
-      "\"Space Grotesk\", \"Sora\", \"Segoe UI\", \"Inter\", \"Helvetica Neue\", sans-serif",
+      "\"Sora\", \"Plus Jakarta Sans\", \"Space Grotesk\", \"Segoe UI\", sans-serif",
     size: {
       xs: "0.75rem",
       sm: "0.875rem",
@@ -32,17 +32,17 @@ export const tokens = {
     "2xl": "2.5rem",
     "3xl": "3rem"
   },
-  radius: {
-    sm: "0.5rem",
-    md: "0.75rem",
-    lg: "1rem",
-    xl: "1.5rem",
+    radius: {
+    sm: "0.55rem",
+    md: "0.8rem",
+    lg: "1.1rem",
+    xl: "1.6rem",
     full: "9999px"
   },
   shadow: {
-    sm: "0 1px 2px rgba(15, 23, 42, 0.06)",
-    md: "0 10px 24px rgba(15, 23, 42, 0.08)",
-    lg: "0 18px 42px rgba(15, 23, 42, 0.11)"
+    sm: "0 8px 24px rgba(5, 10, 26, 0.26)",
+    md: "0 18px 42px rgba(4, 8, 22, 0.32)",
+    lg: "0 24px 56px rgba(2, 6, 18, 0.4)"
   },
   transition: {
     default: "180ms ease",
