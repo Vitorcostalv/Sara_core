@@ -35,19 +35,45 @@ export function ConversationsPage() {
   const chunksRef = useRef<Blob[]>([]);
   const isMountedRef = useRef(true);
 
+  const stopCurrentStream = () => {
+    const stream = mediaStreamRef.current;
+
+    if (!stream) {
+      return;
+    }
+
+    stream.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+  };
+
+  const resetCaptureResources = () => {
+    const recorder = mediaRecorderRef.current;
+
+    if (recorder) {
+      recorder.onstop = null;
+      recorder.ondataavailable = null;
+      recorder.onerror = null;
+
+      if (recorder.state !== "inactive") {
+        try {
+          recorder.stop();
+        } catch {
+          // Recorder may already be transitioning to inactive.
+        }
+      }
+    }
+
+    chunksRef.current = [];
+    mediaRecorderRef.current = null;
+    stopCurrentStream();
+  };
+
   useEffect(() => {
+    isMountedRef.current = true;
+
     return () => {
       isMountedRef.current = false;
-
-      const recorder = mediaRecorderRef.current;
-      if (recorder && recorder.state !== "inactive") {
-        recorder.stop();
-      }
-
-      const stream = mediaStreamRef.current;
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
+      resetCaptureResources();
     };
   }, []);
 
@@ -63,37 +89,22 @@ export function ConversationsPage() {
     return () => window.clearInterval(timerId);
   }, [captureStatus]);
 
-  const stopCurrentStream = () => {
-    const stream = mediaStreamRef.current;
-
-    if (!stream) {
-      return;
-    }
-
-    stream.getTracks().forEach((track) => track.stop());
-    mediaStreamRef.current = null;
-  };
-
   const uploadAudio = async () => {
     setCaptureStatus("uploading");
 
     const recorder = mediaRecorderRef.current;
     const blobType = recorder?.mimeType && recorder.mimeType.length > 0 ? recorder.mimeType : "audio/webm";
-    const audioBlob = new Blob(chunksRef.current, { type: blobType });
-
-    chunksRef.current = [];
-    mediaRecorderRef.current = null;
-    stopCurrentStream();
-
-    if (audioBlob.size === 0) {
-      if (isMountedRef.current) {
-        setErrorMessage("Nenhum áudio foi capturado. Tente gravar novamente.");
-        setCaptureStatus("idle");
-      }
-      return;
-    }
 
     try {
+      const audioBlob = new Blob(chunksRef.current, { type: blobType });
+
+      if (audioBlob.size === 0) {
+        if (isMountedRef.current) {
+          setErrorMessage("Nenhum áudio foi capturado. Tente gravar novamente.");
+        }
+        return;
+      }
+
       const response = await sendVoiceInteraction({ audioBlob });
 
       if (isMountedRef.current) {
@@ -106,16 +117,17 @@ export function ConversationsPage() {
       }
 
       if (error instanceof VoiceApiError && error.status === 404) {
-        setErrorMessage(
-          "Endpoint de voz ainda não encontrado no backend (esperado: POST /voice/interactions)."
-        );
+        setErrorMessage("Endpoint de voz ainda não encontrado no backend (esperado: POST /voice/interactions).");
       } else if (error instanceof Error) {
         setErrorMessage(error.message);
       } else {
         setErrorMessage("Falha ao enviar o áudio para o backend.");
       }
     } finally {
+      resetCaptureResources();
+
       if (isMountedRef.current) {
+        setRecordingSeconds(0);
         setCaptureStatus("idle");
       }
     }
@@ -132,6 +144,8 @@ export function ConversationsPage() {
     }
 
     try {
+      resetCaptureResources();
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const supportedMimeType = getSupportedRecorderMimeType();
       const recorder = supportedMimeType
@@ -152,13 +166,23 @@ export function ConversationsPage() {
         void uploadAudio();
       };
 
+      recorder.onerror = () => {
+        resetCaptureResources();
+
+        if (isMountedRef.current) {
+          setCaptureStatus("idle");
+          setErrorMessage("Falha durante a gravação de áudio. Tente novamente.");
+        }
+      };
+
       recorder.start();
 
       setRecordingSeconds(0);
       setCaptureStatus("recording");
       setErrorMessage(null);
     } catch {
-      stopCurrentStream();
+      resetCaptureResources();
+      setCaptureStatus("idle");
       setErrorMessage("Não foi possível acessar o microfone. Verifique as permissões do navegador.");
     }
   };
@@ -171,7 +195,17 @@ export function ConversationsPage() {
     }
 
     setCaptureStatus("uploading");
-    recorder.stop();
+
+    try {
+      recorder.stop();
+    } catch {
+      resetCaptureResources();
+
+      if (isMountedRef.current) {
+        setCaptureStatus("idle");
+        setErrorMessage("Não foi possível finalizar a gravação. Tente novamente.");
+      }
+    }
   };
 
   const voiceStatusTone =
