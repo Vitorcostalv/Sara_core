@@ -35,6 +35,12 @@ function getApiBaseUrl(): string {
   return configured && configured.length > 0 ? configured : fallbackApiBaseUrl;
 }
 
+export function buildApiUrl(endpoint: string): string {
+  const baseUrl = getApiBaseUrl().replace(/\/+$/, "");
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  return `${baseUrl}${path}`;
+}
+
 export class ApiClientError extends Error {
   constructor(
     public readonly status: number,
@@ -66,7 +72,7 @@ interface RequestOptions {
 }
 
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
+  const response = await fetch(buildApiUrl(endpoint), {
     method: options.method ?? "GET",
     headers:
       options.body !== undefined ? { "Content-Type": "application/json" } : undefined,
