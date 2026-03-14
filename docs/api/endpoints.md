@@ -7,6 +7,7 @@ Base URL: `/api/v1`
 - Success (single): `{ "data": { ... } }`
 - Success (list): `{ "data": [...], "meta": { ...pagination } }`
 - Error: `{ "error": { "code": "...", "message": "...", "details": ... } }`
+- Exception: `POST /voice/interactions` retorna objeto direto no MVP para manter compatibilidade com o frontend de voz.
 
 ## Health
 
@@ -26,6 +27,25 @@ Base URL: `/api/v1`
 ```
 - Possible errors: `INTERNAL_SERVER_ERROR`.
 - Notes: endpoint público para monitoramento.
+
+## Voice
+
+### POST `/voice/interactions`
+- Description: recebe audio multipart e retorna transcricao STT offline (Vosk).
+- Path params: none.
+- Query params: none.
+- Request body: `multipart/form-data` com `audio` (arquivo obrigatorio) e `language` (opcional).
+- Response body:
+```json
+{
+  "transcription": "texto transcrito",
+  "assistantText": "Entendi: texto transcrito",
+  "audioReplyUrl": null,
+  "wakeWordDetected": null
+}
+```
+- Possible errors: `VOICE_AUDIO_REQUIRED`, `VOICE_AUDIO_TOO_LARGE`, `VOICE_AUDIO_UNSUPPORTED_TYPE`, `VOICE_AUDIO_EMPTY`, `VOICE_FFMPEG_NOT_FOUND`, `VOICE_STT_PROVIDER_UNAVAILABLE`, `VOICE_STT_MODEL_NOT_FOUND`, `VOICE_AUDIO_CONVERSION_FAILED`, `VOICE_TRANSCRIPTION_FAILED`, `VOICE_PROCESSING_FAILED`, `VALIDATION_ERROR`, `INTERNAL_SERVER_ERROR`.
+- Notes: conversao para PCM mono 16k via FFmpeg antes da transcricao.
 
 ## Facts
 

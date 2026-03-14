@@ -71,6 +71,7 @@ npm run dev
 - `GET /api/v1/health`
 - `GET /api/v1/tasks`
 - `POST /api/v1/tasks`
+- `POST /api/v1/voice/interactions`
 
 ## Documentacao
 
