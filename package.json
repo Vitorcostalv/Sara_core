@@ -15,7 +15,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "db:migrate": "npm run db:migrate -w @sara/backend",
-    "db:reset": "npm run db:reset -w @sara/backend"
+    "db:reset": "npm run db:reset -w @sara/backend",
+    "db:seed": "npm run db:seed -w @sara/backend"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

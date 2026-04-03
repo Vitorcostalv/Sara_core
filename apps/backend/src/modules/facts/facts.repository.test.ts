@@ -79,3 +79,44 @@ test("FactsRepository creates, filters and updates facts", () => {
 
   database.close();
 });
+
+test("FactsRepository.listGroundingFacts prioritizes requested ecosystems and relevant global facts", () => {
+  const database = createInMemoryDb();
+  const repository = new FactsRepository(database);
+
+  repository.create({
+    userId: "local-user",
+    key: "identity.summary",
+    value: "Sara Core is a local assistant platform.",
+    category: "ecosystem:sara-core",
+    isImportant: true
+  });
+
+  repository.create({
+    userId: "local-user",
+    key: "voice.endpoint",
+    value: "Voice upload uses /api/v1/voice/interactions.",
+    category: "ecosystem:voice-stt",
+    isImportant: false
+  });
+
+  repository.create({
+    userId: "local-user",
+    key: "engineering.change-policy",
+    value: "Evolve incrementally without recreating architecture.",
+    category: "preferences",
+    isImportant: true
+  });
+
+  const facts = repository.listGroundingFacts({
+    userId: "local-user",
+    ecosystems: ["sara-core"],
+    limit: 10
+  });
+
+  assert.equal(facts.length, 2);
+  assert.equal(facts[0]?.category, "ecosystem:sara-core");
+  assert.equal(facts[1]?.category, "preferences");
+
+  database.close();
+});

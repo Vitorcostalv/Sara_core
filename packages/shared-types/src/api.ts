@@ -160,3 +160,47 @@ export interface UpdateUserProfileRequest {
   timezone?: string;
   birthDate?: BirthDateString | null;
 }
+
+export interface GenerateLlmRequest {
+  prompt: string;
+  userId?: string;
+  ecosystems?: string[];
+  maxFacts?: number;
+  includeProfile?: boolean;
+  dryRun?: boolean;
+}
+
+export interface LlmGroundingFactPreview {
+  id: string;
+  key: string;
+  category: string;
+  isImportant: boolean;
+  valuePreview: string;
+}
+
+export interface LlmGroundingEcosystemPreview {
+  slug: string;
+  factCount: number;
+  facts: LlmGroundingFactPreview[];
+}
+
+export interface LlmGroundingSummary {
+  userId: string;
+  profileIncluded: boolean;
+  factCount: number;
+  ecosystemsUsed: string[];
+  warnings: string[];
+}
+
+export interface LlmGenerateResult {
+  provider: string;
+  model: string;
+  answer: string | null;
+  dryRun: boolean;
+  contextPreview: string;
+  factsPreview: LlmGroundingFactPreview[];
+  ecosystems: LlmGroundingEcosystemPreview[];
+  grounding: LlmGroundingSummary;
+}
+
+export type LlmGenerateResponse = ApiItemResponse<LlmGenerateResult>;

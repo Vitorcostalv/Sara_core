@@ -1,29 +1,44 @@
 # Sara Core
 
-Fundacao inicial do projeto **Sara Core**, uma assistente pessoal local/offline controlada por voz (com integrações futuras para wake word, STT, TTS e LLM local).
+Sara Core e uma assistente pessoal local/offline em evolucao incremental.
+
+O projeto hoje ja possui:
+- backend Node.js + TypeScript
+- frontend React + TypeScript + Vite
+- SQLite
+- monorepo com contratos compartilhados
+- STT local com Vosk + Python + FFmpeg
+- modulo LLM grounded no backend
+
+## Estado atual
+
+Esta fase nao e mais apenas fundacao.
+
+Hoje o projeto ja suporta:
+- validacao de voz por upload de arquivo no frontend
+- transcricao via `POST /api/v1/voice/interactions`
+- grounding de LLM via `POST /api/v1/llm/generate`
+- contexto limitado a `user_profile` + `facts`
+- ecossistemas modelados em `facts` usando `category = ecosystem:<slug>`
+- `dryRun=true` para auditar contexto sem chamar provider externo
 
 ## Objetivo desta fase
 
-Esta entrega cria apenas a base arquitetural e de desenvolvimento:
-
-- monorepo organizado para trabalho em paralelo
-- backend HTTP em Node.js + TypeScript preparado para crescer como orquestrador
-- frontend React preparado como dashboard/admin panel
-- banco local SQLite com schema inicial e migrações
-- tipos compartilhados e configuração de TypeScript centralizada
-- Documentações e converções para time
-
-Nao ha implementacao de STT, TTS, wake word ou LLM nesta fase.
+O foco atual e:
+- popular o banco com contexto util
+- manter a LLM grounded no banco
+- endurecer seguranca e performance
+- deixar design para uma fase posterior
 
 ## Estrutura do monorepo
 
 - `apps/backend`: API HTTP, camadas de aplicacao e acesso ao banco
-- `apps/frontend`: painel React para monitoramento e administracao
-- `packages/shared-types`: contratos de tipos compartilhados
+- `apps/frontend`: painel React para validacao e debug
+- `packages/shared-types`: contratos compartilhados entre backend e frontend
 - `packages/shared-config`: configuracoes base de TypeScript
-- `database`: migraçãos e documentacao do schema SQLite
-- `docs`: arquitetura e convencoes
-- `services`: placeholders para servicos futuros (stt, tts, wake-word, llm)
+- `database`: migrations, seeds e documentacao do schema SQLite
+- `docs`: arquitetura, contratos e convencoes
+- `services`: placeholders e referencias para servicos auxiliares
 
 ## Como rodar
 
@@ -33,50 +48,75 @@ Nao ha implementacao de STT, TTS, wake word ou LLM nesta fase.
 npm install
 ```
 
-2. Crie o arquivo de ambiente:
+2. Garanta um arquivo `.env` local.
+
+3. Resete banco, migrations e seeds:
 
 ```bash
-cp .env.example .env
+npm run db:reset
 ```
 
-3. Execute Migrações iniciais iniciais:
-
-```bash
-npm run db:migrate
-```
-
-4. Suba backend e frontend em paralelo:
+4. Suba backend e frontend:
 
 ```bash
 npm run dev
 ```
-
-5. Acesso local:
-
-- Frontend: `http://localhost:5180`
-- Backend: `http://localhost:3333`
 
 ## Scripts principais
 
 - `npm run dev`: sobe backend + frontend
 - `npm run dev:backend`: sobe apenas backend
 - `npm run dev:frontend`: sobe apenas frontend
-- `npm run db:migrate`: aplica Migrações SQLite
-- `npm run db:reset`: limpa schema local e reaplica migrations
+- `npm run db:migrate`: aplica migrations
+- `npm run db:seed`: aplica seeds locais
+- `npm run db:reset`: limpa schema, reaplica migrations e reaplica seeds
 - `npm run build`: build de todos os workspaces
 - `npm run typecheck`: checagem de tipos em todos os workspaces
 
-## Endpoints iniciais
+## LLM grounded
+
+O backend possui um modulo `llm` seguindo a arquitetura existente:
+- `llm.routes.ts`
+- `llm.controller.ts`
+- `llm.service.ts`
+- `llm.schemas.ts`
+- `llm.provider.ts`
+- `context-builder.service.ts`
+
+Fluxo atual:
+1. o endpoint recebe `prompt`, `ecosystems`, `maxFacts`, `includeProfile` e `dryRun`
+2. o `context-builder` monta contexto usando `user_profile` e `facts`
+3. facts de ecossistemas usam `category = ecosystem:<slug>`
+4. facts fora da convencao sao ignorados no grounding
+5. se o contexto for insuficiente, o backend responde explicitamente:
+   `Nao encontrei informacao suficiente no banco para responder com seguranca.`
+6. se `dryRun=true`, o backend retorna preview do contexto sem chamar provider externo
+
+Providers suportados hoje:
+- Gemini
+- Grok
+
+## Convencao de ecossistemas
+
+- categoria: `ecosystem:<slug>`
+- `slug`: lowercase kebab-case
+- `key`: lowercase com `.` ou `-`
+- `value`: contexto objetivo e auditavel
+- `isImportant`: prioridade de grounding, nao permissao ampla
+
+Detalhes: `docs/conventions/ecosystem-facts.md`
+
+## Endpoints principais
 
 - `GET /api/v1/health`
-- `GET /api/v1/tasks`
-- `POST /api/v1/tasks`
 - `POST /api/v1/voice/interactions`
+- `POST /api/v1/llm/generate`
 
 ## Documentacao
 
 - Arquitetura inicial: `docs/architecture/initial-architecture.md`
-- Convencoes do projeto: `docs/conventions/project-conventions.md`
+- Convencoes gerais: `docs/conventions/project-conventions.md`
+- Convencao de facts de ecossistemas: `docs/conventions/ecosystem-facts.md`
 - Modelo de dados: `database/schema/README.md`
 - Endpoints API: `docs/api/endpoints.md`
-- Contratos tipados API: `docs/api/contracts.md`
+- Contratos API: `docs/api/contracts.md`

@@ -8,6 +8,7 @@ export class VoiceApiError extends Error {
     public readonly status: number
   ) {
     super(message);
+    this.name = "VoiceApiError";
   }
 }
 
@@ -19,7 +20,8 @@ export interface VoiceInteractionResponse {
 }
 
 interface SendVoiceInteractionParams {
-  audioBlob: Blob;
+  audioFile: Blob;
+  fileName?: string;
   language?: string;
   endpoint?: string;
 }
@@ -37,7 +39,8 @@ function readOptionalString(data: Record<string, unknown>, keys: string[]) {
     const fieldValue = data[key];
 
     if (typeof fieldValue === "string") {
-      return fieldValue;
+      const normalizedValue = fieldValue.trim();
+      return normalizedValue.length > 0 ? normalizedValue : null;
     }
   }
 
@@ -54,13 +57,33 @@ function readOptionalBoolean(data: Record<string, unknown>, key: string) {
   return null;
 }
 
-function resolveFileName(blob: Blob) {
-  if (blob.type.includes("ogg")) {
+function resolveFileName(audioFile: Blob, explicitFileName?: string) {
+  if (explicitFileName && explicitFileName.trim().length > 0) {
+    return explicitFileName.trim();
+  }
+
+  if (audioFile instanceof File && audioFile.name.trim().length > 0) {
+    return audioFile.name.trim();
+  }
+
+  if (audioFile.type.includes("ogg")) {
     return "recording.ogg";
   }
 
-  if (blob.type.includes("mp4") || blob.type.includes("m4a")) {
+  if (audioFile.type.includes("mp4") || audioFile.type.includes("m4a")) {
     return "recording.m4a";
+  }
+
+  if (audioFile.type.includes("mpeg") || audioFile.type.includes("mp3")) {
+    return "recording.mp3";
+  }
+
+  if (audioFile.type.includes("wav")) {
+    return "recording.wav";
+  }
+
+  if (audioFile.type.includes("aac")) {
+    return "recording.aac";
   }
 
   return "recording.webm";
@@ -81,6 +104,11 @@ async function readErrorMessage(response: Response) {
     if (typeof payload.error === "string") {
       return payload.error;
     }
+
+    const nestedErrorPayload = asRecord(payload.error);
+    if (nestedErrorPayload && typeof nestedErrorPayload.message === "string") {
+      return nestedErrorPayload.message;
+    }
   } catch {
     return null;
   }
@@ -89,12 +117,13 @@ async function readErrorMessage(response: Response) {
 }
 
 export async function sendVoiceInteraction({
-  audioBlob,
+  audioFile,
+  fileName,
   language = "pt-BR",
   endpoint = defaultVoiceEndpoint
 }: SendVoiceInteractionParams): Promise<VoiceInteractionResponse> {
   const formData = new FormData();
-  formData.append("audio", audioBlob, resolveFileName(audioBlob));
+  formData.append("audio", audioFile, resolveFileName(audioFile, fileName));
   formData.append("language", language);
 
   const response = await fetch(buildApiUrl(endpoint), {

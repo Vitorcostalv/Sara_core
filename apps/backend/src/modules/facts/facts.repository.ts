@@ -28,6 +28,21 @@ function mapFact(row: FactRow): Fact {
   };
 }
 
+export interface ListGroundingFactsQuery {
+  userId: string;
+  ecosystems?: string[];
+  limit: number;
+}
+
+const groundingGlobalCategories = [
+  "context",
+  "concept",
+  "concepts",
+  "preference",
+  "preferences",
+  "profile"
+] as const;
+
 export class FactsRepository {
   constructor(private readonly database: import("better-sqlite3").Database = db) {}
 
@@ -68,6 +83,56 @@ export class FactsRepository {
       items: rows.map(mapFact),
       total: totalRow.total
     };
+  }
+
+  listGroundingFacts(query: ListGroundingFactsQuery): Fact[] {
+    const normalizedEcosystems = Array.from(
+      new Set(
+        (query.ecosystems ?? [])
+          .map((ecosystem) => ecosystem.trim().toLowerCase())
+          .filter((ecosystem) => ecosystem.length > 0)
+      )
+    );
+    const ecosystemCategories = normalizedEcosystems.map((ecosystem) => `ecosystem:${ecosystem}`);
+    const params: unknown[] = [query.userId];
+    const globalCategoryPlaceholders = groundingGlobalCategories.map(() => "?").join(", ");
+    const ecosystemClause =
+      ecosystemCategories.length > 0
+        ? `category IN (${ecosystemCategories.map(() => "?").join(", ")})`
+        : "category LIKE 'ecosystem:%'";
+
+    params.push(...ecosystemCategories);
+    params.push(...groundingGlobalCategories);
+
+    const requestedOrderSql =
+      ecosystemCategories.length > 0
+        ? `CASE ${ecosystemCategories.map(() => "WHEN category = ? THEN 0").join(" ")} ELSE 1 END,`
+        : "";
+
+    const orderParams = ecosystemCategories.length > 0 ? [...ecosystemCategories] : [];
+
+    const rows = this.database
+      .prepare(
+        `
+        SELECT id, user_id, key, value, category, is_important, created_at, updated_at
+        FROM facts
+        WHERE user_id = ?
+          AND (
+            ${ecosystemClause}
+            OR category IN (${globalCategoryPlaceholders})
+          )
+        ORDER BY
+          ${requestedOrderSql}
+          CASE WHEN category LIKE 'ecosystem:%' THEN 0 ELSE 1 END,
+          is_important DESC,
+          updated_at DESC,
+          id DESC
+        LIMIT ?
+      `
+      )
+      .all(...params, ...orderParams, query.limit) as FactRow[];
+
+    return rows.map(mapFact);
   }
 
   create(input: CreateFactInput): Fact {

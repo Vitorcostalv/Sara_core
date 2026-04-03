@@ -1,11 +1,10 @@
+import type { ChangeEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ChatCircleDots,
   ClockCounterClockwise,
   Microphone,
   StopCircle,
   UploadSimple,
-  Waveform,
   WarningCircle,
 } from "@phosphor-icons/react";
 import type { ConversationRole, ConversationTurn, PaginationMeta } from "@sara/shared-types";
@@ -28,15 +27,49 @@ import {
   Section,
   Select,
   StatusPill,
-  TextArea,
 } from "../components/ui";
 import { conversationTurnsApi, getApiErrorMessage } from "../services/api/client";
 import { sendVoiceInteraction, VoiceApiError, type VoiceInteractionResponse } from "../services/api/voice";
 import { formatDateTime } from "../utils/format";
 
-// ─── Voice ───────────────────────────────────────────────────────────────────
+type VoiceRequestStatus = "idle" | "recording" | "uploading";
+type VoiceInputSource = "file" | "microphone";
 
-type VoiceCaptureStatus = "idle" | "recording" | "uploading";
+const maxAudioUploadBytes = 10 * 1024 * 1024;
+
+const supportedAudioMimeTypes = [
+  "audio/webm",
+  "audio/ogg",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/wave",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/aac",
+] as const;
+
+const supportedAudioExtensions = [
+  ".webm",
+  ".ogg",
+  ".wav",
+  ".mp3",
+  ".mp4",
+  ".m4a",
+  ".aac",
+] as const;
+
+const mimeTypeByExtension: Record<string, string> = {
+  ".webm": "audio/webm",
+  ".ogg": "audio/ogg",
+  ".wav": "audio/wav",
+  ".mp3": "audio/mpeg",
+  ".mp4": "audio/mp4",
+  ".m4a": "audio/x-m4a",
+  ".aac": "audio/aac",
+};
+
+const acceptedAudioTypes = [...supportedAudioMimeTypes, ...supportedAudioExtensions].join(",");
 
 const preferredMimeTypes = [
   "audio/webm;codecs=opus",
@@ -44,27 +77,6 @@ const preferredMimeTypes = [
   "audio/ogg;codecs=opus",
   "audio/mp4",
 ];
-
-function getSupportedRecorderMimeType() {
-  if (
-    typeof MediaRecorder === "undefined" ||
-    typeof MediaRecorder.isTypeSupported !== "function"
-  ) {
-    return undefined;
-  }
-  return preferredMimeTypes.find((mime) => MediaRecorder.isTypeSupported(mime));
-}
-
-function hasVoiceCaptureSupport() {
-  return (
-    typeof window !== "undefined" &&
-    typeof navigator !== "undefined" &&
-    "MediaRecorder" in window &&
-    typeof navigator.mediaDevices?.getUserMedia === "function"
-  );
-}
-
-// ─── Conversations list ───────────────────────────────────────────────────────
 
 const initialMeta: PaginationMeta = {
   page: 1,
@@ -80,48 +92,222 @@ interface ConversationFilters {
   source: string;
 }
 
-interface ConversationForm {
-  role: ConversationRole;
-  source: string;
-  content: string;
+function formatBytes(bytes: number) {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  if (bytes >= 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  return `${bytes} B`;
 }
 
-const initialForm: ConversationForm = {
-  role: "user",
-  source: "chat",
-  content: "",
-};
+function getSupportedRecorderMimeType() {
+  if (
+    typeof MediaRecorder === "undefined" ||
+    typeof MediaRecorder.isTypeSupported !== "function"
+  ) {
+    return undefined;
+  }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+  return preferredMimeTypes.find((mimeType) => MediaRecorder.isTypeSupported(mimeType));
+}
+
+function hasVoiceCaptureSupport() {
+  return (
+    typeof window !== "undefined" &&
+    typeof navigator !== "undefined" &&
+    "MediaRecorder" in window &&
+    typeof navigator.mediaDevices?.getUserMedia === "function"
+  );
+}
+
+function isInsecureAudioContext() {
+  return typeof window !== "undefined" && window.isSecureContext === false;
+}
+
+function getVoiceCaptureAvailabilityMessage() {
+  if (!hasVoiceCaptureSupport()) {
+    return "Este navegador nao oferece suporte a gravacao com MediaRecorder.";
+  }
+
+  if (isInsecureAudioContext()) {
+    return "A captura de audio exige contexto seguro (HTTPS ou localhost).";
+  }
+
+  return null;
+}
+
+function getMicrophoneAccessErrorMessage(error: unknown) {
+  if (error instanceof DOMException) {
+    if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+      return "Microfone indisponivel. Conecte um dispositivo de entrada e tente novamente.";
+    }
+
+    if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+      return isInsecureAudioContext()
+        ? "A captura de audio exige contexto seguro (HTTPS ou localhost)."
+        : "Permissao de microfone negada no navegador.";
+    }
+
+    if (error.name === "SecurityError") {
+      return "A captura de audio exige contexto seguro (HTTPS ou localhost).";
+    }
+
+    if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+      return "Nao foi possivel ler o microfone. Feche outros apps que estejam usando o dispositivo.";
+    }
+  }
+
+  if (error instanceof TypeError && isInsecureAudioContext()) {
+    return "A captura de audio exige contexto seguro (HTTPS ou localhost).";
+  }
+
+  return "Nao foi possivel acessar o microfone. Verifique as permissoes do navegador.";
+}
+
+function getFileExtension(fileName: string) {
+  const normalizedName = fileName.trim().toLowerCase();
+  const extensionIndex = normalizedName.lastIndexOf(".");
+
+  if (extensionIndex < 0) {
+    return "";
+  }
+
+  return normalizedName.slice(extensionIndex);
+}
+
+function getAudioMimeTypeFromFile(file: File) {
+  const normalizedMimeType = file.type.split(";")[0]?.trim().toLowerCase() ?? "";
+
+  if (supportedAudioMimeTypes.includes(normalizedMimeType as (typeof supportedAudioMimeTypes)[number])) {
+    return normalizedMimeType;
+  }
+
+  return mimeTypeByExtension[getFileExtension(file.name)] ?? "";
+}
+
+function normalizeAudioFile(file: File) {
+  const normalizedMimeType = getAudioMimeTypeFromFile(file);
+
+  if (normalizedMimeType.length === 0 || normalizedMimeType === file.type) {
+    return file;
+  }
+
+  return new File([file], file.name, {
+    type: normalizedMimeType,
+    lastModified: file.lastModified,
+  });
+}
+
+function validateAudioFile(file: File) {
+  if (file.size === 0) {
+    return "O arquivo selecionado esta vazio.";
+  }
+
+  if (file.size > maxAudioUploadBytes) {
+    return `O arquivo excede o limite atual de ${formatBytes(maxAudioUploadBytes)}.`;
+  }
+
+  const normalizedMimeType = getAudioMimeTypeFromFile(file);
+  const extension = getFileExtension(file.name);
+
+  if (
+    normalizedMimeType.length === 0 &&
+    !supportedAudioExtensions.includes(extension as (typeof supportedAudioExtensions)[number])
+  ) {
+    return "Formato de audio nao suportado. Use webm, ogg, wav, mp3, mp4, m4a ou aac.";
+  }
+
+  return null;
+}
+
+function getMicrophoneFileName(blobType: string) {
+  if (blobType.includes("ogg")) {
+    return "microphone-recording.ogg";
+  }
+
+  if (blobType.includes("mp4") || blobType.includes("m4a")) {
+    return "microphone-recording.m4a";
+  }
+
+  return "microphone-recording.webm";
+}
+
+function getVoiceRequestErrorMessage(error: VoiceApiError) {
+  const normalizedMessage = error.message.toLowerCase();
+
+  if (error.status === 404) {
+    return "Endpoint de voz nao encontrado no backend (POST /api/v1/voice/interactions).";
+  }
+
+  if (error.status === 400) {
+    if (
+      normalizedMessage.includes("uploaded audio file is empty") ||
+      normalizedMessage.includes("voice_audio_empty")
+    ) {
+      return "O backend recebeu um audio vazio. Selecione outro arquivo e tente novamente.";
+    }
+
+    if (
+      normalizedMessage.includes("audio file is required") ||
+      normalizedMessage.includes("voice_audio_required")
+    ) {
+      return "Selecione um arquivo de audio antes de enviar.";
+    }
+
+    return "O backend rejeitou o upload. Revise o arquivo selecionado e tente novamente.";
+  }
+
+  if (error.status === 413) {
+    return `O arquivo excede o limite configurado no backend (${formatBytes(maxAudioUploadBytes)} no ambiente atual).`;
+  }
+
+  if (error.status === 415) {
+    return "Formato de audio nao suportado pelo backend. Use webm, ogg, wav, mp3, mp4, m4a ou aac.";
+  }
+
+  if (error.status >= 500) {
+    if (normalizedMessage.includes("failed to convert audio")) {
+      return "O backend nao conseguiu converter o audio enviado. Tente outro arquivo.";
+    }
+
+    return "Falha interna ao processar o audio no backend.";
+  }
+
+  return error.message;
+}
 
 export function ConversationsPage() {
-  // --- voice state ---
-  const [captureStatus, setCaptureStatus] = useState<VoiceCaptureStatus>("idle");
+  const [requestStatus, setRequestStatus] = useState<VoiceRequestStatus>("idle");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [language, setLanguage] = useState("pt-BR");
+  const [selectedAudioFile, setSelectedAudioFile] = useState<File | null>(null);
   const [voiceResult, setVoiceResult] = useState<VoiceInteractionResponse | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const [lastInputSource, setLastInputSource] = useState<VoiceInputSource | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const isMountedRef = useRef(true);
 
-  // --- conversation list state ---
   const [turns, setTurns] = useState<ConversationTurn[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>(initialMeta);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [filters, setFilters] = useState<ConversationFilters>({ role: "", source: "" });
-  const [form, setForm] = useState<ConversationForm>(initialForm);
 
   const stopCurrentStream = () => {
-    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
   };
 
-  const resetCaptureResources = () => {
+  const resetCaptureResources = (stopRecorder = false) => {
     const recorder = mediaRecorderRef.current;
 
     if (recorder) {
@@ -129,7 +315,7 @@ export function ConversationsPage() {
       recorder.ondataavailable = null;
       recorder.onerror = null;
 
-      if (recorder.state !== "inactive") {
+      if (stopRecorder && recorder.state !== "inactive") {
         try {
           recorder.stop();
         } catch {
@@ -143,82 +329,203 @@ export function ConversationsPage() {
     stopCurrentStream();
   };
 
-  // ── voice effects ──
+  const clearVoiceFeedback = () => {
+    setVoiceResult(null);
+    setVoiceError(null);
+    setVoiceNotice(null);
+  };
+
+  const clearSelectedAudioFile = () => {
+    setSelectedAudioFile(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const clearCurrentAttempt = () => {
+    if (requestStatus !== "idle") {
+      return;
+    }
+
+    clearSelectedAudioFile();
+    clearVoiceFeedback();
+    setLastInputSource(null);
+    setRecordingSeconds(0);
+  };
+
+  const loadTurns = useCallback(
+    async (page = 1) => {
+      setIsLoading(true);
+      setListError(null);
+
+      try {
+        const response = await conversationTurnsApi.list({
+          page,
+          pageSize: meta.pageSize,
+          role: filters.role || undefined,
+          source: filters.source.trim() || undefined,
+        });
+
+        setTurns(response.data);
+        setMeta(response.meta);
+      } catch (error) {
+        setListError(getApiErrorMessage(error));
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [filters.role, filters.source, meta.pageSize]
+  );
+
+  const submitAudio = useCallback(
+    async (audioFile: Blob, source: VoiceInputSource, fileName?: string) => {
+      setRequestStatus("uploading");
+      setLastInputSource(source);
+      setVoiceError(null);
+      setVoiceNotice(null);
+      setVoiceResult(null);
+
+      try {
+        const response = await sendVoiceInteraction({
+          audioFile,
+          fileName,
+          language: language.trim() || undefined,
+        });
+
+        if (!isMountedRef.current) {
+          return;
+        }
+
+        const normalizedTranscription = response.transcription?.trim() ?? "";
+
+        setVoiceResult(response);
+        setVoiceError(null);
+        setVoiceNotice(
+          normalizedTranscription.length === 0
+            ? "O backend processou o audio, mas a transcricao voltou vazia."
+            : null
+        );
+
+        void loadTurns(1);
+      } catch (error) {
+        if (!isMountedRef.current) {
+          return;
+        }
+
+        setVoiceNotice(null);
+
+        if (error instanceof VoiceApiError) {
+          setVoiceError(getVoiceRequestErrorMessage(error));
+          return;
+        }
+
+        if (error instanceof Error) {
+          setVoiceError(error.message);
+          return;
+        }
+
+        setVoiceError("Falha ao enviar o audio para o backend.");
+      } finally {
+        if (source === "microphone") {
+          resetCaptureResources();
+        }
+
+        if (isMountedRef.current) {
+          setRecordingSeconds(0);
+          setRequestStatus("idle");
+        }
+      }
+    },
+    [language, loadTurns]
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
 
     return () => {
       isMountedRef.current = false;
-      resetCaptureResources();
+      resetCaptureResources(true);
     };
   }, []);
 
   useEffect(() => {
-    if (captureStatus !== "recording") return;
-    const id = window.setInterval(
-      () => setRecordingSeconds((s) => s + 1),
-      1000
-    );
-    return () => window.clearInterval(id);
-  }, [captureStatus]);
+    if (requestStatus !== "recording") {
+      return;
+    }
 
-  // ── voice handlers ──
+    const intervalId = window.setInterval(() => {
+      setRecordingSeconds((currentSeconds) => currentSeconds + 1);
+    }, 1000);
 
-  const uploadAudio = async () => {
-    setCaptureStatus("uploading");
-    const recorder = mediaRecorderRef.current;
-    const blobType =
-      recorder?.mimeType && recorder.mimeType.length > 0
-        ? recorder.mimeType
-        : "audio/webm";
+    return () => window.clearInterval(intervalId);
+  }, [requestStatus]);
 
-    try {
-      const audioBlob = new Blob(chunksRef.current, { type: blobType });
+  useEffect(() => {
+    void loadTurns(1);
+  }, [loadTurns]);
 
-      if (audioBlob.size === 0) {
-        if (isMountedRef.current) {
-          setVoiceError("Nenhum áudio foi capturado. Tente gravar novamente.");
-        }
-        return;
-      }
+  const openFilePicker = () => {
+    if (requestStatus === "uploading") {
+      return;
+    }
 
-      const response = await sendVoiceInteraction({ audioBlob });
-      if (isMountedRef.current) {
-        setVoiceResult(response);
-        setVoiceError(null);
-        // Recarrega o histórico para mostrar o turn gerado pela interação de voz
-        void loadTurns(1);
-      }
-    } catch (error) {
-      if (!isMountedRef.current) return;
-      if (error instanceof VoiceApiError && error.status === 404) {
-        setVoiceError(
-          "Endpoint de voz não encontrado no backend (POST /voice/interactions)."
-        );
-      } else if (error instanceof Error) {
-        setVoiceError(error.message);
-      } else {
-        setVoiceError("Falha ao enviar o áudio para o backend.");
-      }
-    } finally {
-      resetCaptureResources();
-
-      if (isMountedRef.current) {
-        setRecordingSeconds(0);
-        setCaptureStatus("idle");
-      }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
     }
   };
 
-  const startRecording = async () => {
-    if (captureStatus !== "idle") return;
-    if (!hasVoiceCaptureSupport()) {
-      setVoiceError("Este navegador não oferece suporte a gravação com MediaRecorder.");
+  const onAudioFileSelected = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+
+    if (!selectedFile) {
       return;
     }
+
+    const validationMessage = validateAudioFile(selectedFile);
+
+    setLastInputSource("file");
+
+    if (validationMessage) {
+      setSelectedAudioFile(null);
+      setVoiceResult(null);
+      setVoiceNotice(null);
+      setVoiceError(validationMessage);
+      event.target.value = "";
+      return;
+    }
+
+    clearVoiceFeedback();
+    setSelectedAudioFile(normalizeAudioFile(selectedFile));
+  };
+
+  const sendSelectedAudioFile = async () => {
+    if (!selectedAudioFile || requestStatus !== "idle") {
+      return;
+    }
+
+    await submitAudio(selectedAudioFile, "file", selectedAudioFile.name);
+  };
+
+  const startRecording = async () => {
+    if (requestStatus !== "idle") {
+      return;
+    }
+
+    const availabilityMessage = getVoiceCaptureAvailabilityMessage();
+
+    setLastInputSource("microphone");
+
+    if (availabilityMessage) {
+      setVoiceNotice(null);
+      setVoiceError(availabilityMessage);
+      return;
+    }
+
     try {
-      resetCaptureResources();
+      resetCaptureResources(true);
+      clearVoiceFeedback();
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const supportedMimeType = getSupportedRecorderMimeType();
@@ -230,116 +537,111 @@ export function ConversationsPage() {
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
       };
-      recorder.onstop = () => void uploadAudio();
+
       recorder.onerror = () => {
         resetCaptureResources();
 
-        if (isMountedRef.current) {
-          setCaptureStatus("idle");
-          setVoiceError("Falha durante a gravação de áudio. Tente novamente.");
+        if (!isMountedRef.current) {
+          return;
         }
-      };
-      recorder.start();
 
+        setRequestStatus("idle");
+        setVoiceNotice(null);
+        setVoiceError("Falha durante a gravacao de audio. Tente novamente.");
+      };
+
+      recorder.onstop = () => {
+        const recordedMimeType =
+          recorder.mimeType && recorder.mimeType.length > 0 ? recorder.mimeType : "audio/webm";
+        const recordedBlob = new Blob(chunksRef.current, { type: recordedMimeType });
+
+        if (recordedBlob.size === 0) {
+          resetCaptureResources();
+
+          if (!isMountedRef.current) {
+            return;
+          }
+
+          setRequestStatus("idle");
+          setRecordingSeconds(0);
+          setVoiceNotice(null);
+          setVoiceError("Nenhum audio foi capturado. Tente gravar novamente.");
+          return;
+        }
+
+        const recordedFile = new File([recordedBlob], getMicrophoneFileName(recordedMimeType), {
+          type: recordedMimeType,
+        });
+
+        void submitAudio(recordedFile, "microphone", recordedFile.name);
+      };
+
+      recorder.start();
       setRecordingSeconds(0);
-      setCaptureStatus("recording");
+      setRequestStatus("recording");
       setVoiceError(null);
-    } catch {
-      resetCaptureResources();
-      setCaptureStatus("idle");
-      setVoiceError(
-        "Não foi possível acessar o microfone. Verifique as permissões do navegador."
-      );
+    } catch (error) {
+      resetCaptureResources(true);
+      setRequestStatus("idle");
+      setVoiceNotice(null);
+      setVoiceError(getMicrophoneAccessErrorMessage(error));
     }
   };
 
   const stopRecording = () => {
     const recorder = mediaRecorderRef.current;
-    if (!recorder || recorder.state !== "recording") return;
-    setCaptureStatus("uploading");
+
+    if (!recorder || recorder.state !== "recording") {
+      return;
+    }
+
+    setRequestStatus("uploading");
 
     try {
       recorder.stop();
     } catch {
       resetCaptureResources();
 
-      if (isMountedRef.current) {
-        setCaptureStatus("idle");
-        setVoiceError("Não foi possível finalizar a gravação. Tente novamente.");
+      if (!isMountedRef.current) {
+        return;
       }
+
+      setRequestStatus("idle");
+      setVoiceNotice(null);
+      setVoiceError("Nao foi possivel finalizar a gravacao. Tente novamente.");
     }
   };
 
-  // ── conversation list handlers ──
-
-  const loadTurns = useCallback(
-    async (page = meta.page) => {
-      setIsLoading(true);
-      setListError(null);
-      try {
-        const response = await conversationTurnsApi.list({
-          page,
-          pageSize: meta.pageSize,
-          role: filters.role || undefined,
-          source: filters.source.trim() || undefined,
-        });
-        setTurns(response.data);
-        setMeta(response.meta);
-      } catch (error) {
-        setListError(getApiErrorMessage(error));
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [filters.role, filters.source, meta.page, meta.pageSize]
-  );
-
-  useEffect(() => {
-    void loadTurns(1);
-  }, [loadTurns]);
-
-  const onCreateTurn = async () => {
-    if (!form.content.trim()) {
-      setListError("Conversation content is required.");
-      return;
-    }
-    setIsSubmitting(true);
-    setListError(null);
-    setSuccessMessage(null);
-    try {
-      await conversationTurnsApi.create({
-        role: form.role,
-        source: form.source.trim() || "chat",
-        content: form.content.trim(),
-      });
-      setForm(initialForm);
-      setSuccessMessage("Conversation turn added.");
-      await loadTurns(1);
-    } catch (error) {
-      setListError(getApiErrorMessage(error));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // ── derived ──
+  const voiceCaptureAvailabilityMessage = getVoiceCaptureAvailabilityMessage();
+  const hasAttemptState =
+    selectedAudioFile !== null ||
+    voiceResult !== null ||
+    voiceError !== null ||
+    voiceNotice !== null ||
+    lastInputSource !== null;
+  const canSendSelectedFile = requestStatus === "idle" && selectedAudioFile !== null;
+  const canStartRecording = requestStatus === "idle" && !voiceCaptureAvailabilityMessage;
+  const transcriptionText = voiceResult?.transcription?.trim() ?? "";
+  const assistantText = voiceResult?.assistantText?.trim() ?? "";
 
   const voiceStatusTone =
-    captureStatus === "recording"
+    requestStatus === "recording"
       ? "warning"
-      : captureStatus === "uploading"
+      : requestStatus === "uploading"
         ? "info"
         : "neutral";
 
   const voiceStatusLabel =
-    captureStatus === "recording"
+    requestStatus === "recording"
       ? `Gravando (${recordingSeconds}s)`
-      : captureStatus === "uploading"
-        ? "Enviando áudio..."
-        : "Parado";
+      : requestStatus === "uploading"
+        ? "Enviando audio..."
+        : "Pronto para teste";
 
   const columns = [
     {
@@ -364,49 +666,84 @@ export function ConversationsPage() {
     },
   ];
 
-  // ── render ──
-
   return (
     <div className="page-stack">
       <PageHeader
-        title="Conversations"
-        description="Interação por voz e histórico de turns do assistente."
+        title="Voice Validation"
+        description="Fluxo principal para importar audio, enviar ao STT offline e revisar a resposta retornada pelo backend."
         icon={<ClockCounterClockwise weight="duotone" />}
+        actions={<StatusPill tone="info">POST /api/v1/voice/interactions</StatusPill>}
       />
 
-      {/* ── Seção de voz ── */}
       <Section
-        title="Voice Interaction (MVP)"
-        subtitle="Grave sua voz, envie ao backend e receba transcrição e resposta."
+        title="Arquivo de audio"
+        subtitle="Fluxo principal desta fase: importar, enviar, validar transcricao e tentar novamente sem recarregar a pagina."
       >
         <Card>
           <CardHeader>
-            <CardTitle>Microfone</CardTitle>
+            <CardTitle>Teste por arquivo</CardTitle>
             <CardDescription>
-              Capture sua voz, envie o áudio e receba transcrição/resposta do backend.
+              Use arquivos reais para validar o STT sem depender de microfone.
             </CardDescription>
           </CardHeader>
           <CardContent className="voice-mvp">
             <div className="voice-mvp__controls">
               <StatusPill tone={voiceStatusTone}>{voiceStatusLabel}</StatusPill>
-              <div className="voice-mvp__actions">
-                <Button onClick={() => void startRecording()} disabled={captureStatus !== "idle"}>
-                  <Microphone weight="duotone" />
-                  Iniciar gravação
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={stopRecording}
-                  disabled={captureStatus !== "recording"}
-                >
-                  {captureStatus === "uploading" ? (
-                    <UploadSimple weight="duotone" />
-                  ) : (
-                    <StopCircle weight="duotone" />
-                  )}
-                  {captureStatus === "uploading" ? "Enviando..." : "Parar e enviar"}
-                </Button>
+              <span className="voice-mvp__support-copy">
+                Aceita webm, ogg, wav, mp3, mp4, m4a e aac ate {formatBytes(maxAudioUploadBytes)}.
+              </span>
+            </div>
+
+            <div className="voice-mvp__file-toolbar">
+              <input
+                ref={fileInputRef}
+                className="voice-mvp__file-input"
+                type="file"
+                accept={acceptedAudioTypes}
+                onChange={onAudioFileSelected}
+              />
+
+              <Button
+                variant="secondary"
+                onClick={openFilePicker}
+                disabled={requestStatus === "uploading"}
+              >
+                <UploadSimple weight="duotone" />
+                Importar audio
+              </Button>
+
+              <Button onClick={() => void sendSelectedAudioFile()} disabled={!canSendSelectedFile}>
+                <UploadSimple weight="duotone" />
+                {voiceResult && selectedAudioFile ? "Enviar novamente" : "Enviar arquivo"}
+              </Button>
+
+              <Button
+                variant="ghost"
+                onClick={clearCurrentAttempt}
+                disabled={requestStatus !== "idle" || !hasAttemptState}
+              >
+                Limpar / tentar outro
+              </Button>
+            </div>
+
+            <div className="voice-mvp__file-grid">
+              <div className="voice-mvp__file-card">
+                <strong>Arquivo selecionado</strong>
+                <span>{selectedAudioFile?.name ?? "Nenhum arquivo selecionado."}</span>
+                <small>
+                  {selectedAudioFile
+                    ? `${formatBytes(selectedAudioFile.size)} | ${selectedAudioFile.type || "tipo inferido"}`
+                    : "Selecione um audio local para iniciar o teste."}
+                </small>
               </div>
+
+              <Input
+                label="Language"
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+                placeholder="pt-BR"
+                hint="Campo opcional enviado junto ao multipart/form-data."
+              />
             </div>
 
             {voiceError ? (
@@ -416,100 +753,121 @@ export function ConversationsPage() {
               </div>
             ) : null}
 
+            {voiceNotice ? (
+              <div className="voice-mvp__notice" role="status">
+                <WarningCircle weight="duotone" />
+                <span>{voiceNotice}</span>
+              </div>
+            ) : null}
+
+            {requestStatus === "uploading" ? (
+              <LoadingBlock label="Enviando audio para o backend..." />
+            ) : null}
+
             {voiceResult ? (
               <div className="voice-mvp__result">
                 <div className="voice-mvp__result-block">
-                  <strong>Transcrição</strong>
-                  <p>{voiceResult.transcription ?? "Sem transcrição retornada."}</p>
+                  <strong>Origem da tentativa</strong>
+                  <p>{lastInputSource === "microphone" ? "Microfone" : "Arquivo importado"}</p>
                 </div>
                 <div className="voice-mvp__result-block">
-                  <strong>Resposta</strong>
-                  <p>{voiceResult.assistantText ?? "Sem resposta textual retornada."}</p>
+                  <strong>Transcricao</strong>
+                  <p>{transcriptionText || "Audio processado, mas sem fala detectavel nesta tentativa."}</p>
+                </div>
+                <div className="voice-mvp__result-block">
+                  <strong>Assistant text</strong>
+                  <p>{assistantText || "Sem resposta textual retornada pelo backend."}</p>
                 </div>
                 {voiceResult.audioReplyUrl ? (
-                  <small>TTS: backend retornou áudio em {voiceResult.audioReplyUrl}</small>
+                  <small className="voice-mvp__hint">
+                    Audio de resposta disponivel em {voiceResult.audioReplyUrl}
+                  </small>
                 ) : null}
               </div>
             ) : (
               <div className="voice-mvp__placeholder">
-                <Waveform weight="duotone" />
-                <p>Nenhuma interação enviada ainda. Grave e envie seu primeiro áudio.</p>
+                <UploadSimple weight="duotone" />
+                <p>
+                  Nenhum audio enviado ainda. Importe um arquivo, envie para o backend e confira o retorno do STT.
+                </p>
               </div>
             )}
-
-            <small className="voice-mvp__hint">
-              Contrato: <code>POST /voice/interactions</code> com{" "}
-              <code>multipart/form-data</code> (<code>audio</code> + <code>language</code>).
-            </small>
           </CardContent>
         </Card>
       </Section>
 
-      {/* ── Seção de histórico ── */}
       <Section
-        title="Conversation Timeline"
-        subtitle="Paginated list ordered by backend createdAt DESC."
+        title="Microfone"
+        subtitle="Fluxo complementar. Mantido organizado, mas fora do caminho principal de validacao por arquivo."
       >
         <Card>
           <CardHeader>
-            <CardTitle>Register Conversation Turn</CardTitle>
+            <CardTitle>Captura opcional</CardTitle>
+            <CardDescription>
+              Use apenas quando houver microfone disponivel e voce quiser comparar com o upload de arquivo.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="stack-sm">
-            <div className="form-grid">
-              <Select
-                label="Role"
-                value={form.role}
-                onChange={(e) =>
-                  setForm((cur) => ({ ...cur, role: e.target.value as ConversationRole }))
-                }
-              >
-                <option value="user">user</option>
-                <option value="assistant">assistant</option>
-                <option value="system">system</option>
-              </Select>
-              <Input
-                label="Source"
-                value={form.source}
-                onChange={(e) => setForm((cur) => ({ ...cur, source: e.target.value }))}
-                placeholder="chat"
-              />
-            </div>
-            <TextArea
-              label="Content"
-              value={form.content}
-              onChange={(e) => setForm((cur) => ({ ...cur, content: e.target.value }))}
-              placeholder="Conversation turn content"
-            />
-            <div className="form-actions">
-              <Button
-                variant="primary"
-                onClick={() => void onCreateTurn()}
-                disabled={isSubmitting}
-              >
-                <ChatCircleDots weight="duotone" />
-                {isSubmitting ? "Saving..." : "Add Turn"}
+          <CardContent className="voice-mvp">
+            <div className="voice-mvp__actions">
+              <Button onClick={() => void startRecording()} disabled={!canStartRecording}>
+                <Microphone weight="duotone" />
+                Iniciar gravacao
               </Button>
-              {successMessage ? (
-                <span className="form-feedback">{successMessage}</span>
-              ) : null}
+              <Button
+                variant="secondary"
+                onClick={stopRecording}
+                disabled={requestStatus !== "recording"}
+              >
+                <StopCircle weight="duotone" />
+                Parar e enviar
+              </Button>
             </div>
+
+            {voiceCaptureAvailabilityMessage ? (
+              <div className="voice-mvp__notice" role="status">
+                <WarningCircle weight="duotone" />
+                <span>{voiceCaptureAvailabilityMessage}</span>
+              </div>
+            ) : (
+              <small className="voice-mvp__hint">
+                Se o navegador permitir, a gravacao sera enviada para o mesmo endpoint usado no upload.
+              </small>
+            )}
           </CardContent>
         </Card>
+      </Section>
 
+      <Section
+        title="Conversation Timeline"
+        subtitle="Historico util para debug. O fluxo de voz desta etapa prioriza resultado imediato; persistencia automatica de turns pode ser reforcada na fase seguinte."
+      >
         <FilterBar
           actions={
-            <Button variant="ghost" onClick={() => setFilters({ role: "", source: "" })}>
-              Reset filters
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => void loadTurns(meta.page)}
+                disabled={isLoading}
+              >
+                Atualizar lista
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setFilters({ role: "", source: "" })}
+                disabled={isLoading}
+              >
+                Limpar filtros
+              </Button>
+            </>
           }
         >
           <Select
             label="Role"
             value={filters.role}
-            onChange={(e) =>
-              setFilters((cur) => ({
-                ...cur,
-                role: e.target.value as ConversationFilters["role"],
+            onChange={(event) =>
+              setFilters((current) => ({
+                ...current,
+                role: event.target.value as ConversationFilters["role"],
               }))
             }
           >
@@ -521,8 +879,10 @@ export function ConversationsPage() {
           <Input
             label="Source"
             value={filters.source}
-            onChange={(e) => setFilters((cur) => ({ ...cur, source: e.target.value }))}
-            placeholder="chat"
+            onChange={(event) =>
+              setFilters((current) => ({ ...current, source: event.target.value }))
+            }
+            placeholder="voice"
           />
         </FilterBar>
 
@@ -533,16 +893,13 @@ export function ConversationsPage() {
         {!isLoading && !listError && turns.length === 0 ? (
           <EmptyState
             title="No turns found"
-            description="Register turns or adjust current filters."
+            description="Nenhum turn encontrado com os filtros atuais."
           />
         ) : null}
         {!isLoading && !listError && turns.length > 0 ? (
           <>
             <DataTable columns={columns} data={turns} rowKey={(turn) => turn.id} />
-            <PaginationControls
-              meta={meta}
-              onPageChange={(page) => void loadTurns(page)}
-            />
+            <PaginationControls meta={meta} onPageChange={(page) => void loadTurns(page)} />
           </>
         ) : null}
       </Section>
