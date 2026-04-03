@@ -12,6 +12,11 @@ const EnvSchema = z.object({
   BACKEND_PORT: z.coerce.number().int().positive().default(3333),
   CORS_ORIGIN: z.string().optional(),
   CORS_ORIGINS: z.string().optional(),
+  LLM_PROVIDER: z.enum(["disabled", "gemini", "grok"]).default("disabled"),
+  LLM_API_KEY: z.string().optional(),
+  LLM_MODEL: z.string().default(""),
+  LLM_BASE_URL: z.string().url().optional(),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(45_000),
   STT_PROVIDER: z.string().default("vosk"),
   STT_MODEL_PATH: z.string().default(
     path.resolve(repositoryRoot, "services", "stt", "models", "pt-br")
@@ -77,6 +82,11 @@ export const env = {
   host: parsed.data.BACKEND_HOST,
   port: parsed.data.BACKEND_PORT,
   corsOrigins,
+  llmProvider: parsed.data.LLM_PROVIDER,
+  llmApiKey: parsed.data.LLM_API_KEY?.trim() || null,
+  llmModel: parsed.data.LLM_MODEL.trim(),
+  llmBaseUrl: parsed.data.LLM_BASE_URL?.trim() || null,
+  llmTimeoutMs: parsed.data.LLM_TIMEOUT_MS,
   sttProvider: parsed.data.STT_PROVIDER,
   sttModelPath: resolvedSttModelPath,
   sttAudioMaxBytes: parsed.data.STT_AUDIO_MAX_BYTES,

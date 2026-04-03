@@ -47,6 +47,18 @@ Base URL: `/api/v1`
 - Possible errors: `VOICE_AUDIO_REQUIRED`, `VOICE_AUDIO_TOO_LARGE`, `VOICE_AUDIO_UNSUPPORTED_TYPE`, `VOICE_AUDIO_EMPTY`, `VOICE_FFMPEG_NOT_FOUND`, `VOICE_STT_PROVIDER_UNAVAILABLE`, `VOICE_STT_MODEL_NOT_FOUND`, `VOICE_AUDIO_CONVERSION_FAILED`, `VOICE_TRANSCRIPTION_FAILED`, `VOICE_PROCESSING_FAILED`, `VALIDATION_ERROR`, `INTERNAL_SERVER_ERROR`.
 - Notes: conversao para PCM mono 16k via FFmpeg antes da transcricao.
 
+## LLM
+
+### POST `/llm/generate`
+- Description: gera resposta grounded usando `user_profile` + `facts`, com foco em ecossistemas e sem usar tasks ou conversation turns nesta fase.
+- Path params: none.
+- Query params: none.
+- Request body: `GenerateLlmRequest`.
+- Response body: `LlmGenerateResponse`.
+- Possible errors: `LLM_PROVIDER_NOT_CONFIGURED`, `LLM_API_KEY_MISSING`, `LLM_PROVIDER_REQUEST_FAILED`, `LLM_EMPTY_RESPONSE`, `VALIDATION_ERROR`, `INTERNAL_SERVER_ERROR`.
+- Notes: `dryRun=true` monta o contexto e retorna preview sem chamar provider externo.
+- Notes: se o grounding for insuficiente, o backend retorna resposta explicita sem deixar o provider responder fora do banco.
+
 ## Facts
 
 ### GET `/facts`

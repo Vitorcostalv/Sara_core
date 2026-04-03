@@ -7,6 +7,8 @@ Campos adicionais da migration 004: `preferred_name`, `full_name`, `email`, `bir
 
 ## `facts`
 Armazena fatos persistidos sobre o usuario para memoria semantica local.
+Nesta fase, tambem armazena contexto de ecossistemas para grounding da LLM usando a convencao `category = ecosystem:<slug>`.
+Convencao detalhada: `docs/conventions/ecosystem-facts.md`.
 
 ## `tasks`
 Registra tarefas com status, prioridade e data limite opcional.

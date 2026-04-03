@@ -1,10 +1,6 @@
-import { createBrowserRouter } from "react-router-dom";
+import { Navigate, createBrowserRouter } from "react-router-dom";
 import { App } from "../app/App";
 import { ConversationsPage } from "../pages/ConversationsPage";
-import { DashboardPage } from "../pages/DashboardPage";
-import { FactsPage } from "../pages/FactsPage";
-import { SettingsPage } from "../pages/SettingsPage";
-import { TasksPage } from "../pages/TasksPage";
 import { ToolCallsPage } from "../pages/ToolCallsPage";
 
 export const appRouter = createBrowserRouter([
@@ -12,12 +8,9 @@ export const appRouter = createBrowserRouter([
     path: "/",
     element: <App />,
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: "tasks", element: <TasksPage /> },
-      { path: "facts", element: <FactsPage /> },
+      { index: true, element: <Navigate to="/conversations" replace /> },
       { path: "conversations", element: <ConversationsPage /> },
-      { path: "tool-calls", element: <ToolCallsPage /> },
-      { path: "settings", element: <SettingsPage /> }
+      { path: "tool-calls", element: <ToolCallsPage /> }
     ]
   }
 ]);

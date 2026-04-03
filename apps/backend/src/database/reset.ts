@@ -1,6 +1,7 @@
 import { db } from "./client";
 import { logger } from "../logging/logger";
 import { runMigrations } from "./migrate";
+import { runSeeds } from "./seed";
 
 const tables = db
   .prepare(
@@ -21,5 +22,6 @@ for (const table of tables) {
 logger.info({ droppedTables: tables.length }, "Database schema cleared");
 
 runMigrations();
+runSeeds();
 logger.info("Database reset completed");
 

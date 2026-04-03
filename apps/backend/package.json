@@ -9,9 +9,10 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/modules/tasks/tasks.service.test.ts src/modules/facts/facts.repository.test.ts src/modules/user-profile/user-profile.service.test.ts",
+    "test": "tsx --test src/modules/tasks/tasks.service.test.ts src/modules/facts/facts.repository.test.ts src/modules/user-profile/user-profile.service.test.ts src/modules/llm/context-builder.service.test.ts",
     "db:migrate": "tsx src/database/migrate.ts",
-    "db:reset": "tsx src/database/reset.ts"
+    "db:reset": "tsx src/database/reset.ts",
+    "db:seed": "tsx src/database/seed.ts"
   },
   "dependencies": {
     "@sara/shared-types": "0.1.0",
