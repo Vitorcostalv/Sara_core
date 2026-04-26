@@ -1,4 +1,4 @@
-import type { TextareaHTMLAttributes } from "react";
+import { useId, type TextareaHTMLAttributes } from "react";
 import { cn } from "./utils";
 
 interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -7,7 +7,8 @@ interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 }
 
 export function TextArea({ label, hint, className, id, ...props }: TextAreaProps) {
-  const inputId = id ?? props.name;
+  const generatedId = useId();
+  const inputId = id ?? props.name ?? generatedId;
 
   if (!label) {
     return <textarea id={inputId} className={cn("ui-textarea", className)} {...props} />;

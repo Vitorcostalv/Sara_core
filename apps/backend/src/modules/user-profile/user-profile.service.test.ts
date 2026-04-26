@@ -15,25 +15,25 @@ function makeUserProfile(overrides: Partial<UserProfile> = {}): UserProfile {
     birthDate: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    ...overrides
+    ...overrides,
   };
 }
 
-test("UserProfileService.getLocalProfile ensures and returns local user profile", () => {
+test("UserProfileService.getLocalProfile ensures and returns local user profile", async () => {
   const expected = makeUserProfile();
 
   const repository: UserProfileRepositoryContract = {
-    ensureLocalProfile: () => expected,
-    updateLocalProfile: () => expected
+    ensureLocalProfile: () => Promise.resolve(expected),
+    updateLocalProfile: () => Promise.resolve(expected),
   };
 
   const service = new UserProfileService(repository);
-  const profile = service.getLocalProfile();
+  const profile = await service.getLocalProfile();
 
   assert.equal(profile.id, "local-user");
 });
 
-test("UserProfileService.updateLocalProfile updates only provided fields", () => {
+test("UserProfileService.updateLocalProfile updates only provided fields", async () => {
   const updated = makeUserProfile({ preferredName: "Sara", displayName: "Sara Core" });
 
   let ensureCalled = false;
@@ -42,17 +42,17 @@ test("UserProfileService.updateLocalProfile updates only provided fields", () =>
   const repository: UserProfileRepositoryContract = {
     ensureLocalProfile: () => {
       ensureCalled = true;
-      return makeUserProfile();
+      return Promise.resolve(makeUserProfile());
     },
     updateLocalProfile: (input) => {
       updateCalled = true;
       assert.equal(input.preferredName, "Sara");
-      return updated;
-    }
+      return Promise.resolve(updated);
+    },
   };
 
   const service = new UserProfileService(repository);
-  const profile = service.updateLocalProfile({ preferredName: "Sara" });
+  const profile = await service.updateLocalProfile({ preferredName: "Sara" });
 
   assert.equal(ensureCalled, true);
   assert.equal(updateCalled, true);

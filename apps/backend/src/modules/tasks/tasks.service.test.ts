@@ -15,46 +15,52 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     dueDate: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    ...overrides
+    ...overrides,
   };
 }
 
-test("TasksService.getTaskById throws when task does not exist", () => {
+test("TasksService.getTaskById throws when task does not exist", async () => {
   const repository: TasksRepositoryContract = {
-    list: () => ({ items: [], total: 0 }),
-    create: () => makeTask(),
-    findById: () => null,
-    updateById: () => null,
-    completeById: () => null,
-    deleteById: () => false
+    list: () => Promise.resolve({ items: [], total: 0 }),
+    create: () => Promise.resolve(makeTask()),
+    findById: () => Promise.resolve(null),
+    updateById: () => Promise.resolve(null),
+    completeById: () => Promise.resolve(null),
+    deleteById: () => Promise.resolve(false),
   };
 
   const service = new TasksService(repository);
 
-  assert.throws(() => service.getTaskById("missing-id"), (error: unknown) => {
-    assert.ok(error instanceof AppError);
-    assert.equal(error.code, "TASK_NOT_FOUND");
-    return true;
-  });
+  await assert.rejects(
+    () => service.getTaskById("missing-id"),
+    (error: unknown) => {
+      assert.ok(error instanceof AppError);
+      assert.equal(error.code, "TASK_NOT_FOUND");
+      return true;
+    }
+  );
 });
 
-test("TasksService.completeTask rejects archived tasks", () => {
+test("TasksService.completeTask rejects archived tasks", async () => {
   const archivedTask = makeTask({ status: "archived" });
 
   const repository: TasksRepositoryContract = {
-    list: () => ({ items: [], total: 0 }),
-    create: () => archivedTask,
-    findById: () => archivedTask,
-    updateById: () => archivedTask,
-    completeById: () => null,
-    deleteById: () => false
+    list: () => Promise.resolve({ items: [], total: 0 }),
+    create: () => Promise.resolve(archivedTask),
+    findById: () => Promise.resolve(archivedTask),
+    updateById: () => Promise.resolve(archivedTask),
+    completeById: () => Promise.resolve(null),
+    deleteById: () => Promise.resolve(false),
   };
 
   const service = new TasksService(repository);
 
-  assert.throws(() => service.completeTask(archivedTask.id), (error: unknown) => {
-    assert.ok(error instanceof AppError);
-    assert.equal(error.code, "TASK_ARCHIVED");
-    return true;
-  });
+  await assert.rejects(
+    () => service.completeTask(archivedTask.id),
+    (error: unknown) => {
+      assert.ok(error instanceof AppError);
+      assert.equal(error.code, "TASK_ARCHIVED");
+      return true;
+    }
+  );
 });

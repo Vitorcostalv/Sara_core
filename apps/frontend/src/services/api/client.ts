@@ -71,6 +71,14 @@ interface RequestOptions {
   body?: unknown;
 }
 
+async function readApiErrorPayload(response: Response): Promise<ApiErrorResponse | null> {
+  try {
+    return (await response.json()) as ApiErrorResponse;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const response = await fetch(buildApiUrl(endpoint), {
     method: options.method ?? "GET",
@@ -80,12 +88,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   });
 
   if (!response.ok) {
-    let errorPayload: ApiErrorResponse | null = null;
-    try {
-      errorPayload = (await response.json()) as ApiErrorResponse;
-    } catch {
-      errorPayload = null;
-    }
+    const errorPayload = await readApiErrorPayload(response);
     throw new ApiClientError(
       response.status,
       errorPayload,

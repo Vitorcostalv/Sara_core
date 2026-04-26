@@ -1,122 +1,116 @@
+/**
+ * facts.repository.test.ts
+ *
+ * This test requires a live PostgreSQL connection via DATABASE_URL.
+ * Set DATABASE_URL (and optionally DIRECT_DATABASE_URL) in your .env before running.
+ *
+ * The test uses the real pg pool and expects the schema to already be migrated
+ * (run `npm run db:migrate` first).
+ */
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { randomUUID } from "node:crypto";
 import { FactsRepository } from "./facts.repository";
+import { pool } from "../../database/postgres";
 
-function createInMemoryDb() {
-  const database = new Database(":memory:");
-  database.pragma("foreign_keys = ON");
+const TEST_USER_ID = `test-facts-repo-${randomUUID()}`;
 
-  database.exec(`
-    CREATE TABLE user_profile (
-      id TEXT PRIMARY KEY,
-      display_name TEXT NOT NULL,
-      locale TEXT NOT NULL,
-      timezone TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE facts (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      key TEXT NOT NULL,
-      value TEXT NOT NULL,
-      category TEXT NOT NULL,
-      is_important INTEGER NOT NULL DEFAULT 0 CHECK (is_important IN (0, 1)),
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES user_profile(id) ON DELETE CASCADE
-    );
-  `);
-
+async function ensureTestUser(): Promise<void> {
   const now = new Date().toISOString();
-
-  database
-    .prepare(
-      `
-      INSERT INTO user_profile (id, display_name, locale, timezone, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `
-    )
-    .run("local-user", "Local User", "pt-BR", "America/Sao_Paulo", now, now);
-
-  return database;
+  await pool.query(
+    `INSERT INTO user_profile (id, display_name, locale, timezone, created_at, updated_at)
+     VALUES ($1, 'Test User', 'pt-BR', 'America/Sao_Paulo', $2, $3)
+     ON CONFLICT (id) DO NOTHING`,
+    [TEST_USER_ID, now, now]
+  );
 }
 
-test("FactsRepository creates, filters and updates facts", () => {
-  const database = createInMemoryDb();
-  const repository = new FactsRepository(database);
+async function cleanupTestUser(): Promise<void> {
+  await pool.query("DELETE FROM user_profile WHERE id = $1", [TEST_USER_ID]);
+}
 
-  const created = repository.create({
-    userId: "local-user",
-    key: "favorite_color",
-    value: "blue",
-    category: "preferences",
-    isImportant: false
-  });
+test("FactsRepository creates, filters and updates facts", async () => {
+  await ensureTestUser();
 
-  assert.equal(created.key, "favorite_color");
-  assert.equal(created.isImportant, false);
+  try {
+    const repository = new FactsRepository();
 
-  const marked = repository.markImportantById(created.id, true);
-  assert.ok(marked);
-  assert.equal(marked?.isImportant, true);
+    const created = await repository.create({
+      userId: TEST_USER_ID,
+      key: "favorite_color",
+      value: "blue",
+      category: "preferences",
+      isImportant: false,
+    });
 
-  const listed = repository.list({
-    userId: "local-user",
-    page: 1,
-    pageSize: 20,
-    category: "preferences",
-    isImportant: true
-  });
+    assert.equal(created.key, "favorite_color");
+    assert.equal(created.isImportant, false);
 
-  assert.equal(listed.total, 1);
-  assert.equal(listed.items[0]?.id, created.id);
+    const marked = await repository.markImportantById(created.id, true);
+    assert.ok(marked);
+    assert.equal(marked?.isImportant, true);
 
-  const deleted = repository.deleteById(created.id);
-  assert.equal(deleted, true);
+    const listed = await repository.list({
+      userId: TEST_USER_ID,
+      page: 1,
+      pageSize: 20,
+      category: "preferences",
+      isImportant: true,
+    });
 
-  database.close();
+    assert.equal(listed.total, 1);
+    assert.equal(listed.items[0]?.id, created.id);
+
+    const deleted = await repository.deleteById(created.id);
+    assert.equal(deleted, true);
+  } finally {
+    await cleanupTestUser();
+  }
 });
 
-test("FactsRepository.listGroundingFacts prioritizes requested ecosystems and relevant global facts", () => {
-  const database = createInMemoryDb();
-  const repository = new FactsRepository(database);
+test("FactsRepository.listGroundingFacts prioritizes requested ecosystems and relevant global facts", async () => {
+  await ensureTestUser();
 
-  repository.create({
-    userId: "local-user",
-    key: "identity.summary",
-    value: "Sara Core is a local assistant platform.",
-    category: "ecosystem:sara-core",
-    isImportant: true
-  });
+  try {
+    const repository = new FactsRepository();
 
-  repository.create({
-    userId: "local-user",
-    key: "voice.endpoint",
-    value: "Voice upload uses /api/v1/voice/interactions.",
-    category: "ecosystem:voice-stt",
-    isImportant: false
-  });
+    await repository.create({
+      userId: TEST_USER_ID,
+      key: "identity.summary",
+      value: "Sara Core is a local assistant platform.",
+      category: "ecosystem:sara-core",
+      isImportant: true,
+    });
 
-  repository.create({
-    userId: "local-user",
-    key: "engineering.change-policy",
-    value: "Evolve incrementally without recreating architecture.",
-    category: "preferences",
-    isImportant: true
-  });
+    await repository.create({
+      userId: TEST_USER_ID,
+      key: "voice.endpoint",
+      value: "Voice upload uses /api/v1/voice/interactions.",
+      category: "ecosystem:voice-stt",
+      isImportant: false,
+    });
 
-  const facts = repository.listGroundingFacts({
-    userId: "local-user",
-    ecosystems: ["sara-core"],
-    limit: 10
-  });
+    await repository.create({
+      userId: TEST_USER_ID,
+      key: "engineering.change-policy",
+      value: "Evolve incrementally without recreating architecture.",
+      category: "preferences",
+      isImportant: true,
+    });
 
-  assert.equal(facts.length, 2);
-  assert.equal(facts[0]?.category, "ecosystem:sara-core");
-  assert.equal(facts[1]?.category, "preferences");
+    const facts = await repository.listGroundingFacts({
+      userId: TEST_USER_ID,
+      ecosystems: ["sara-core"],
+      limit: 10,
+    });
 
-  database.close();
+    assert.equal(facts.length, 2);
+    assert.equal(facts[0]?.category, "ecosystem:sara-core");
+    assert.equal(facts[1]?.category, "preferences");
+  } finally {
+    await cleanupTestUser();
+  }
 });
+
+// Close the pool after all tests
+process.on("exit", () => { void pool.end(); });

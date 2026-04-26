@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Task, TaskPriority, TaskStatus } from "@sara/shared-types";
-import { db } from "../../database/client";
+import { query } from "../../database/postgres";
 import { getPaginationOffset, type PaginatedResult } from "../../core/http/pagination";
 import type { CreateTaskInput, ListTasksQuery, UpdateTaskInput } from "./tasks.schemas";
 
@@ -26,156 +26,97 @@ function mapTask(row: TaskRow): Task {
     priority: row.priority,
     dueDate: row.due_date,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
   };
 }
 
 export class TasksRepository {
-  list(query: ListTasksQuery): PaginatedResult<Task> {
-    const filters: string[] = ["user_id = ?"];
-    const params: unknown[] = [query.userId];
+  async list(q: ListTasksQuery): Promise<PaginatedResult<Task>> {
+    const filters: string[] = ["user_id = $1"];
+    const params: unknown[] = [q.userId];
+    let idx = 2;
 
-    if (query.status) {
-      filters.push("status = ?");
-      params.push(query.status);
-    }
+    if (q.status) { filters.push(`status = $${idx++}`); params.push(q.status); }
+    if (q.priority) { filters.push(`priority = $${idx++}`); params.push(q.priority); }
 
-    if (query.priority) {
-      filters.push("priority = ?");
-      params.push(query.priority);
-    }
+    const whereSql = `WHERE ${filters.join(" AND ")}`;
+    const offset = getPaginationOffset(q);
 
-    const whereSql = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
-    const offset = getPaginationOffset(query);
+    const countResult = await query<{ total: string }>(
+      `SELECT COUNT(*) AS total FROM tasks ${whereSql}`,
+      params
+    );
 
-    const totalRow = db.prepare(`SELECT COUNT(*) AS total FROM tasks ${whereSql}`).get(...params) as {
-      total: number;
-    };
-
-    const rows = db
-      .prepare(
-        `
-        SELECT id, user_id, title, description, status, priority, due_date, created_at, updated_at
-        FROM tasks
-        ${whereSql}
-        ORDER BY updated_at DESC, id DESC
-        LIMIT ? OFFSET ?
-      `
-      )
-      .all(...params, query.pageSize, offset) as TaskRow[];
+    const rowsResult = await query<TaskRow>(
+      `SELECT id, user_id, title, description, status, priority, due_date, created_at, updated_at
+       FROM tasks
+       ${whereSql}
+       ORDER BY updated_at DESC, id DESC
+       LIMIT $${idx++} OFFSET $${idx}`,
+      [...params, q.pageSize, offset]
+    );
 
     return {
-      items: rows.map(mapTask),
-      total: totalRow.total
+      items: rowsResult.rows.map(mapTask),
+      total: parseInt(countResult.rows[0]?.total ?? "0", 10),
     };
   }
 
-  create(input: CreateTaskInput): Task {
+  async create(input: CreateTaskInput): Promise<Task> {
     const now = new Date().toISOString();
     const id = randomUUID();
 
-    db.prepare(
-      `
-      INSERT INTO tasks (id, user_id, title, description, status, priority, due_date, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
-    ).run(
-      id,
-      input.userId,
-      input.title,
-      input.description ?? null,
-      "pending",
-      input.priority,
-      input.dueDate ?? null,
-      now,
-      now
+    await query(
+      `INSERT INTO tasks (id, user_id, title, description, status, priority, due_date, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [id, input.userId, input.title, input.description ?? null, "pending", input.priority, input.dueDate ?? null, now, now]
     );
 
-    return this.findById(id)!;
+    return (await this.findById(id))!;
   }
 
-  findById(id: string): Task | null {
-    const row = db
-      .prepare(
-        `
-        SELECT id, user_id, title, description, status, priority, due_date, created_at, updated_at
-        FROM tasks
-        WHERE id = ?
-      `
-      )
-      .get(id) as TaskRow | undefined;
-
+  async findById(id: string): Promise<Task | null> {
+    const result = await query<TaskRow>(
+      `SELECT id, user_id, title, description, status, priority, due_date, created_at, updated_at
+       FROM tasks WHERE id = $1`,
+      [id]
+    );
+    const row = result.rows[0];
     return row ? mapTask(row) : null;
   }
 
-  updateById(id: string, input: UpdateTaskInput): Task | null {
+  async updateById(id: string, input: UpdateTaskInput): Promise<Task | null> {
     const fields: string[] = [];
     const values: unknown[] = [];
+    let idx = 1;
 
-    if (input.title !== undefined) {
-      fields.push("title = ?");
-      values.push(input.title);
-    }
+    if (input.title !== undefined) { fields.push(`title = $${idx++}`); values.push(input.title); }
+    if (input.description !== undefined) { fields.push(`description = $${idx++}`); values.push(input.description); }
+    if (input.status !== undefined) { fields.push(`status = $${idx++}`); values.push(input.status); }
+    if (input.priority !== undefined) { fields.push(`priority = $${idx++}`); values.push(input.priority); }
+    if (input.dueDate !== undefined) { fields.push(`due_date = $${idx++}`); values.push(input.dueDate); }
 
-    if (input.description !== undefined) {
-      fields.push("description = ?");
-      values.push(input.description);
-    }
+    if (fields.length === 0) return this.findById(id);
 
-    if (input.status !== undefined) {
-      fields.push("status = ?");
-      values.push(input.status);
-    }
-
-    if (input.priority !== undefined) {
-      fields.push("priority = ?");
-      values.push(input.priority);
-    }
-
-    if (input.dueDate !== undefined) {
-      fields.push("due_date = ?");
-      values.push(input.dueDate);
-    }
-
-    if (fields.length === 0) {
-      return this.findById(id);
-    }
-
-    fields.push("updated_at = ?");
+    fields.push(`updated_at = $${idx++}`);
     values.push(new Date().toISOString());
     values.push(id);
 
-    const result = db
-      .prepare(
-        `
-        UPDATE tasks
-        SET ${fields.join(", ")}
-        WHERE id = ?
-      `
-      )
-      .run(...values);
+    const result = await query(
+      `UPDATE tasks SET ${fields.join(", ")} WHERE id = $${idx}`,
+      values
+    );
 
-    if (result.changes === 0) {
-      return null;
-    }
-
+    if ((result.rowCount ?? 0) === 0) return null;
     return this.findById(id);
   }
 
-  completeById(id: string): Task | null {
+  async completeById(id: string): Promise<Task | null> {
     return this.updateById(id, { status: "done" });
   }
 
-  deleteById(id: string): boolean {
-    const result = db
-      .prepare(
-        `
-        DELETE FROM tasks
-        WHERE id = ?
-      `
-      )
-      .run(id);
-
-    return result.changes > 0;
+  async deleteById(id: string): Promise<boolean> {
+    const result = await query("DELETE FROM tasks WHERE id = $1", [id]);
+    return (result.rowCount ?? 0) > 0;
   }
 }

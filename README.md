@@ -1,122 +1,105 @@
 # Sara Core
 
-Sara Core e uma assistente pessoal local/offline em evolucao incremental.
+## Visão geral
+Sara Core é um monorepo para uma assistente local/offline. Hoje o projeto combina um backend HTTP em Node.js, um frontend React para validação operacional, SQLite local, STT offline com Vosk e um módulo inicial de LLM grounded em dados do banco.
 
-O projeto hoje ja possui:
-- backend Node.js + TypeScript
-- frontend React + TypeScript + Vite
-- SQLite
-- monorepo com contratos compartilhados
-- STT local com Vosk + Python + FFmpeg
-- modulo LLM grounded no backend
+## Status do projeto
+O estado atual é de **MVP técnico/local**.
 
-## Estado atual
+Isso significa:
+- a base já executa fluxos reais de voz, persistência e grounding;
+- a arquitetura principal já existe;
+- o projeto ainda **não** está pronto para produção;
+- segurança, testes, ergonomia operacional e documentação ainda estão em evolução.
 
-Esta fase nao e mais apenas fundacao.
+## Tecnologias
+- Backend: Node.js, TypeScript, Express, Zod, Pino
+- Frontend: React, TypeScript, Vite, React Router, Zustand
+- Banco local: SQLite com `better-sqlite3`
+- STT: Vosk + Python + FFmpeg
+- LLM grounded: providers configuráveis no backend, com contexto vindo de `user_profile` e `facts`
+- Monorepo/tooling: npm workspaces, TypeScript
 
-Hoje o projeto ja suporta:
-- validacao de voz por upload de arquivo no frontend
-- transcricao via `POST /api/v1/voice/interactions`
-- grounding de LLM via `POST /api/v1/llm/generate`
-- contexto limitado a `user_profile` + `facts`
-- ecossistemas modelados em `facts` usando `category = ecosystem:<slug>`
-- `dryRun=true` para auditar contexto sem chamar provider externo
-
-## Objetivo desta fase
-
-O foco atual e:
-- popular o banco com contexto util
-- manter a LLM grounded no banco
-- endurecer seguranca e performance
-- deixar design para uma fase posterior
-
-## Estrutura do monorepo
-
-- `apps/backend`: API HTTP, camadas de aplicacao e acesso ao banco
-- `apps/frontend`: painel React para validacao e debug
+## Estrutura do projeto
+- `apps/backend`: API HTTP, regras de aplicação, acesso ao SQLite e scripts de banco
+- `apps/frontend`: painel de validação e debug
 - `packages/shared-types`: contratos compartilhados entre backend e frontend
-- `packages/shared-config`: configuracoes base de TypeScript
-- `database`: migrations, seeds e documentacao do schema SQLite
-- `docs`: arquitetura, contratos e convencoes
-- `services`: placeholders e referencias para servicos auxiliares
+- `database`: migrations, seeds e documentação do schema
+- `services/stt`: script Python e modelo local usados no fluxo de transcrição
+- `docs`: arquitetura, contratos, endpoints e convenções
 
-## Como rodar
+## Pré-requisitos
+- Node.js em versão compatível com `better-sqlite3`
+  Observação: no ambiente auditado, `Node.js v24.15.0` apresentou incompatibilidade ABI com o binário instalado e exigiu rebuild nativo.
+- npm
+- Python disponível no PATH
+- FFmpeg disponível no PATH
+- modelo Vosk extraído em `services/stt/models/pt-br`
+- arquivo `.env` baseado em `.env.example`
 
-1. Instale dependencias:
+Se você usar uma versão de Node sem binário compatível para `better-sqlite3`, será preciso recompilar o módulo nativo e ter toolchain C++ instalado no Windows.
 
+## Como instalar
 ```bash
 npm install
 ```
 
-2. Garanta um arquivo `.env` local.
+Depois:
+1. copie `.env.example` para `.env`;
+2. revise as variáveis de banco, CORS, STT e LLM;
+3. confirme que Python, FFmpeg e o modelo Vosk estão acessíveis.
 
-3. Resete banco, migrations e seeds:
-
+## Como rodar
+Reset do banco local:
 ```bash
 npm run db:reset
 ```
 
-4. Suba backend e frontend:
-
+Subir backend e frontend:
 ```bash
 npm run dev
 ```
 
+Rodar só o backend:
+```bash
+npm run dev:backend
+```
+
+Rodar só o frontend:
+```bash
+npm run dev:frontend
+```
+
 ## Scripts principais
+- `npm run dev`: sobe backend e frontend
+- `npm run build`: build dos workspaces
+- `npm run typecheck`: checagem de tipos nos workspaces
+- `npm run lint`: lint do monorepo
+- `npm run test`: testes disponíveis por workspace
+- `npm run db:reset`: limpa schema, reaplica migrations e seeds
 
-- `npm run dev`: sobe backend + frontend
-- `npm run dev:backend`: sobe apenas backend
-- `npm run dev:frontend`: sobe apenas frontend
-- `npm run db:migrate`: aplica migrations
-- `npm run db:seed`: aplica seeds locais
-- `npm run db:reset`: limpa schema, reaplica migrations e reaplica seeds
-- `npm run build`: build de todos os workspaces
-- `npm run typecheck`: checagem de tipos em todos os workspaces
+Observação: o root atualmente expõe `build`, `typecheck`, `lint` e scripts de banco. O escopo e a qualidade do lint dependem da configuração presente nos workspaces.
 
-## LLM grounded
+## Fluxos implementados hoje
+- upload de áudio no frontend para `POST /api/v1/voice/interactions`
+- transcrição offline via Vosk no backend
+- histórico de `conversation_turns` para consulta/debug
+- operações básicas para `tasks`, `facts`, `tool_calls` e `user_profile`
+- geração grounded via `POST /api/v1/llm/generate`
+- `dryRun=true` para inspecionar o contexto da LLM sem chamar provider externo
 
-O backend possui um modulo `llm` seguindo a arquitetura existente:
-- `llm.routes.ts`
-- `llm.controller.ts`
-- `llm.service.ts`
-- `llm.schemas.ts`
-- `llm.provider.ts`
-- `context-builder.service.ts`
+## Limitações conhecidas
+- o projeto ainda não é produção;
+- autenticação e autorização ainda não estão endurecidas;
+- a API ainda assume um contexto local e simplificado em vários pontos;
+- `better-sqlite3` depende de ambiente Node compatível ou rebuild nativo bem configurado;
+- o fluxo de voz ainda depende de Python, FFmpeg e modelo local corretamente instalados;
+- o processamento de voz ainda pode ter limitações de desempenho e concorrência;
+- a documentação ainda pode evoluir conforme a base for endurecida.
 
-Fluxo atual:
-1. o endpoint recebe `prompt`, `ecosystems`, `maxFacts`, `includeProfile` e `dryRun`
-2. o `context-builder` monta contexto usando `user_profile` e `facts`
-3. facts de ecossistemas usam `category = ecosystem:<slug>`
-4. facts fora da convencao sao ignorados no grounding
-5. se o contexto for insuficiente, o backend responde explicitamente:
-   `Nao encontrei informacao suficiente no banco para responder com seguranca.`
-6. se `dryRun=true`, o backend retorna preview do contexto sem chamar provider externo
-
-Providers suportados hoje:
-- Gemini
-- Grok
-
-## Convencao de ecossistemas
-
-- categoria: `ecosystem:<slug>`
-- `slug`: lowercase kebab-case
-- `key`: lowercase com `.` ou `-`
-- `value`: contexto objetivo e auditavel
-- `isImportant`: prioridade de grounding, nao permissao ampla
-
-Detalhes: `docs/conventions/ecosystem-facts.md`
-
-## Endpoints principais
-
-- `GET /api/v1/health`
-- `POST /api/v1/voice/interactions`
-- `POST /api/v1/llm/generate`
-
-## Documentacao
-
-- Arquitetura inicial: `docs/architecture/initial-architecture.md`
-- Convencoes gerais: `docs/conventions/project-conventions.md`
-- Convencao de facts de ecossistemas: `docs/conventions/ecosystem-facts.md`
-- Modelo de dados: `database/schema/README.md`
-- Endpoints API: `docs/api/endpoints.md`
-- Contratos API: `docs/api/contracts.md`
+## Próximos passos técnicos
+- endurecer autenticação/autorização e reduzir dependência de `userId` vindo do cliente;
+- melhorar o lint e a automação de qualidade nos workspaces;
+- ampliar a cobertura de testes de frontend e integração;
+- reduzir trabalho síncrono no fluxo de voz;
+- revisar dependências vulneráveis e estabilizar o ambiente Node nativo.

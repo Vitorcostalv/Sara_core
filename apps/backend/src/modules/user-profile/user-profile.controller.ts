@@ -4,14 +4,14 @@ import { userProfileService } from "./user-profile.service";
 import type { UpdateUserProfileInput } from "./user-profile.schemas";
 
 export class UserProfileController {
-  getLocalProfile(_req: Request, res: Response): void {
-    const profile = userProfileService.getLocalProfile();
+  async getLocalProfile(_req: Request, res: Response): Promise<void> {
+    const profile = await userProfileService.getLocalProfile();
     sendOk(res, profile);
   }
 
-  updateLocalProfile(req: Request, res: Response): void {
+  async updateLocalProfile(req: Request, res: Response): Promise<void> {
     const payload = req.body as UpdateUserProfileInput;
-    const profile = userProfileService.updateLocalProfile(payload);
+    const profile = await userProfileService.updateLocalProfile(payload);
     sendOk(res, profile);
   }
 }

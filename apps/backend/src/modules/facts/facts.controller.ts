@@ -6,45 +6,45 @@ import type {
   FactIdParam,
   ListFactsQuery,
   MarkFactImportantInput,
-  UpdateFactInput
+  UpdateFactInput,
 } from "./facts.schemas";
 
 export class FactsController {
-  list(req: Request, res: Response): void {
+  async list(req: Request, res: Response): Promise<void> {
     const query = req.query as unknown as ListFactsQuery;
-    const result = factsService.listFacts(query);
+    const result = await factsService.listFacts(query);
     sendPaginated(res, result.items, { page: query.page, pageSize: query.pageSize }, result.total);
   }
 
-  create(req: Request, res: Response): void {
+  async create(req: Request, res: Response): Promise<void> {
     const payload = req.body as CreateFactInput;
-    const fact = factsService.createFact(payload);
+    const fact = await factsService.createFact(payload);
     sendCreated(res, fact);
   }
 
-  getById(req: Request, res: Response): void {
+  async getById(req: Request, res: Response): Promise<void> {
     const params = req.params as FactIdParam;
-    const fact = factsService.getFactById(params.id);
+    const fact = await factsService.getFactById(params.id);
     sendOk(res, fact);
   }
 
-  update(req: Request, res: Response): void {
+  async update(req: Request, res: Response): Promise<void> {
     const params = req.params as FactIdParam;
     const payload = req.body as UpdateFactInput;
-    const fact = factsService.updateFact(params.id, payload);
+    const fact = await factsService.updateFact(params.id, payload);
     sendOk(res, fact);
   }
 
-  markImportant(req: Request, res: Response): void {
+  async markImportant(req: Request, res: Response): Promise<void> {
     const params = req.params as FactIdParam;
     const payload = req.body as MarkFactImportantInput;
-    const fact = factsService.markFactImportant(params.id, payload);
+    const fact = await factsService.markFactImportant(params.id, payload);
     sendOk(res, fact);
   }
 
-  remove(req: Request, res: Response): void {
+  async remove(req: Request, res: Response): Promise<void> {
     const params = req.params as FactIdParam;
-    factsService.deleteFact(params.id);
+    await factsService.deleteFact(params.id);
     sendNoContent(res);
   }
 }

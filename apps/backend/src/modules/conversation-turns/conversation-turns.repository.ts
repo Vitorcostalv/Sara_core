@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { ConversationRole, ConversationTurn } from "@sara/shared-types";
-import { db } from "../../database/client";
+import { query } from "../../database/postgres";
 import { getPaginationOffset, type PaginatedResult } from "../../core/http/pagination";
 import type {
   CreateConversationTurnInput,
-  ListConversationTurnsQuery
+  ListConversationTurnsQuery,
 } from "./conversation-turns.schemas";
 
 interface ConversationTurnRow {
@@ -23,75 +23,62 @@ function mapConversationTurn(row: ConversationTurnRow): ConversationTurn {
     role: row.role,
     content: row.content,
     source: row.source,
-    createdAt: row.created_at
+    createdAt: row.created_at,
   };
 }
 
 export class ConversationTurnsRepository {
-  list(query: ListConversationTurnsQuery): PaginatedResult<ConversationTurn> {
-    const filters: string[] = ["user_id = ?"];
-    const params: unknown[] = [query.userId];
+  async list(q: ListConversationTurnsQuery): Promise<PaginatedResult<ConversationTurn>> {
+    const filters: string[] = ["user_id = $1"];
+    const params: unknown[] = [q.userId];
+    let idx = 2;
 
-    if (query.role) {
-      filters.push("role = ?");
-      params.push(query.role);
-    }
+    if (q.role) { filters.push(`role = $${idx++}`); params.push(q.role); }
+    if (q.source) { filters.push(`source = $${idx++}`); params.push(q.source); }
 
-    if (query.source) {
-      filters.push("source = ?");
-      params.push(query.source);
-    }
+    const whereSql = `WHERE ${filters.join(" AND ")}`;
+    const offset = getPaginationOffset(q);
 
-    const whereSql = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
-    const offset = getPaginationOffset(query);
+    const countResult = await query<{ total: string }>(
+      `SELECT COUNT(*) AS total FROM conversation_turns ${whereSql}`,
+      params
+    );
 
-    const totalRow = db.prepare(`SELECT COUNT(*) AS total FROM conversation_turns ${whereSql}`).get(...params) as {
-      total: number;
-    };
-
-    const rows = db
-      .prepare(
-        `
-        SELECT id, user_id, role, content, source, created_at
-        FROM conversation_turns
-        ${whereSql}
-        ORDER BY created_at DESC, id DESC
-        LIMIT ? OFFSET ?
-      `
-      )
-      .all(...params, query.pageSize, offset) as ConversationTurnRow[];
+    const rowsResult = await query<ConversationTurnRow>(
+      `SELECT id, user_id, role, content, source, created_at
+       FROM conversation_turns
+       ${whereSql}
+       ORDER BY created_at DESC, id DESC
+       LIMIT $${idx++} OFFSET $${idx}`,
+      [...params, q.pageSize, offset]
+    );
 
     return {
-      items: rows.map(mapConversationTurn),
-      total: totalRow.total
+      items: rowsResult.rows.map(mapConversationTurn),
+      total: parseInt(countResult.rows[0]?.total ?? "0", 10),
     };
   }
 
-  create(input: CreateConversationTurnInput): ConversationTurn {
+  async create(input: CreateConversationTurnInput): Promise<ConversationTurn> {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    db.prepare(
-      `
-      INSERT INTO conversation_turns (id, user_id, role, content, source, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `
-    ).run(id, input.userId, input.role, input.content, input.source, now);
+    await query(
+      `INSERT INTO conversation_turns (id, user_id, role, content, source, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, input.userId, input.role, input.content, input.source, now]
+    );
 
-    return this.findById(id)!;
+    return (await this.findById(id))!;
   }
 
-  findById(id: string): ConversationTurn | null {
-    const row = db
-      .prepare(
-        `
-        SELECT id, user_id, role, content, source, created_at
-        FROM conversation_turns
-        WHERE id = ?
-      `
-      )
-      .get(id) as ConversationTurnRow | undefined;
-
+  async findById(id: string): Promise<ConversationTurn | null> {
+    const result = await query<ConversationTurnRow>(
+      `SELECT id, user_id, role, content, source, created_at
+       FROM conversation_turns WHERE id = $1`,
+      [id]
+    );
+    const row = result.rows[0];
     return row ? mapConversationTurn(row) : null;
   }
 }

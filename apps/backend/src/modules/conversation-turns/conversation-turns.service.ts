@@ -5,36 +5,32 @@ import { logger } from "../../logging/logger";
 import { ConversationTurnsRepository } from "./conversation-turns.repository";
 import type {
   CreateConversationTurnInput,
-  ListConversationTurnsQuery
+  ListConversationTurnsQuery,
 } from "./conversation-turns.schemas";
 
 const conversationTurnsLogger = logger.child({ module: "conversation-turns-service" });
 
 export interface ConversationTurnsRepositoryContract {
-  list(query: ListConversationTurnsQuery): PaginatedResult<ConversationTurn>;
-  create(input: CreateConversationTurnInput): ConversationTurn;
-  findById(id: string): ConversationTurn | null;
+  list(query: ListConversationTurnsQuery): Promise<PaginatedResult<ConversationTurn>>;
+  create(input: CreateConversationTurnInput): Promise<ConversationTurn>;
+  findById(id: string): Promise<ConversationTurn | null>;
 }
 
 export class ConversationTurnsService {
   constructor(private readonly repository: ConversationTurnsRepositoryContract) {}
 
-  listConversationTurns(query: ListConversationTurnsQuery): PaginatedResult<ConversationTurn> {
+  async listConversationTurns(query: ListConversationTurnsQuery): Promise<PaginatedResult<ConversationTurn>> {
     conversationTurnsLogger.debug({ query }, "Listing conversation turns");
     return this.repository.list(query);
   }
 
-  createConversationTurn(input: CreateConversationTurnInput): ConversationTurn {
+  async createConversationTurn(input: CreateConversationTurnInput): Promise<ConversationTurn> {
     return this.repository.create(input);
   }
 
-  getConversationTurnById(id: string): ConversationTurn {
-    const turn = this.repository.findById(id);
-
-    if (!turn) {
-      throw new AppError("CONVERSATION_TURN_NOT_FOUND", 404, "Conversation turn not found");
-    }
-
+  async getConversationTurnById(id: string): Promise<ConversationTurn> {
+    const turn = await this.repository.findById(id);
+    if (!turn) throw new AppError("CONVERSATION_TURN_NOT_FOUND", 404, "Conversation turn not found");
     return turn;
   }
 }

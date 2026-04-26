@@ -4,40 +4,40 @@ import { tasksService } from "./tasks.service";
 import type { CreateTaskInput, ListTasksQuery, TaskIdParam, UpdateTaskInput } from "./tasks.schemas";
 
 export class TasksController {
-  list(req: Request, res: Response): void {
+  async list(req: Request, res: Response): Promise<void> {
     const query = req.query as unknown as ListTasksQuery;
-    const result = tasksService.listTasks(query);
+    const result = await tasksService.listTasks(query);
     sendPaginated(res, result.items, { page: query.page, pageSize: query.pageSize }, result.total);
   }
 
-  create(req: Request, res: Response): void {
+  async create(req: Request, res: Response): Promise<void> {
     const payload = req.body as CreateTaskInput;
-    const task = tasksService.createTask(payload);
+    const task = await tasksService.createTask(payload);
     sendCreated(res, task);
   }
 
-  getById(req: Request, res: Response): void {
+  async getById(req: Request, res: Response): Promise<void> {
     const params = req.params as TaskIdParam;
-    const task = tasksService.getTaskById(params.id);
+    const task = await tasksService.getTaskById(params.id);
     sendOk(res, task);
   }
 
-  update(req: Request, res: Response): void {
+  async update(req: Request, res: Response): Promise<void> {
     const params = req.params as TaskIdParam;
     const payload = req.body as UpdateTaskInput;
-    const task = tasksService.updateTask(params.id, payload);
+    const task = await tasksService.updateTask(params.id, payload);
     sendOk(res, task);
   }
 
-  complete(req: Request, res: Response): void {
+  async complete(req: Request, res: Response): Promise<void> {
     const params = req.params as TaskIdParam;
-    const task = tasksService.completeTask(params.id);
+    const task = await tasksService.completeTask(params.id);
     sendOk(res, task);
   }
 
-  remove(req: Request, res: Response): void {
+  async remove(req: Request, res: Response): Promise<void> {
     const params = req.params as TaskIdParam;
-    tasksService.deleteTask(params.id);
+    await tasksService.deleteTask(params.id);
     sendNoContent(res);
   }
 }
