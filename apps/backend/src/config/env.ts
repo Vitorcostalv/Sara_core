@@ -15,7 +15,7 @@ const EnvSchema = z.object({
   LLM_PROVIDER: z.enum(["disabled", "gemini", "grok"]).default("disabled"),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().default(""),
-  LLM_BASE_URL: z.string().url().optional(),
+  LLM_BASE_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(45_000),
   STT_PROVIDER: z.string().default("vosk"),
   STT_MODEL_PATH: z.string().default(
@@ -27,9 +27,12 @@ const EnvSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
-  DATABASE_PATH: z
+  DATABASE_URL: z.string().optional(),
+  DIRECT_DATABASE_URL: z.string().optional(),
+  DATABASE_SSL: z
     .string()
-    .default(path.resolve(repositoryRoot, "database", "sara_core.db")),
+    .optional()
+    .transform((v) => v !== "false" && v !== "0"),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
@@ -38,10 +41,14 @@ if (!parsed.success) {
   throw new Error(`Invalid environment variables: ${parsed.error.message}`);
 }
 
-// Database path
-const resolvedDatabasePath = path.isAbsolute(parsed.data.DATABASE_PATH)
-  ? parsed.data.DATABASE_PATH
-  : path.resolve(repositoryRoot, parsed.data.DATABASE_PATH);
+// Database
+const databaseUrl = parsed.data.DATABASE_URL ?? null;
+const directDatabaseUrl = parsed.data.DIRECT_DATABASE_URL ?? null;
+const databaseSsl = parsed.data.DATABASE_SSL ?? true;
+
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required. Set it in your .env file.");
+}
 
 // STT model path
 const resolvedSttModelPath = path.isAbsolute(parsed.data.STT_MODEL_PATH)
@@ -93,6 +100,8 @@ export const env = {
   sttFfmpegPath: parsed.data.STT_FFMPEG_PATH,
   sttPythonPath: parsed.data.STT_PYTHON_PATH,
   logLevel: parsed.data.LOG_LEVEL,
-  databasePath: resolvedDatabasePath,
+  databaseUrl: databaseUrl as string,
+  directDatabaseUrl,
+  databaseSsl,
   repositoryRoot,
 };

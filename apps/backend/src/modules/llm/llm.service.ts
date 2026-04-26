@@ -2,12 +2,21 @@ import type { LlmGenerateResult } from "@sara/shared-types";
 import { env } from "../../config/env";
 import { AppError } from "../../core/errors/app-error";
 import { logger } from "../../logging/logger";
-import { llmContextBuilderService } from "./context-builder.service";
+import { llmContextBuilderService, type LlmBuiltContext } from "./context-builder.service";
 import { createLlmProvider } from "./llm.provider";
 import type { GenerateLlmInput } from "./llm.schemas";
 
 const llmLogger = logger.child({ module: "llm-service" });
 const insufficientGroundingMessage = "Nao encontrei informacao suficiente no banco para responder com seguranca.";
+
+function stripControlCharacters(value: string) {
+  return Array.from(value)
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
+    })
+    .join("");
+}
 
 function buildSystemPrompt() {
   return [
@@ -23,7 +32,7 @@ function buildSystemPrompt() {
 }
 
 function buildUserPrompt(userPrompt: string, contextPreview: string) {
-  const normalizedPrompt = userPrompt.replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, " ").trim();
+  const normalizedPrompt = stripControlCharacters(userPrompt).trim();
   return [`User request:`, normalizedPrompt, ``, `Grounded context:`, contextPreview].join("\n");
 }
 
@@ -31,7 +40,7 @@ function normalizeBaseUrl(baseUrl: string) {
   return baseUrl.replace(/\/+$/, "");
 }
 
-function shouldReturnInsufficientGroundingMessage(builtContext: ReturnType<typeof llmContextBuilderService.buildContext>) {
+function shouldReturnInsufficientGroundingMessage(builtContext: LlmBuiltContext) {
   if (builtContext.factsPreview.length === 0) {
     return true;
   }
@@ -45,7 +54,7 @@ function shouldReturnInsufficientGroundingMessage(builtContext: ReturnType<typeo
 
 export class LlmService {
   async generate(input: GenerateLlmInput): Promise<LlmGenerateResult> {
-    const builtContext = llmContextBuilderService.buildContext(input);
+    const builtContext = await llmContextBuilderService.buildContext(input);
     const provider = createLlmProvider(env.llmProvider);
     const providerName = provider?.name ?? "disabled";
     const model = provider ? env.llmModel || provider.defaultModel : env.llmModel || "not-configured";

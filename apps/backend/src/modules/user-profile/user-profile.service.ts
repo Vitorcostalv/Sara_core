@@ -6,20 +6,20 @@ import type { UpdateUserProfileInput } from "./user-profile.schemas";
 const userProfileLogger = logger.child({ module: "user-profile-service" });
 
 export interface UserProfileRepositoryContract {
-  ensureLocalProfile(): UserProfile;
-  updateLocalProfile(input: UpdateUserProfileInput): UserProfile;
+  ensureLocalProfile(): Promise<UserProfile>;
+  updateLocalProfile(input: UpdateUserProfileInput): Promise<UserProfile>;
 }
 
 export class UserProfileService {
   constructor(private readonly repository: UserProfileRepositoryContract) {}
 
-  getLocalProfile(): UserProfile {
+  async getLocalProfile(): Promise<UserProfile> {
     return this.repository.ensureLocalProfile();
   }
 
-  updateLocalProfile(input: UpdateUserProfileInput): UserProfile {
+  async updateLocalProfile(input: UpdateUserProfileInput): Promise<UserProfile> {
     userProfileLogger.debug({ fields: Object.keys(input) }, "Updating local user profile");
-    this.repository.ensureLocalProfile();
+    await this.repository.ensureLocalProfile();
     return this.repository.updateLocalProfile(input);
   }
 }

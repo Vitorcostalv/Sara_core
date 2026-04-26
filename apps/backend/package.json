@@ -9,14 +9,19 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts",
     "test": "tsx --test src/modules/tasks/tasks.service.test.ts src/modules/facts/facts.repository.test.ts src/modules/user-profile/user-profile.service.test.ts src/modules/llm/context-builder.service.test.ts",
-    "db:migrate": "tsx src/database/migrate.ts",
-    "db:reset": "tsx src/database/reset.ts",
-    "db:seed": "tsx src/database/seed.ts"
+    "db:migrate": "tsx src/database/migrate-postgres.ts",
+    "db:reset": "tsx src/database/reset-postgres.ts",
+    "db:seed": "tsx src/database/seed-postgres.ts",
+    "db:check": "tsx src/database/check-postgres.ts",
+    "db:migrate:sqlite": "tsx src/database/migrate.ts",
+    "db:reset:sqlite": "tsx src/database/reset.ts",
+    "db:seed:sqlite": "tsx src/database/seed.ts"
   },
   "dependencies": {
     "@sara/shared-types": "0.1.0",
-    "better-sqlite3": "^11.8.1",
+    "pg": "^8.14.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -26,11 +31,12 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.12",
+    "@types/pg": "^8.11.11",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.13.10",
+    "eslint": "^9.38.0",
     "pino-pretty": "^13.0.0",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3"

@@ -7,69 +7,54 @@ import type {
   CreateFactInput,
   ListFactsQuery,
   MarkFactImportantInput,
-  UpdateFactInput
+  UpdateFactInput,
 } from "./facts.schemas";
 
 const factsLogger = logger.child({ module: "facts-service" });
 
 export interface FactsRepositoryContract {
-  list(query: ListFactsQuery): PaginatedResult<Fact>;
-  create(input: CreateFactInput): Fact;
-  findById(id: string): Fact | null;
-  updateById(id: string, input: UpdateFactInput): Fact | null;
-  markImportantById(id: string, isImportant: boolean): Fact | null;
-  deleteById(id: string): boolean;
+  list(query: ListFactsQuery): Promise<PaginatedResult<Fact>>;
+  create(input: CreateFactInput): Promise<Fact>;
+  findById(id: string): Promise<Fact | null>;
+  updateById(id: string, input: UpdateFactInput): Promise<Fact | null>;
+  markImportantById(id: string, isImportant: boolean): Promise<Fact | null>;
+  deleteById(id: string): Promise<boolean>;
 }
 
 export class FactsService {
   constructor(private readonly repository: FactsRepositoryContract) {}
 
-  listFacts(query: ListFactsQuery): PaginatedResult<Fact> {
+  async listFacts(query: ListFactsQuery): Promise<PaginatedResult<Fact>> {
     factsLogger.debug({ query }, "Listing facts");
     return this.repository.list(query);
   }
 
-  createFact(input: CreateFactInput): Fact {
+  async createFact(input: CreateFactInput): Promise<Fact> {
     factsLogger.debug({ userId: input.userId, key: input.key }, "Creating fact");
     return this.repository.create(input);
   }
 
-  getFactById(id: string): Fact {
-    const fact = this.repository.findById(id);
-
-    if (!fact) {
-      throw new AppError("FACT_NOT_FOUND", 404, "Fact not found");
-    }
-
+  async getFactById(id: string): Promise<Fact> {
+    const fact = await this.repository.findById(id);
+    if (!fact) throw new AppError("FACT_NOT_FOUND", 404, "Fact not found");
     return fact;
   }
 
-  updateFact(id: string, input: UpdateFactInput): Fact {
-    const fact = this.repository.updateById(id, input);
-
-    if (!fact) {
-      throw new AppError("FACT_NOT_FOUND", 404, "Fact not found");
-    }
-
+  async updateFact(id: string, input: UpdateFactInput): Promise<Fact> {
+    const fact = await this.repository.updateById(id, input);
+    if (!fact) throw new AppError("FACT_NOT_FOUND", 404, "Fact not found");
     return fact;
   }
 
-  markFactImportant(id: string, input: MarkFactImportantInput): Fact {
-    const fact = this.repository.markImportantById(id, input.isImportant);
-
-    if (!fact) {
-      throw new AppError("FACT_NOT_FOUND", 404, "Fact not found");
-    }
-
+  async markFactImportant(id: string, input: MarkFactImportantInput): Promise<Fact> {
+    const fact = await this.repository.markImportantById(id, input.isImportant);
+    if (!fact) throw new AppError("FACT_NOT_FOUND", 404, "Fact not found");
     return fact;
   }
 
-  deleteFact(id: string): void {
-    const deleted = this.repository.deleteById(id);
-
-    if (!deleted) {
-      throw new AppError("FACT_NOT_FOUND", 404, "Fact not found");
-    }
+  async deleteFact(id: string): Promise<void> {
+    const deleted = await this.repository.deleteById(id);
+    if (!deleted) throw new AppError("FACT_NOT_FOUND", 404, "Fact not found");
   }
 }
 

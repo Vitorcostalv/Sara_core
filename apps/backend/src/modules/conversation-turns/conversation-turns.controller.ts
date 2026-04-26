@@ -4,25 +4,25 @@ import { conversationTurnsService } from "./conversation-turns.service";
 import type {
   ConversationTurnIdParam,
   CreateConversationTurnInput,
-  ListConversationTurnsQuery
+  ListConversationTurnsQuery,
 } from "./conversation-turns.schemas";
 
 export class ConversationTurnsController {
-  list(req: Request, res: Response): void {
+  async list(req: Request, res: Response): Promise<void> {
     const query = req.query as unknown as ListConversationTurnsQuery;
-    const result = conversationTurnsService.listConversationTurns(query);
+    const result = await conversationTurnsService.listConversationTurns(query);
     sendPaginated(res, result.items, { page: query.page, pageSize: query.pageSize }, result.total);
   }
 
-  create(req: Request, res: Response): void {
+  async create(req: Request, res: Response): Promise<void> {
     const payload = req.body as CreateConversationTurnInput;
-    const turn = conversationTurnsService.createConversationTurn(payload);
+    const turn = await conversationTurnsService.createConversationTurn(payload);
     sendCreated(res, turn);
   }
 
-  getById(req: Request, res: Response): void {
+  async getById(req: Request, res: Response): Promise<void> {
     const params = req.params as ConversationTurnIdParam;
-    const turn = conversationTurnsService.getConversationTurnById(params.id);
+    const turn = await conversationTurnsService.getConversationTurnById(params.id);
     sendOk(res, turn);
   }
 }

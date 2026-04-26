@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { asyncHandler } from "../../core/http/async-handler";
 import { validateBody, validateParams, validateQuery } from "../../core/middleware/validate";
 import { factsController } from "./facts.controller";
 import {
@@ -6,24 +7,24 @@ import {
   factIdParamSchema,
   listFactsQuerySchema,
   markFactImportantSchema,
-  updateFactSchema
+  updateFactSchema,
 } from "./facts.schemas";
 
 export const factsRoutes = Router();
 
-factsRoutes.get("/", validateQuery(listFactsQuerySchema), factsController.list.bind(factsController));
-factsRoutes.post("/", validateBody(createFactSchema), factsController.create.bind(factsController));
-factsRoutes.get("/:id", validateParams(factIdParamSchema), factsController.getById.bind(factsController));
+factsRoutes.get("/", validateQuery(listFactsQuerySchema), asyncHandler(factsController.list.bind(factsController)));
+factsRoutes.post("/", validateBody(createFactSchema), asyncHandler(factsController.create.bind(factsController)));
+factsRoutes.get("/:id", validateParams(factIdParamSchema), asyncHandler(factsController.getById.bind(factsController)));
 factsRoutes.patch(
   "/:id",
   validateParams(factIdParamSchema),
   validateBody(updateFactSchema),
-  factsController.update.bind(factsController)
+  asyncHandler(factsController.update.bind(factsController))
 );
 factsRoutes.patch(
   "/:id/important",
   validateParams(factIdParamSchema),
   validateBody(markFactImportantSchema),
-  factsController.markImportant.bind(factsController)
+  asyncHandler(factsController.markImportant.bind(factsController))
 );
-factsRoutes.delete("/:id", validateParams(factIdParamSchema), factsController.remove.bind(factsController));
+factsRoutes.delete("/:id", validateParams(factIdParamSchema), asyncHandler(factsController.remove.bind(factsController)));

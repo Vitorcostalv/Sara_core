@@ -1,10 +1,11 @@
 import { Router } from "express";
+import { asyncHandler } from "../../core/http/async-handler";
 import { validateBody, validateParams, validateQuery } from "../../core/middleware/validate";
 import { conversationTurnsController } from "./conversation-turns.controller";
 import {
   conversationTurnIdParamSchema,
   createConversationTurnSchema,
-  listConversationTurnsQuerySchema
+  listConversationTurnsQuerySchema,
 } from "./conversation-turns.schemas";
 
 export const conversationTurnsRoutes = Router();
@@ -12,15 +13,15 @@ export const conversationTurnsRoutes = Router();
 conversationTurnsRoutes.get(
   "/",
   validateQuery(listConversationTurnsQuerySchema),
-  conversationTurnsController.list.bind(conversationTurnsController)
+  asyncHandler(conversationTurnsController.list.bind(conversationTurnsController))
 );
 conversationTurnsRoutes.post(
   "/",
   validateBody(createConversationTurnSchema),
-  conversationTurnsController.create.bind(conversationTurnsController)
+  asyncHandler(conversationTurnsController.create.bind(conversationTurnsController))
 );
 conversationTurnsRoutes.get(
   "/:id",
   validateParams(conversationTurnIdParamSchema),
-  conversationTurnsController.getById.bind(conversationTurnsController)
+  asyncHandler(conversationTurnsController.getById.bind(conversationTurnsController))
 );

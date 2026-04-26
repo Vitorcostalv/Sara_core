@@ -1,4 +1,4 @@
-import type { SelectHTMLAttributes } from "react";
+import { useId, type SelectHTMLAttributes } from "react";
 import { cn } from "./utils";
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
@@ -7,7 +7,8 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export function Select({ label, hint, className, id, children, ...props }: SelectProps) {
-  const inputId = id ?? props.name;
+  const generatedId = useId();
+  const inputId = id ?? props.name ?? generatedId;
 
   if (!label) {
     return (

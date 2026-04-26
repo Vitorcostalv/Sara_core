@@ -8,73 +8,55 @@ import type { CreateTaskInput, ListTasksQuery, UpdateTaskInput } from "./tasks.s
 const tasksLogger = logger.child({ module: "tasks-service" });
 
 export interface TasksRepositoryContract {
-  list(query: ListTasksQuery): PaginatedResult<Task>;
-  create(input: CreateTaskInput): Task;
-  findById(id: string): Task | null;
-  updateById(id: string, input: UpdateTaskInput): Task | null;
-  completeById(id: string): Task | null;
-  deleteById(id: string): boolean;
+  list(query: ListTasksQuery): Promise<PaginatedResult<Task>>;
+  create(input: CreateTaskInput): Promise<Task>;
+  findById(id: string): Promise<Task | null>;
+  updateById(id: string, input: UpdateTaskInput): Promise<Task | null>;
+  completeById(id: string): Promise<Task | null>;
+  deleteById(id: string): Promise<boolean>;
 }
 
 export class TasksService {
   constructor(private readonly repository: TasksRepositoryContract) {}
 
-  listTasks(query: ListTasksQuery): PaginatedResult<Task> {
+  async listTasks(query: ListTasksQuery): Promise<PaginatedResult<Task>> {
     tasksLogger.debug({ query }, "Listing tasks");
     return this.repository.list(query);
   }
 
-  createTask(input: CreateTaskInput): Task {
+  async createTask(input: CreateTaskInput): Promise<Task> {
     tasksLogger.debug({ userId: input.userId, title: input.title }, "Creating task");
     return this.repository.create(input);
   }
 
-  getTaskById(id: string): Task {
-    const task = this.repository.findById(id);
-
-    if (!task) {
-      throw new AppError("TASK_NOT_FOUND", 404, "Task not found");
-    }
-
+  async getTaskById(id: string): Promise<Task> {
+    const task = await this.repository.findById(id);
+    if (!task) throw new AppError("TASK_NOT_FOUND", 404, "Task not found");
     return task;
   }
 
-  updateTask(id: string, input: UpdateTaskInput): Task {
-    const task = this.repository.updateById(id, input);
-
-    if (!task) {
-      throw new AppError("TASK_NOT_FOUND", 404, "Task not found");
-    }
-
+  async updateTask(id: string, input: UpdateTaskInput): Promise<Task> {
+    const task = await this.repository.updateById(id, input);
+    if (!task) throw new AppError("TASK_NOT_FOUND", 404, "Task not found");
     return task;
   }
 
-  completeTask(id: string): Task {
-    const currentTask = this.repository.findById(id);
-
-    if (!currentTask) {
-      throw new AppError("TASK_NOT_FOUND", 404, "Task not found");
-    }
+  async completeTask(id: string): Promise<Task> {
+    const currentTask = await this.repository.findById(id);
+    if (!currentTask) throw new AppError("TASK_NOT_FOUND", 404, "Task not found");
 
     if (currentTask.status === "archived") {
       throw new AppError("TASK_ARCHIVED", 409, "Archived tasks cannot be marked as done");
     }
 
-    const completedTask = this.repository.completeById(id);
-
-    if (!completedTask) {
-      throw new AppError("TASK_NOT_FOUND", 404, "Task not found");
-    }
-
+    const completedTask = await this.repository.completeById(id);
+    if (!completedTask) throw new AppError("TASK_NOT_FOUND", 404, "Task not found");
     return completedTask;
   }
 
-  deleteTask(id: string): void {
-    const deleted = this.repository.deleteById(id);
-
-    if (!deleted) {
-      throw new AppError("TASK_NOT_FOUND", 404, "Task not found");
-    }
+  async deleteTask(id: string): Promise<void> {
+    const deleted = await this.repository.deleteById(id);
+    if (!deleted) throw new AppError("TASK_NOT_FOUND", 404, "Task not found");
   }
 }
 
