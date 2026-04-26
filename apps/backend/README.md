@@ -80,6 +80,7 @@ Exemplo:
 Seeds atuais:
 - `database/seeds/001_seed_dev.sql`
 - `database/seeds/002_seed_ecosystems.sql`
+- `database/seeds/003_seed_environment.sql`
 
 Configuracoes de ambiente relevantes:
 - `LLM_PROVIDER=disabled|gemini|grok`
