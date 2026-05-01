@@ -48,6 +48,13 @@ pool.on("error", (err) => {
   logger.error({ message: err.message, code: (err as NodeJS.ErrnoException).code }, "Unexpected PostgreSQL pool error");
 });
 
+pool.on("connect", () => {
+  logger.debug(
+    { poolTotal: pool.totalCount, poolIdle: pool.idleCount, poolWaiting: pool.waitingCount },
+    "PostgreSQL pool: new physical connection established"
+  );
+});
+
 export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
   sql: string,
   params: unknown[] = []

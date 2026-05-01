@@ -1,5 +1,9 @@
 import { spawnSync } from "node:child_process";
+import path from "node:path";
 import { AppError } from "../../../core/errors/app-error";
+import { logger } from "../../../logging/logger";
+
+const converterLogger = logger.child({ module: "audio-converter" });
 
 interface ConvertAudioToPcmInput {
   ffmpegPath: string;
@@ -9,6 +13,12 @@ interface ConvertAudioToPcmInput {
 }
 
 export function convertAudioToPcm(input: ConvertAudioToPcmInput): void {
+  const startedAt = Date.now();
+  converterLogger.debug(
+    { inputFile: path.basename(input.inputPath), sampleRate: input.sampleRate },
+    "Starting audio conversion to PCM"
+  );
+
   const result = spawnSync(
     input.ffmpegPath,
     [
@@ -49,4 +59,9 @@ export function convertAudioToPcm(input: ConvertAudioToPcmInput): void {
       stderr: result.stderr?.trim() || null
     });
   }
+
+  converterLogger.debug(
+    { inputFile: path.basename(input.inputPath), sampleRate: input.sampleRate, durationMs: Date.now() - startedAt },
+    "Audio converted to PCM"
+  );
 }

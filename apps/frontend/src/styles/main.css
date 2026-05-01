@@ -1124,6 +1124,55 @@ code {
   line-height: 1.7;
 }
 
+.voice-audio-player {
+  border-top: 1px solid rgba(88, 212, 255, 0.14);
+  padding-top: 0.75rem;
+  margin-top: 0.15rem;
+}
+
+.voice-audio-player__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.85rem 0.42rem 0.6rem;
+  border-radius: 2rem;
+  border: 1px solid rgba(88, 212, 255, 0.26);
+  background: rgba(88, 212, 255, 0.07);
+  color: #7ee6ff;
+  font-size: 0.83rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  letter-spacing: 0.01em;
+}
+
+.voice-audio-player__btn:hover {
+  background: rgba(88, 212, 255, 0.13);
+  border-color: rgba(88, 212, 255, 0.38);
+  color: #a8f0ff;
+}
+
+.voice-audio-player__btn:active {
+  background: rgba(88, 212, 255, 0.18);
+}
+
+.voice-audio-player__btn svg {
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.voice-audio-player__unavailable {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--color-text-secondary);
+  font-size: 0.83rem;
+}
+
+.voice-audio-player__unavailable svg {
+  font-size: 0.95rem;
+}
+
 .recorder-stack {
   display: grid;
   gap: 0.9rem;

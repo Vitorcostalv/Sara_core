@@ -29,9 +29,10 @@ export const voiceInteractionBodySchema = z.object({
 });
 
 export interface VoiceInteractionResponse {
+  requestId: string;
   transcription: string;
   assistantText: string | null;
-  audioReplyUrl: null;
+  audioReplyUrl: string | null;
   wakeWordDetected: null;
 }
 

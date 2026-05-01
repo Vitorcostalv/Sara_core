@@ -4,8 +4,8 @@ import { HealthService } from "./health.service";
 const healthService = new HealthService();
 
 export class HealthController {
-  getHealth(_req: Request, res: Response): void {
-    res.status(200).json(healthService.getStatus());
+  async getHealth(_req: Request, res: Response): Promise<void> {
+    res.status(200).json(await healthService.getStatus());
   }
 }
 

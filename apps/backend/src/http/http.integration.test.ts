@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../app";
 import { env } from "../config/env";
@@ -110,7 +112,8 @@ test("HTTP integration: voice endpoint enforces rate limiting on repeated reques
   env.authMode = "disabled";
   resetMemoryRateLimitStore();
 
-  voiceService.processVoiceInteraction = (async () => ({
+  voiceService.processVoiceInteraction = (async (_input) => ({
+    requestId: "00000000-0000-0000-0000-000000000000",
     transcription: "ok",
     assistantText: "ok",
     audioReplyUrl: null,
@@ -144,4 +147,43 @@ test("HTTP integration: voice endpoint enforces rate limiting on repeated reques
     voiceService.processVoiceInteraction = originalVoiceProcess;
     resetMemoryRateLimitStore();
   }
+});
+
+test("HTTP integration: audio endpoint serves MP3 with correct headers for valid UUID", async () => {
+  const requestId = randomUUID();
+  const ttsOutputDir = path.resolve(env.repositoryRoot, ".tmp", "tts");
+  const audioPath = path.resolve(ttsOutputDir, `${requestId}.mp3`);
+
+  mkdirSync(ttsOutputDir, { recursive: true });
+  writeFileSync(audioPath, Buffer.from("fake-mp3-content-for-testing"));
+
+  try {
+    await withTestServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/voice/audio/${requestId}`);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("content-type"), "audio/mpeg");
+      assert.ok(
+        response.headers.get("cache-control")?.includes("private"),
+        "Cache-Control deve incluir 'private'"
+      );
+      assert.equal(response.headers.get("accept-ranges"), "bytes");
+    });
+  } finally {
+    rmSync(audioPath, { force: true });
+  }
+});
+
+test("HTTP integration: audio endpoint returns 404 for non-UUID requestId", async () => {
+  await withTestServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/v1/voice/audio/not-a-valid-uuid`);
+    assert.equal(response.status, 404);
+  });
+});
+
+test("HTTP integration: audio endpoint returns 404 for valid UUID with no file", async () => {
+  const requestId = randomUUID();
+  await withTestServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/v1/voice/audio/${requestId}`);
+    assert.equal(response.status, 404);
+  });
 });

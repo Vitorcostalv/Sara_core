@@ -137,7 +137,7 @@ export function LlmPage() {
       </section>
 
       <div className="llm-layout">
-        <section className="signal-panel signal-panel--llm">
+        <section className="signal-panel signal-panel--llm" data-testid="llm-request-panel">
           <div className="signal-panel__header">
             <div>
               <span className="signal-panel__eyebrow">Request composer</span>
@@ -156,6 +156,7 @@ export function LlmPage() {
             value={form.prompt}
             onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
             hint="Use perguntas verificaveis e rastreaveis pelo banco."
+            data-testid="llm-prompt-input"
           />
 
           <div className="llm-chip-row">
@@ -166,6 +167,7 @@ export function LlmPage() {
                   key={ecosystem}
                   type="button"
                   className={`llm-chip${isActive ? " is-active" : ""}`}
+                  data-testid={`llm-ecosystem-chip-${ecosystem}`}
                   onClick={() =>
                     setForm((current) => ({
                       ...current,
@@ -186,12 +188,14 @@ export function LlmPage() {
               onChange={(event) => setForm((current) => ({ ...current, ecosystems: event.target.value }))}
               placeholder="sara-core,llm-grounding,voice-stt"
               hint="Lista separada por virgulas."
+              data-testid="llm-ecosystems-input"
             />
             <Input
               label="Max facts"
               value={form.maxFacts}
               onChange={(event) => setForm((current) => ({ ...current, maxFacts: event.target.value }))}
               inputMode="numeric"
+              data-testid="llm-maxfacts-input"
             />
           </div>
 
@@ -199,6 +203,7 @@ export function LlmPage() {
             <button
               type="button"
               className={`toggle-card${form.includeProfile ? " is-active" : ""}`}
+              data-testid="llm-include-profile-toggle"
               onClick={() => setForm((current) => ({ ...current, includeProfile: !current.includeProfile }))}
             >
               <Diamond weight="duotone" />
@@ -211,6 +216,7 @@ export function LlmPage() {
             <button
               type="button"
               className={`toggle-card${form.dryRun ? " is-active" : ""}`}
+              data-testid="llm-dryrun-toggle"
               onClick={() => setForm((current) => ({ ...current, dryRun: !current.dryRun }))}
             >
               <Gauge weight="duotone" />
@@ -222,7 +228,7 @@ export function LlmPage() {
           </div>
 
           <div className="form-actions">
-            <Button variant="primary" onClick={() => void onSubmit()} disabled={isSubmitting}>
+            <Button variant="primary" onClick={() => void onSubmit()} disabled={isSubmitting} data-testid="llm-submit">
               {isSubmitting ? "Executando..." : "Executar validacao"}
             </Button>
           </div>
@@ -258,7 +264,7 @@ export function LlmPage() {
         </section>
       </div>
 
-      {errorMessage ? <ErrorState title="Falha ao executar a validacao grounded" message={errorMessage} onRetry={() => void onSubmit()} /> : null}
+      {errorMessage ? <div data-testid="llm-error"><ErrorState title="Falha ao executar a validacao grounded" message={errorMessage} onRetry={() => void onSubmit()} /></div> : null}
 
       {!result && !errorMessage ? (
         <EmptyState
@@ -273,7 +279,7 @@ export function LlmPage() {
       {result ? (
         <>
           <div className="llm-results-grid">
-            <section className="signal-panel">
+            <section className="signal-panel" data-testid="llm-answer-panel">
               <div className="signal-panel__header">
                 <div>
                   <span className="signal-panel__eyebrow">Response</span>
@@ -292,7 +298,7 @@ export function LlmPage() {
               </article>
             </section>
 
-            <section className="signal-panel">
+            <section className="signal-panel" data-testid="llm-warnings-panel">
               <div className="signal-panel__header">
                 <div>
                   <span className="signal-panel__eyebrow">Grounding health</span>
@@ -346,7 +352,7 @@ export function LlmPage() {
                 <p>Visualizacao textual exata do contexto que o backend montou antes da chamada ao provider.</p>
               </div>
             </div>
-            <pre className="context-panel">{result.contextPreview}</pre>
+            <pre className="context-panel" data-testid="llm-context-preview">{result.contextPreview}</pre>
           </section>
 
           <section className="signal-panel">
@@ -357,7 +363,7 @@ export function LlmPage() {
                 <p>Os fatos abaixo representam o subconjunto real que entrou no grounding final.</p>
               </div>
             </div>
-            <div className="fact-preview-grid">
+            <div className="fact-preview-grid" data-testid="llm-facts-preview">
               {result.factsPreview.map((fact) => (
                 <article key={fact.id} className="fact-card">
                   <div className="fact-card__header">
@@ -380,7 +386,7 @@ export function LlmPage() {
                 <h3>Grouped by slug</h3>
               </div>
             </div>
-            <div className="ecosystem-grid">
+            <div className="ecosystem-grid" data-testid="llm-ecosystem-grid">
               {result.ecosystems.map((ecosystem) => (
                 <article key={ecosystem.slug} className="ecosystem-card">
                   <div className="ecosystem-card__header">

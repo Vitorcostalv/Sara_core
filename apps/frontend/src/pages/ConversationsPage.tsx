@@ -20,7 +20,7 @@ import {
   type VoiceRequestStatus
 } from "../features/voice/voice-audio";
 import { useVoiceRecorder } from "../features/voice/use-voice-recorder";
-import { conversationTurnsApi, getApiErrorMessage } from "../services/api/client";
+import { buildApiUrl, conversationTurnsApi, getApiErrorMessage } from "../services/api/client";
 import { sendVoiceInteraction, VoiceApiError, type VoiceInteractionResponse } from "../services/api/voice";
 import { formatDateTime } from "../utils/format";
 
@@ -283,6 +283,7 @@ export function ConversationsPage() {
           ? "Ultima tentativa concluida"
           : "Pronto para nova tentativa";
 
+  const audioUrl = voiceResult?.audioReplyUrl ? buildApiUrl(voiceResult.audioReplyUrl) : null;
   const transcriptionLength = voiceResult?.transcription?.trim().length ?? 0;
   const assistantLength = voiceResult?.assistantText?.trim().length ?? 0;
   const latestTurnTime = turns[0]?.createdAt ? formatDateTime(turns[0].createdAt) : "Sem eventos recentes";
@@ -360,6 +361,7 @@ export function ConversationsPage() {
       <div className="voice-layout">
         <div className="voice-layout__primary">
           <VoiceUploadSection
+            audioUrl={audioUrl}
             canSendSelectedFile={canSendSelectedFile}
             fileInputRef={fileInputRef}
             hasAttemptState={hasAttemptState}
@@ -397,7 +399,7 @@ export function ConversationsPage() {
             </p>
             <div className="side-note-card__pills">
               <StatusPill tone="success">Transacao persistida</StatusPill>
-              <StatusPill tone="warning">TTS fora do escopo</StatusPill>
+              <StatusPill tone="success">TTS MVP ativo</StatusPill>
             </div>
             <div className="side-note-card__footer">
               <MicrophoneStage weight="duotone" />

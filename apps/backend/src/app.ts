@@ -17,12 +17,22 @@ function normalizeRequestOrigin(origin: string) {
 }
 
 function shouldBypassApiKeyAuth(pathname: string) {
-  return pathname === "/health" || pathname.startsWith("/health/");
+  return (
+    pathname === "/health" ||
+    pathname.startsWith("/health/") ||
+    pathname.startsWith("/voice/audio/")
+  );
 }
 
 export function createApp() {
   const app = express();
-  const allowedCorsOrigins = new Set(env.corsOrigins);
+const allowedCorsOrigins = new Set(env.corsOrigins);
+const corsExposedHeaders = [
+  "Retry-After",
+  "X-RateLimit-Limit",
+  "X-RateLimit-Remaining",
+  "X-RateLimit-Reset"
+];
 
   logger.info({ corsOrigins: env.corsOrigins }, "CORS origins loaded");
   logger.info(
@@ -44,6 +54,7 @@ export function createApp() {
   app.use(
     cors({
       credentials: true,
+      exposedHeaders: corsExposedHeaders,
       origin(origin, callback) {
         if (!origin) {
           logger.debug("CORS request without Origin header allowed");

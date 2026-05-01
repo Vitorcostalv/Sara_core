@@ -60,6 +60,8 @@ const EnvSchema = z.object({
   VOICE_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   LLM_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   LLM_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  TTS_PROVIDER: z.enum(["disabled", "python-gtts"]).default("disabled"),
+  TTS_AUDIO_MAX_CHARS: z.coerce.number().int().positive().default(500),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
@@ -151,6 +153,8 @@ export const env = {
   sttAudioMaxBytes: parsed.data.STT_AUDIO_MAX_BYTES,
   sttFfmpegPath: parsed.data.STT_FFMPEG_PATH,
   sttPythonPath: parsed.data.STT_PYTHON_PATH,
+  ttsProvider: parsed.data.TTS_PROVIDER,
+  ttsAudioMaxChars: parsed.data.TTS_AUDIO_MAX_CHARS,
   logLevel: parsed.data.LOG_LEVEL,
   databaseUrl: databaseUrl as string,
   directDatabaseUrl,

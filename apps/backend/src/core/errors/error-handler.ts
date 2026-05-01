@@ -4,10 +4,18 @@ import { env } from "../../config/env";
 import { AppError } from "./app-error";
 import { logger } from "../../logging/logger";
 
-export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction): void {
+export function errorHandler(error: unknown, req: Request, res: Response, _next: NextFunction): void {
   if (error instanceof AppError) {
     if (error.statusCode >= 500) {
-      logger.error({ code: error.code, details: error.details ?? null }, error.message);
+      logger.error(
+        { code: error.code, statusCode: error.statusCode, path: req.path, details: error.details ?? null },
+        error.message
+      );
+    } else if (error.statusCode >= 400) {
+      logger.warn(
+        { code: error.code, statusCode: error.statusCode, path: req.path },
+        error.message
+      );
     }
 
     res.status(error.statusCode).json({
@@ -24,6 +32,10 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
   }
 
   if (error instanceof ZodError) {
+    logger.warn(
+      { path: req.path, issueCount: error.issues.length },
+      "Request validation failed"
+    );
     res.status(400).json({
       error: {
         code: "VALIDATION_ERROR",
@@ -34,7 +46,7 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
     return;
   }
 
-  logger.error({ err: error }, "Unhandled exception");
+  logger.error({ err: error, path: req.path }, "Unhandled exception");
 
   res.status(500).json({
     error: {

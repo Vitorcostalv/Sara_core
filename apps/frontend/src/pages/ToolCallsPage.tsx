@@ -72,7 +72,7 @@ export function ToolCallsPage() {
   const [form, setForm] = useState<ToolCallForm>(initialForm);
 
   const loadToolCalls = useCallback(
-    async (page = meta.page) => {
+    async (page = 1) => {
       setIsLoading(true);
       setErrorMessage(null);
 
@@ -92,7 +92,7 @@ export function ToolCallsPage() {
         setIsLoading(false);
       }
     },
-    [filters.conversationTurnId, filters.status, meta.page, meta.pageSize]
+    [filters.conversationTurnId, filters.status, meta.pageSize]
   );
 
   useEffect(() => {
@@ -193,7 +193,7 @@ export function ToolCallsPage() {
       </section>
 
       <div className="tool-layout">
-        <section className="signal-panel">
+        <section className="signal-panel" data-testid="toolcalls-trace-panel">
           <div className="signal-panel__header">
             <div>
               <span className="signal-panel__eyebrow">Trace filter</span>
@@ -254,9 +254,9 @@ export function ToolCallsPage() {
           ) : null}
           {!isLoading && !errorMessage && toolCalls.length > 0 ? (
             <>
-              <div className="tool-trace-list">
+              <div className="tool-trace-list" data-testid="toolcalls-trace-list">
                 {toolCalls.map((toolCall) => (
-                  <article key={toolCall.id} className="trace-card trace-card--tool">
+                  <article key={toolCall.id} className="trace-card trace-card--tool" data-testid="toolcalls-trace-card">
                     <div className="trace-card__header">
                       <div className="trace-card__meta">
                         <StatusPill tone={getToolCallStatusTone(toolCall.status)}>{toolCall.status}</StatusPill>
@@ -314,7 +314,7 @@ export function ToolCallsPage() {
           ) : null}
         </section>
 
-        <section className="signal-panel signal-panel--secondary">
+        <section className="signal-panel signal-panel--secondary" data-testid="toolcalls-manual-panel">
           <div className="signal-panel__header">
             <div>
               <span className="signal-panel__eyebrow">Synthetic event</span>

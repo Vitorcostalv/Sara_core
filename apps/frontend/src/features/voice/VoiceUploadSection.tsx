@@ -1,10 +1,14 @@
 import type { ChangeEvent, RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowClockwise,
   FileArrowUp,
   Headphones,
+  Pause,
+  Play,
   ShieldWarning,
   Sparkle,
+  SpeakerSlash,
   UploadSimple,
   Waveform
 } from "@phosphor-icons/react";
@@ -19,6 +23,7 @@ import {
 } from "./voice-audio";
 
 interface VoiceUploadSectionProps {
+  audioUrl: string | null;
   canSendSelectedFile: boolean;
   fileInputRef: RefObject<HTMLInputElement | null>;
   hasAttemptState: boolean;
@@ -39,6 +44,7 @@ interface VoiceUploadSectionProps {
 }
 
 export function VoiceUploadSection({
+  audioUrl,
   canSendSelectedFile,
   fileInputRef,
   hasAttemptState,
@@ -61,8 +67,33 @@ export function VoiceUploadSection({
   const assistantText = voiceResult?.assistantText?.trim() ?? "";
   const hasResult = voiceResult !== null;
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioError, setAudioError] = useState(false);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    setIsPlaying(false);
+    setAudioError(false);
+  }, [audioUrl]);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio || audioError) return;
+    if (isPlaying) {
+      audio.pause();
+    } else {
+      void audio.play().catch(() => {
+        setAudioError(true);
+        setIsPlaying(false);
+      });
+    }
+  };
+
   return (
-    <section className="signal-panel signal-panel--voice">
+    <section className="signal-panel signal-panel--voice" data-testid="voice-upload-panel">
       <div className="signal-panel__header">
         <div>
           <span className="signal-panel__eyebrow">Main execution path</span>
@@ -79,6 +110,7 @@ export function VoiceUploadSection({
           type="file"
           accept={acceptedAudioTypes}
           onChange={onAudioFileSelected}
+          data-testid="voice-file-input"
         />
 
         <div className="voice-dropzone__content">
@@ -96,11 +128,11 @@ export function VoiceUploadSection({
         </div>
 
         <div className="voice-dropzone__actions">
-          <Button variant="secondary" onClick={onOpenFilePicker} disabled={requestStatus === "uploading"}>
+          <Button variant="secondary" onClick={onOpenFilePicker} disabled={requestStatus === "uploading"} data-testid="voice-choose-file">
             <FileArrowUp weight="duotone" />
             Escolher arquivo
           </Button>
-          <Button onClick={onSendSelectedAudioFile} disabled={!canSendSelectedFile}>
+          <Button onClick={onSendSelectedAudioFile} disabled={!canSendSelectedFile} data-testid="voice-submit">
             <Waveform weight="duotone" />
             {hasResult && selectedAudioFile ? "Rodar novamente" : "Executar fluxo"}
           </Button>
@@ -108,6 +140,7 @@ export function VoiceUploadSection({
             variant="ghost"
             onClick={onClearCurrentAttempt}
             disabled={requestStatus !== "idle" || !hasAttemptState}
+            data-testid="voice-clear"
           >
             <ArrowClockwise weight="duotone" />
             Limpar
@@ -149,7 +182,7 @@ export function VoiceUploadSection({
       </div>
 
       {voiceError ? (
-        <div className="signal-message signal-message--error" role="alert">
+        <div className="signal-message signal-message--error" role="alert" data-testid="voice-error">
           <ShieldWarning weight="duotone" />
           <div>
             <strong>Falha na tentativa atual</strong>
@@ -159,7 +192,7 @@ export function VoiceUploadSection({
       ) : null}
 
       {voiceNotice ? (
-        <div className="signal-message signal-message--warning" role="status">
+        <div className="signal-message signal-message--warning" role="status" data-testid="voice-notice">
           <Headphones weight="duotone" />
           <div>
             <strong>Processado com observação</strong>
@@ -168,10 +201,10 @@ export function VoiceUploadSection({
         </div>
       ) : null}
 
-      {requestStatus === "uploading" ? <LoadingBlock label="Executando STT, LLM e persistencia..." /> : null}
+      {requestStatus === "uploading" ? <LoadingBlock label="Executando STT, LLM, TTS e persistencia..." /> : null}
 
-      <div className="voice-results-grid">
-        <article className="voice-result-card">
+      <div className="voice-results-grid" data-testid="voice-results">
+        <article className="voice-result-card" data-testid="voice-transcription-card">
           <div className="voice-result-card__header">
             <span>Transcript</span>
             <Sparkle weight="duotone" />
@@ -181,7 +214,7 @@ export function VoiceUploadSection({
           </p>
         </article>
 
-        <article className="voice-result-card voice-result-card--accent">
+        <article className="voice-result-card voice-result-card--accent" data-testid="voice-assistant-card">
           <div className="voice-result-card__header">
             <span>Assistant reply</span>
             <Waveform weight="duotone" />
@@ -189,6 +222,37 @@ export function VoiceUploadSection({
           <p>
             {assistantText || "A resposta textual aparecera aqui apos a execucao completa do fluxo no backend."}
           </p>
+
+          {audioUrl ? (
+            <div className="voice-audio-player" data-testid="voice-audio-player">
+              <audio
+                ref={audioRef}
+                src={audioUrl}
+                preload="metadata"
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
+                onError={() => setAudioError(true)}
+              />
+              {audioError ? (
+                <div className="voice-audio-player__unavailable" data-testid="voice-audio-unavailable">
+                  <SpeakerSlash weight="duotone" />
+                  <span>Audio indisponivel</span>
+                </div>
+              ) : (
+                <button
+                  className="voice-audio-player__btn"
+                  type="button"
+                  onClick={togglePlay}
+                  data-testid="voice-audio-play-btn"
+                  aria-label={isPlaying ? "Pausar resposta de audio" : "Reproduzir resposta de audio da Sara"}
+                >
+                  {isPlaying ? <Pause weight="fill" /> : <Play weight="fill" />}
+                  <span>{isPlaying ? "Pausar" : "Reproduzir resposta"}</span>
+                </button>
+              )}
+            </div>
+          ) : null}
         </article>
       </div>
     </section>

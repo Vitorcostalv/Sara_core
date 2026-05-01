@@ -4,6 +4,10 @@ import { env } from "../config/env";
 
 export const logger = pino({
   level: env.logLevel,
+  serializers: {
+    err: pino.stdSerializers.err,
+    error: pino.stdSerializers.err,
+  },
   redact: {
     paths: [
       "req.headers.authorization",

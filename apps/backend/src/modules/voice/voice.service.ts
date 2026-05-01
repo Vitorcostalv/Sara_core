@@ -11,6 +11,7 @@ import { llmService } from "../llm/llm.service";
 import { ConversationTurnsRepository } from "../conversation-turns/conversation-turns.repository";
 import { ToolCallsRepository } from "../tool-calls/tool-calls.repository";
 import { UserProfileRepository } from "../user-profile/user-profile.repository";
+import { ttsService } from "../tts/tts.service";
 import { convertAudioToPcm } from "./stt/audio-converter";
 import type { SttProvider } from "./stt/stt.provider";
 import { VoskSttProvider } from "./stt/vosk.provider";
@@ -71,6 +72,10 @@ interface LlmGenerator {
   generate(input: GenerateLlmInput): Promise<LlmGenerateResult>;
 }
 
+interface TtsSynthesizer {
+  synthesize(text: string, requestId: string, language: string): string | null;
+}
+
 interface VoiceServiceDependencies {
   audioConverter?: AudioConverter;
   userProfileRepository?: UserProfileEnsurer;
@@ -78,6 +83,7 @@ interface VoiceServiceDependencies {
   runInTransaction?: <T>(callback: (db: Queryable) => Promise<T>) => Promise<T>;
   createConversationTurnsRepository?: (db: Queryable) => ConversationTurnsWriter;
   createToolCallsRepository?: (db: Queryable) => ToolCallsWriter;
+  ttsService?: TtsSynthesizer;
 }
 
 const insufficientAudioMessage = "Nao consegui entender o audio com clareza.";
@@ -92,6 +98,7 @@ export class VoiceService {
   private readonly runInTransaction: <T>(callback: (db: Queryable) => Promise<T>) => Promise<T>;
   private readonly createConversationTurnsRepository: (db: Queryable) => ConversationTurnsWriter;
   private readonly createToolCallsRepository: (db: Queryable) => ToolCallsWriter;
+  private readonly ttsServiceInstance: TtsSynthesizer;
 
   constructor(
     private readonly providerFactory: SttProviderFactory,
@@ -105,6 +112,7 @@ export class VoiceService {
       dependencies.createConversationTurnsRepository ?? ((db) => new ConversationTurnsRepository(db));
     this.createToolCallsRepository =
       dependencies.createToolCallsRepository ?? ((db) => new ToolCallsRepository(db));
+    this.ttsServiceInstance = dependencies.ttsService ?? ttsService;
   }
 
   async processVoiceInteraction(input: ProcessVoiceInteractionInput): Promise<VoiceInteractionResponse> {
@@ -131,46 +139,116 @@ export class VoiceService {
     const sourceAudioPath = path.resolve(workDirectory, `${requestId}-source${extension}`);
     const pcmAudioPath = path.resolve(workDirectory, `${requestId}-mono16k.pcm`);
     const sampleRate = 16000;
+    const interactionStartedAt = Date.now();
+
+    voiceLogger.info(
+      {
+        requestId,
+        audioSizeBytes: input.audioBuffer.length,
+        mimeType: normalizedMimeType,
+        language: input.language ?? "default",
+      },
+      "Voice interaction started"
+    );
 
     mkdirSync(workDirectory, { recursive: true });
     writeFileSync(sourceAudioPath, input.audioBuffer);
 
     try {
+      const conversionStartedAt = Date.now();
       this.audioConverter({
         ffmpegPath: env.sttFfmpegPath,
         inputPath: sourceAudioPath,
         outputPath: pcmAudioPath,
         sampleRate
       });
+      voiceLogger.debug(
+        { requestId, conversionDurationMs: Date.now() - conversionStartedAt },
+        "Voice audio conversion complete"
+      );
 
+      const sttStartedAt = Date.now();
       const sttProvider = this.providerFactory();
       const transcription = sttProvider.transcribe({
         audioPcmPath: pcmAudioPath,
         sampleRate,
         language: input.language
       });
-
       const normalizedTranscription = transcription.trim();
+      const sttDurationMs = Date.now() - sttStartedAt;
+
+      if (normalizedTranscription.length > 0) {
+        voiceLogger.info(
+          {
+            requestId,
+            sttDurationMs,
+            transcriptionLength: normalizedTranscription.length,
+            language: input.language ?? "default",
+          },
+          "Voice transcription succeeded"
+        );
+      } else {
+        voiceLogger.warn(
+          { requestId, sttDurationMs, language: input.language ?? "default" },
+          "Voice transcription returned empty — audio may be silent or inaudible"
+        );
+      }
+
       const userProfile = await this.userProfileRepository.ensureLocalProfile();
       const llmResult =
         normalizedTranscription.length > 0
           ? await this.generateAssistantReply({
               prompt: normalizedTranscription,
               userId: userProfile.id,
+              requestId,
             })
           : null;
       const assistantText = this.resolveAssistantText(normalizedTranscription, llmResult);
+
+      const ttsStartedAt = Date.now();
+      const audioReplyUrl = assistantText?.trim()
+        ? this.ttsServiceInstance.synthesize(assistantText, requestId, input.language ?? "pt-BR")
+        : null;
+
+      if (audioReplyUrl) {
+        voiceLogger.info(
+          { requestId, durationMs: Date.now() - ttsStartedAt },
+          "TTS synthesis succeeded"
+        );
+      } else {
+        voiceLogger.debug(
+          { requestId, durationMs: Date.now() - ttsStartedAt },
+          "TTS skipped or unavailable — text-only response"
+        );
+      }
+
+      const persistStartedAt = Date.now();
       await this.persistInteraction({
         userId: userProfile.id,
         transcription: normalizedTranscription,
         assistantText,
         llmResult
       });
+      voiceLogger.debug(
+        { requestId, userId: userProfile.id, persistDurationMs: Date.now() - persistStartedAt, hasLlmResult: llmResult !== null },
+        "Voice interaction persisted"
+      );
+
+      voiceLogger.info(
+        {
+          requestId,
+          totalDurationMs: Date.now() - interactionStartedAt,
+          usedLlm: llmResult !== null,
+          llmStatus: llmResult?.status ?? "skipped",
+        },
+        "Voice interaction complete"
+      );
 
       return {
+        requestId,
         transcription: normalizedTranscription,
         assistantText,
-        audioReplyUrl: null,
+        audioReplyUrl: audioReplyUrl ?? null,
         wakeWordDetected: null
       };
     } catch (error) {
@@ -179,8 +257,12 @@ export class VoiceService {
       }
 
       voiceLogger.error(
-        { requestId, message: error instanceof Error ? error.message : "unknown voice persistence error" },
-        "Voice interaction failed before a durable response could be persisted"
+        {
+          requestId,
+          totalDurationMs: Date.now() - interactionStartedAt,
+          err: error,
+        },
+        "Voice interaction failed with unexpected error"
       );
 
       throw new AppError("VOICE_PROCESSING_FAILED", 500, "Unexpected voice processing failure", {
@@ -221,6 +303,7 @@ export class VoiceService {
       provider: result.provider,
       model: result.model,
       answer: result.answer,
+      responseLength: typeof result.answer === "string" ? result.answer.length : null,
       dryRun: result.dryRun,
       grounding: {
         factCount: result.grounding.factCount,
@@ -254,25 +337,44 @@ export class VoiceService {
   private async generateAssistantReply(input: {
     prompt: string;
     userId: string;
+    requestId: string;
   }): Promise<LlmGenerationOutcome | null> {
     const llmInput = this.buildLlmInput(input.prompt, input.userId);
     const startedAt = Date.now();
 
     try {
       const result = await this.llmGenerator.generate(llmInput);
+      const durationMs = Date.now() - startedAt;
+
+      voiceLogger.info(
+        {
+          requestId: input.requestId,
+          provider: result.provider,
+          model: result.model,
+          durationMs,
+          factCount: result.grounding.factCount,
+          ecosystemsUsed: result.grounding.ecosystemsUsed,
+          groundingWarnings: result.grounding.warnings,
+          responseLength: typeof result.answer === "string" ? result.answer.length : 0,
+        },
+        "LLM generation succeeded for voice interaction"
+      );
+
       return {
         input: llmInput,
         result,
         status: "success",
-        durationMs: Date.now() - startedAt,
+        durationMs,
         outputPayload: this.buildToolCallSuccessPayload(result)
       };
     } catch (error) {
       voiceLogger.warn(
         {
+          requestId: input.requestId,
           toolName: llmToolName,
           userId: input.userId,
-          message: error instanceof Error ? error.message : "unknown llm error",
+          durationMs: Date.now() - startedAt,
+          err: error,
         },
         "Voice interaction fell back after LLM generation failure"
       );
