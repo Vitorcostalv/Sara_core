@@ -6,6 +6,34 @@ const repositoryRoot = path.resolve(__dirname, "../../../..");
 
 config({ path: path.resolve(repositoryRoot, ".env") });
 
+function parseOptionalBoolean(value: unknown) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return value;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") return true;
+  if (normalized === "false" || normalized === "0") return false;
+
+  return value;
+}
+
+function parseTrustProxy(value: unknown) {
+  if (value === undefined || value === null || value === "") return false;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  const normalized = trimmed.toLowerCase();
+
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  if (/^\d+$/.test(trimmed)) return Number.parseInt(trimmed, 10);
+
+  return trimmed;
+}
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   BACKEND_HOST: z.string().default("0.0.0.0"),
@@ -24,15 +52,21 @@ const EnvSchema = z.object({
   STT_AUDIO_MAX_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
   STT_FFMPEG_PATH: z.string().default("ffmpeg"),
   STT_PYTHON_PATH: z.string().default("python"),
+  API_JSON_MAX_BYTES: z.coerce.number().int().positive().default(256 * 1024),
+  AUTH_MODE: z.enum(["disabled", "api-key"]).optional(),
+  API_AUTH_KEY: z.string().optional(),
+  TRUST_PROXY: z.preprocess(parseTrustProxy, z.union([z.boolean(), z.number().int().nonnegative(), z.string()]).default(false)),
+  VOICE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  VOICE_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  LLM_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  LLM_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   DATABASE_URL: z.string().optional(),
   DIRECT_DATABASE_URL: z.string().optional(),
-  DATABASE_SSL: z
-    .string()
-    .optional()
-    .transform((v) => v !== "false" && v !== "0"),
+  DATABASE_SSL: z.preprocess(parseOptionalBoolean, z.boolean().optional()),
+  DATABASE_SSL_MODE: z.enum(["disable", "require", "verify-full"]).optional(),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
@@ -44,10 +78,20 @@ if (!parsed.success) {
 // Database
 const databaseUrl = parsed.data.DATABASE_URL ?? null;
 const directDatabaseUrl = parsed.data.DIRECT_DATABASE_URL ?? null;
-const databaseSsl = parsed.data.DATABASE_SSL ?? true;
+const databaseSslMode =
+  parsed.data.DATABASE_SSL_MODE ?? ((parsed.data.DATABASE_SSL ?? true) ? "require" : "disable");
+const databaseSsl = databaseSslMode !== "disable";
 
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is required. Set it in your .env file.");
+}
+
+const authMode =
+  parsed.data.AUTH_MODE ?? (parsed.data.NODE_ENV === "production" ? "api-key" : "disabled");
+const apiAuthKey = parsed.data.API_AUTH_KEY?.trim() || null;
+
+if (authMode === "api-key" && !apiAuthKey) {
+  throw new Error("API_AUTH_KEY is required when AUTH_MODE=api-key.");
 }
 
 // STT model path
@@ -89,6 +133,14 @@ export const env = {
   host: parsed.data.BACKEND_HOST,
   port: parsed.data.BACKEND_PORT,
   corsOrigins,
+  apiJsonMaxBytes: parsed.data.API_JSON_MAX_BYTES,
+  authMode,
+  apiAuthKey,
+  trustProxy: parsed.data.TRUST_PROXY,
+  voiceRateLimitWindowMs: parsed.data.VOICE_RATE_LIMIT_WINDOW_MS,
+  voiceRateLimitMax: parsed.data.VOICE_RATE_LIMIT_MAX,
+  llmRateLimitWindowMs: parsed.data.LLM_RATE_LIMIT_WINDOW_MS,
+  llmRateLimitMax: parsed.data.LLM_RATE_LIMIT_MAX,
   llmProvider: parsed.data.LLM_PROVIDER,
   llmApiKey: parsed.data.LLM_API_KEY?.trim() || null,
   llmModel: parsed.data.LLM_MODEL.trim(),
@@ -103,5 +155,6 @@ export const env = {
   databaseUrl: databaseUrl as string,
   directDatabaseUrl,
   databaseSsl,
+  databaseSslMode,
   repositoryRoot,
 };

@@ -3,11 +3,11 @@ import path from "node:path";
 import pg from "pg";
 import { env } from "../config/env";
 import { logger } from "../logging/logger";
+import { createPgConnectionOptions } from "./postgres";
 
 async function runSeedsPostgres(): Promise<void> {
   const client = new pg.Client({
-    connectionString: env.directDatabaseUrl ?? env.databaseUrl,
-    ssl: env.databaseSsl ? { rejectUnauthorized: false } : undefined,
+    ...createPgConnectionOptions(env.directDatabaseUrl ?? env.databaseUrl),
   });
 
   await client.connect();

@@ -3,12 +3,12 @@ import path from "node:path";
 import pg from "pg";
 import { env } from "../config/env";
 import { logger } from "../logging/logger";
+import { createPgConnectionOptions } from "./postgres";
 
 async function runMigrationsPostgres(): Promise<void> {
   const connectionString = env.directDatabaseUrl ?? env.databaseUrl;
   const client = new pg.Client({
-    connectionString,
-    ssl: env.databaseSsl ? { rejectUnauthorized: false } : undefined,
+    ...createPgConnectionOptions(connectionString),
   });
 
   await client.connect();

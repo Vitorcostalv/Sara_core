@@ -1,14 +1,19 @@
 export const tokens = {
   typography: {
     family:
-      "\"Sora\", \"Plus Jakarta Sans\", \"Space Grotesk\", \"Segoe UI\", sans-serif",
+      "\"Instrument Sans\", \"Avenir Next\", \"Segoe UI\", sans-serif",
+    displayFamily:
+      "\"Syne\", \"Arial Narrow\", sans-serif",
+    monoFamily:
+      "\"IBM Plex Mono\", \"SFMono-Regular\", Consolas, monospace",
     size: {
       xs: "0.75rem",
       sm: "0.875rem",
       md: "1rem",
       lg: "1.125rem",
       xl: "1.375rem",
-      "2xl": "1.75rem"
+      "2xl": "1.75rem",
+      "3xl": "2.5rem"
     },
     weight: {
       regular: 400,
@@ -65,8 +70,8 @@ export const tokens = {
     }
   },
   layout: {
-    maxContainerWidth: "1200px",
-    sidebarWidth: "272px"
+    maxContainerWidth: "1360px",
+    sidebarWidth: "308px"
   },
   zIndex: {
     base: 1,

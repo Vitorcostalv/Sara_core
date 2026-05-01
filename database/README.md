@@ -6,6 +6,10 @@ Pasta para evolucao do banco PostgreSQL usado pelo runtime atual da Sara Core.
 - `schema/`: documentacao do modelo de dados.
 - `seeds/`: dados de apoio opcionais para desenvolvimento local.
 
+Observacao operacional:
+- o runtime usa `DATABASE_URL` e `DIRECT_DATABASE_URL` para Neon/PostgreSQL
+- a politica de SSL fica em `DATABASE_SSL_MODE`, sem depender de `sslmode` na connection string
+
 Seeds atuais:
 - `001_seed_dev.sql`: perfil local + fatos globais de contexto/preferencias.
 - `002_seed_ecosystems.sql`: facts organizados por `category = ecosystem:<slug>`.

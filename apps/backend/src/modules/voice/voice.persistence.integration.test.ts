@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
-import { pool } from "../../database/postgres";
+import { pool, withTransaction } from "../../database/postgres";
 import { ConversationTurnsRepository } from "../conversation-turns/conversation-turns.repository";
 import { ToolCallsRepository } from "../tool-calls/tool-calls.repository";
 import { VoiceService } from "./voice.service";
@@ -41,8 +41,6 @@ test("VoiceService persists a user turn, a tool call and an assistant turn in Po
         userProfileRepository: {
           ensureLocalProfile: () => Promise.resolve({ id: TEST_USER_ID }),
         },
-        conversationTurnsRepository: new ConversationTurnsRepository(),
-        toolCallsRepository: new ToolCallsRepository(),
         llmGenerator: {
           generate: () =>
             Promise.resolve({
@@ -107,6 +105,95 @@ test("VoiceService persists a user turn, a tool call and an assistant turn in Po
     assert.equal(toolCalls.rows.length, 1);
     assert.equal(toolCalls.rows[0]?.tool_name, "llm.generate");
     assert.equal(toolCalls.rows[0]?.status, "success");
+  } finally {
+    await cleanupTestUser();
+  }
+});
+
+test("VoiceService rolls back persisted writes when the transactional persistence phase fails", async () => {
+  await ensureTestUser();
+
+  try {
+    let createCallCount = 0;
+
+    const service = new VoiceService(
+      () => ({
+        transcribe: () => "Quero validar rollback operacional",
+      }),
+      {
+        audioConverter: () => undefined,
+        userProfileRepository: {
+          ensureLocalProfile: () => Promise.resolve({ id: TEST_USER_ID }),
+        },
+        runInTransaction: withTransaction,
+        createConversationTurnsRepository: (db) => {
+          const repository = new ConversationTurnsRepository(db);
+          return {
+            create: async (input) => {
+              createCallCount += 1;
+              if (createCallCount === 2) {
+                throw new Error("forced assistant turn failure");
+              }
+
+              return repository.create(input);
+            },
+          };
+        },
+        createToolCallsRepository: (db) => new ToolCallsRepository(db),
+        llmGenerator: {
+          generate: () =>
+            Promise.resolve({
+              provider: "mock",
+              model: "mock-grounded-model",
+              answer: "Resposta pronta antes da persistencia.",
+              dryRun: false,
+              contextPreview: "Grounded context",
+              factsPreview: [],
+              ecosystems: [],
+              grounding: {
+                userId: TEST_USER_ID,
+                profileIncluded: true,
+                factCount: 2,
+                ecosystemsUsed: ["sara-core"],
+                warnings: [],
+              },
+            }),
+        },
+      }
+    );
+
+    await assert.rejects(
+      () =>
+        service.processVoiceInteraction({
+          audioBuffer: Buffer.from("audio"),
+          mimeType: "audio/webm",
+          language: "pt-BR",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.equal((error as { code?: string }).code, "VOICE_PERSISTENCE_FAILED");
+        return true;
+      }
+    );
+
+    const turns = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM conversation_turns
+       WHERE user_id = $1
+         AND source IN ('voice-user', 'voice-assistant')`,
+      [TEST_USER_ID]
+    );
+    const toolCalls = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM tool_calls
+       WHERE conversation_turn_id IN (
+         SELECT id FROM conversation_turns WHERE user_id = $1 AND source = 'voice-user'
+       )`,
+      [TEST_USER_ID]
+    );
+
+    assert.equal(parseInt(turns.rows[0]?.count ?? "0", 10), 0);
+    assert.equal(parseInt(toolCalls.rows[0]?.count ?? "0", 10), 0);
   } finally {
     await cleanupTestUser();
   }

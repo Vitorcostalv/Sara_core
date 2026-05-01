@@ -1,38 +1,38 @@
 export const colors = {
   background: {
-    primary: "#060a14",
-    secondary: "#0b1222",
-    subtle: "#111a30"
+    primary: "#090c11",
+    secondary: "#11161e",
+    subtle: "#181f2a"
   },
   surface: {
-    base: "#0f172b",
-    elevated: "#131f37",
-    contrast: "#f8fbff"
+    base: "#10161f",
+    elevated: "#171f2a",
+    contrast: "#f5ecdf"
   },
   brand: {
-    primary: "#5b8cff",
-    secondary: "#6d55ff",
-    accent: "#22d3ee"
+    primary: "#ff9a3c",
+    secondary: "#42d4c8",
+    accent: "#f5ecdf"
   },
   border: {
-    base: "rgba(137, 159, 207, 0.24)",
-    strong: "rgba(148, 171, 224, 0.42)"
+    base: "rgba(212, 187, 148, 0.16)",
+    strong: "rgba(245, 208, 147, 0.34)"
   },
   text: {
-    primary: "#f3f6ff",
-    secondary: "#b5c2e1",
-    muted: "#8291b8",
-    inverse: "#050912"
+    primary: "#f5ecdf",
+    secondary: "#c8c0b5",
+    muted: "#8d8a83",
+    inverse: "#0b0d12"
   },
   semantic: {
-    success: "#24c08a",
-    warning: "#ffb020",
-    error: "#ff5f72",
-    info: "#42c4ff"
+    success: "#49d89f",
+    warning: "#ffb347",
+    error: "#ff7b6b",
+    info: "#58d4ff"
   },
   state: {
-    hover: "rgba(93, 131, 235, 0.14)",
-    active: "rgba(76, 115, 223, 0.22)",
-    disabled: "rgba(115, 133, 170, 0.35)"
+    hover: "rgba(255, 154, 60, 0.1)",
+    active: "rgba(255, 154, 60, 0.16)",
+    disabled: "rgba(121, 120, 116, 0.35)"
   }
 } as const;

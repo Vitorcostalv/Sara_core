@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ConversationTurn, JsonValue, LlmGenerateResult, ToolCall } from "@sara/shared-types";
 import { env } from "../../config/env";
+import { type Queryable, withTransaction } from "../../database/postgres";
 import { AppError } from "../../core/errors/app-error";
 import { logger } from "../../logging/logger";
 import type { GenerateLlmInput } from "../llm/llm.schemas";
@@ -72,10 +73,11 @@ interface LlmGenerator {
 
 interface VoiceServiceDependencies {
   audioConverter?: AudioConverter;
-  conversationTurnsRepository?: ConversationTurnsWriter;
-  toolCallsRepository?: ToolCallsWriter;
   userProfileRepository?: UserProfileEnsurer;
   llmGenerator?: LlmGenerator;
+  runInTransaction?: <T>(callback: (db: Queryable) => Promise<T>) => Promise<T>;
+  createConversationTurnsRepository?: (db: Queryable) => ConversationTurnsWriter;
+  createToolCallsRepository?: (db: Queryable) => ToolCallsWriter;
 }
 
 const insufficientAudioMessage = "Nao consegui entender o audio com clareza.";
@@ -85,21 +87,24 @@ const llmToolName = "llm.generate";
 
 export class VoiceService {
   private readonly audioConverter: AudioConverter;
-  private readonly conversationTurnsRepository: ConversationTurnsWriter;
-  private readonly toolCallsRepository: ToolCallsWriter;
   private readonly userProfileRepository: UserProfileEnsurer;
   private readonly llmGenerator: LlmGenerator;
+  private readonly runInTransaction: <T>(callback: (db: Queryable) => Promise<T>) => Promise<T>;
+  private readonly createConversationTurnsRepository: (db: Queryable) => ConversationTurnsWriter;
+  private readonly createToolCallsRepository: (db: Queryable) => ToolCallsWriter;
 
   constructor(
     private readonly providerFactory: SttProviderFactory,
     dependencies: VoiceServiceDependencies = {}
   ) {
     this.audioConverter = dependencies.audioConverter ?? convertAudioToPcm;
-    this.conversationTurnsRepository =
-      dependencies.conversationTurnsRepository ?? new ConversationTurnsRepository();
-    this.toolCallsRepository = dependencies.toolCallsRepository ?? new ToolCallsRepository();
     this.userProfileRepository = dependencies.userProfileRepository ?? new UserProfileRepository();
     this.llmGenerator = dependencies.llmGenerator ?? llmService;
+    this.runInTransaction = dependencies.runInTransaction ?? withTransaction;
+    this.createConversationTurnsRepository =
+      dependencies.createConversationTurnsRepository ?? ((db) => new ConversationTurnsRepository(db));
+    this.createToolCallsRepository =
+      dependencies.createToolCallsRepository ?? ((db) => new ToolCallsRepository(db));
   }
 
   async processVoiceInteraction(input: ProcessVoiceInteractionInput): Promise<VoiceInteractionResponse> {
@@ -154,13 +159,12 @@ export class VoiceService {
               userId: userProfile.id,
             })
           : null;
-      const assistantText = llmResult?.answer?.trim() || this.buildFallbackAssistantText(normalizedTranscription);
-
-      await this.conversationTurnsRepository.create({
+      const assistantText = this.resolveAssistantText(normalizedTranscription, llmResult);
+      await this.persistInteraction({
         userId: userProfile.id,
-        role: "assistant",
-        content: assistantText,
-        source: assistantTurnSource,
+        transcription: normalizedTranscription,
+        assistantText,
+        llmResult
       });
 
       return {
@@ -174,6 +178,11 @@ export class VoiceService {
         throw error;
       }
 
+      voiceLogger.error(
+        { requestId, message: error instanceof Error ? error.message : "unknown voice persistence error" },
+        "Voice interaction failed before a durable response could be persisted"
+      );
+
       throw new AppError("VOICE_PROCESSING_FAILED", 500, "Unexpected voice processing failure", {
         message: error instanceof Error ? error.message : "unknown processing error"
       });
@@ -186,6 +195,14 @@ export class VoiceService {
 
   private buildFallbackAssistantText(transcription: string) {
     return transcription.length > 0 ? `Entendi: ${transcription}` : insufficientAudioMessage;
+  }
+
+  private resolveAssistantText(transcription: string, llmResult: LlmGenerationOutcome | null) {
+    if (llmResult?.result?.answer?.trim()) {
+      return llmResult.result.answer.trim();
+    }
+
+    return this.buildFallbackAssistantText(transcription);
   }
 
   private buildLlmInput(prompt: string, userId: string): GenerateLlmInput {
@@ -237,47 +254,20 @@ export class VoiceService {
   private async generateAssistantReply(input: {
     prompt: string;
     userId: string;
-  }): Promise<LlmGenerateResult | null> {
-    const userTurn = await this.conversationTurnsRepository.create({
-      userId: input.userId,
-      role: "user",
-      content: input.prompt,
-      source: userTurnSource,
-    });
-
+  }): Promise<LlmGenerationOutcome | null> {
     const llmInput = this.buildLlmInput(input.prompt, input.userId);
-    const toolCall = await this.toolCallsRepository.create({
-      conversationTurnId: userTurn.id,
-      toolName: llmToolName,
-      inputPayload: {
-        prompt: llmInput.prompt,
-        userId: llmInput.userId,
-        includeProfile: llmInput.includeProfile,
-        maxFacts: llmInput.maxFacts,
-        dryRun: llmInput.dryRun,
-      },
-      status: "running",
-    });
-
     const startedAt = Date.now();
 
     try {
       const result = await this.llmGenerator.generate(llmInput);
-
-      await this.toolCallsRepository.updateStatusById(toolCall.id, {
+      return {
+        input: llmInput,
+        result,
         status: "success",
         durationMs: Date.now() - startedAt,
-        outputPayload: this.buildToolCallSuccessPayload(result),
-      });
-
-      return result;
+        outputPayload: this.buildToolCallSuccessPayload(result)
+      };
     } catch (error) {
-      await this.toolCallsRepository.updateStatusById(toolCall.id, {
-        status: "error",
-        durationMs: Date.now() - startedAt,
-        outputPayload: this.buildToolCallErrorPayload(error),
-      });
-
       voiceLogger.warn(
         {
           toolName: llmToolName,
@@ -287,9 +277,87 @@ export class VoiceService {
         "Voice interaction fell back after LLM generation failure"
       );
 
-      return null;
+      return {
+        input: llmInput,
+        result: null,
+        status: "error",
+        durationMs: Date.now() - startedAt,
+        outputPayload: this.buildToolCallErrorPayload(error)
+      };
     }
   }
+
+  private buildToolCallInputPayload(input: GenerateLlmInput): JsonValue {
+    return {
+      prompt: input.prompt,
+      userId: input.userId,
+      ecosystems: input.ecosystems,
+      includeProfile: input.includeProfile,
+      maxFacts: input.maxFacts,
+      dryRun: input.dryRun,
+    };
+  }
+
+  private async persistInteraction(input: PersistVoiceInteractionInput) {
+    try {
+      await this.runInTransaction(async (db) => {
+        const conversationTurnsRepository = this.createConversationTurnsRepository(db);
+        const toolCallsRepository = this.createToolCallsRepository(db);
+
+        let userTurnId: string | null = null;
+
+        if (input.transcription.length > 0) {
+          const userTurn = await conversationTurnsRepository.create({
+            userId: input.userId,
+            role: "user",
+            content: input.transcription,
+            source: userTurnSource,
+          });
+
+          userTurnId = userTurn.id;
+
+          if (input.llmResult !== null) {
+            await toolCallsRepository.create({
+              conversationTurnId: userTurnId,
+              toolName: llmToolName,
+              inputPayload: this.buildToolCallInputPayload(input.llmResult.input),
+              outputPayload: input.llmResult.outputPayload,
+              status: input.llmResult.status,
+              durationMs: input.llmResult.durationMs,
+            });
+          }
+        }
+
+        await conversationTurnsRepository.create({
+          userId: input.userId,
+          role: "assistant",
+          content: input.assistantText,
+          source: assistantTurnSource,
+        });
+
+        return userTurnId;
+      });
+    } catch (error) {
+      throw new AppError("VOICE_PERSISTENCE_FAILED", 500, "Voice interaction could not be persisted safely.", {
+        message: error instanceof Error ? error.message : "unknown persistence error"
+      });
+    }
+  }
+}
+
+interface LlmGenerationOutcome {
+  input: GenerateLlmInput;
+  result: LlmGenerateResult | null;
+  status: "success" | "error";
+  durationMs: number;
+  outputPayload: JsonValue;
+}
+
+interface PersistVoiceInteractionInput {
+  userId: string;
+  transcription: string;
+  assistantText: string;
+  llmResult: LlmGenerationOutcome | null;
 }
 
 function createSttProvider(): SttProvider {

@@ -1,17 +1,15 @@
 import type { ChangeEvent, RefObject } from "react";
-import { UploadSimple, WarningCircle } from "@phosphor-icons/react";
-import type { VoiceInteractionResponse } from "../../services/api/voice";
 import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Input,
-  LoadingBlock,
-  StatusPill
-} from "../../components/ui";
+  ArrowClockwise,
+  FileArrowUp,
+  Headphones,
+  ShieldWarning,
+  Sparkle,
+  UploadSimple,
+  Waveform
+} from "@phosphor-icons/react";
+import type { VoiceInteractionResponse } from "../../services/api/voice";
+import { Button, Input, LoadingBlock, StatusPill } from "../../components/ui";
 import {
   acceptedAudioTypes,
   formatBytes,
@@ -29,7 +27,7 @@ interface VoiceUploadSectionProps {
   requestStatus: VoiceRequestStatus;
   selectedAudioFile: File | null;
   statusLabel: string;
-  statusTone: "neutral" | "warning" | "info";
+  statusTone: "neutral" | "warning" | "info" | "success";
   voiceError: string | null;
   voiceNotice: string | null;
   voiceResult: VoiceInteractionResponse | null;
@@ -61,122 +59,138 @@ export function VoiceUploadSection({
 }: VoiceUploadSectionProps) {
   const transcriptionText = voiceResult?.transcription?.trim() ?? "";
   const assistantText = voiceResult?.assistantText?.trim() ?? "";
+  const hasResult = voiceResult !== null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Teste por arquivo</CardTitle>
-        <CardDescription>
-          Use arquivos reais para validar o STT sem depender de microfone.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="voice-mvp">
-        <div className="voice-mvp__controls">
-          <StatusPill tone={statusTone}>{statusLabel}</StatusPill>
-          <span className="voice-mvp__support-copy">
-            Aceita webm, ogg, wav, mp3, mp4, m4a e aac ate {formatBytes(maxAudioUploadBytes)}.
-          </span>
+    <section className="signal-panel signal-panel--voice">
+      <div className="signal-panel__header">
+        <div>
+          <span className="signal-panel__eyebrow">Main execution path</span>
+          <h3>Upload and run</h3>
+          <p>Importe amostras reais, envie para o backend e compare transcrição e resposta no mesmo contexto.</p>
+        </div>
+        <StatusPill tone={statusTone}>{statusLabel}</StatusPill>
+      </div>
+
+      <div className="voice-dropzone">
+        <input
+          ref={fileInputRef as RefObject<HTMLInputElement>}
+          className="voice-mvp__file-input"
+          type="file"
+          accept={acceptedAudioTypes}
+          onChange={onAudioFileSelected}
+        />
+
+        <div className="voice-dropzone__content">
+          <div className="voice-dropzone__icon">
+            <UploadSimple weight="duotone" />
+          </div>
+          <div>
+            <strong>{selectedAudioFile?.name ?? "Nenhum audio selecionado"}</strong>
+            <p>
+              {selectedAudioFile
+                ? `${formatBytes(selectedAudioFile.size)} • ${selectedAudioFile.type || "tipo inferido"}`
+                : `Aceita webm, ogg, wav, mp3, mp4, m4a e aac ate ${formatBytes(maxAudioUploadBytes)}.`}
+            </p>
+          </div>
         </div>
 
-        <div className="voice-mvp__file-toolbar">
-          <input
-            ref={fileInputRef as RefObject<HTMLInputElement>}
-            className="voice-mvp__file-input"
-            type="file"
-            accept={acceptedAudioTypes}
-            onChange={onAudioFileSelected}
-          />
-
-          <Button
-            variant="secondary"
-            onClick={onOpenFilePicker}
-            disabled={requestStatus === "uploading"}
-          >
-            <UploadSimple weight="duotone" />
-            Importar audio
+        <div className="voice-dropzone__actions">
+          <Button variant="secondary" onClick={onOpenFilePicker} disabled={requestStatus === "uploading"}>
+            <FileArrowUp weight="duotone" />
+            Escolher arquivo
           </Button>
-
           <Button onClick={onSendSelectedAudioFile} disabled={!canSendSelectedFile}>
-            <UploadSimple weight="duotone" />
-            {voiceResult && selectedAudioFile ? "Enviar novamente" : "Enviar arquivo"}
+            <Waveform weight="duotone" />
+            {hasResult && selectedAudioFile ? "Rodar novamente" : "Executar fluxo"}
           </Button>
-
           <Button
             variant="ghost"
             onClick={onClearCurrentAttempt}
             disabled={requestStatus !== "idle" || !hasAttemptState}
           >
-            Limpar / tentar outro
+            <ArrowClockwise weight="duotone" />
+            Limpar
           </Button>
         </div>
+      </div>
 
-        <div className="voice-mvp__file-grid">
-          <div className="voice-mvp__file-card">
-            <strong>Arquivo selecionado</strong>
-            <span>{selectedAudioFile?.name ?? "Nenhum arquivo selecionado."}</span>
-            <small>
-              {selectedAudioFile
-                ? `${formatBytes(selectedAudioFile.size)} | ${selectedAudioFile.type || "tipo inferido"}`
-                : "Selecione um audio local para iniciar o teste."}
-            </small>
+      <div className="voice-panel-grid">
+        <div className="voice-config-card">
+          <div className="voice-config-card__header">
+            <span>Request settings</span>
+            <small>multipart/form-data</small>
           </div>
-
           <Input
-            label="Language"
+            label="Language tag"
             value={language}
             onChange={(event) => onLanguageChange(event.target.value)}
             placeholder="pt-BR"
-            hint="Campo opcional enviado junto ao multipart/form-data."
+            hint="Campo opcional enviado junto ao upload para o backend."
           />
         </div>
 
-        {voiceError ? (
-          <div className="voice-mvp__error" role="alert">
-            <WarningCircle weight="duotone" />
+        <div className="voice-config-card">
+          <div className="voice-config-card__header">
+            <span>Attempt context</span>
+            <small>{lastInputSource === "microphone" ? "microfone" : "arquivo"}</small>
+          </div>
+          <div className="voice-context-list">
+            <div>
+              <strong>Origem</strong>
+              <span>{lastInputSource === "microphone" ? "Microfone" : "Arquivo importado"}</span>
+            </div>
+            <div>
+              <strong>Arquivo</strong>
+              <span>{selectedAudioFile?.name ?? "Nenhum selecionado"}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {voiceError ? (
+        <div className="signal-message signal-message--error" role="alert">
+          <ShieldWarning weight="duotone" />
+          <div>
+            <strong>Falha na tentativa atual</strong>
             <span>{voiceError}</span>
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        {voiceNotice ? (
-          <div className="voice-mvp__notice" role="status">
-            <WarningCircle weight="duotone" />
+      {voiceNotice ? (
+        <div className="signal-message signal-message--warning" role="status">
+          <Headphones weight="duotone" />
+          <div>
+            <strong>Processado com observação</strong>
             <span>{voiceNotice}</span>
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        {requestStatus === "uploading" ? (
-          <LoadingBlock label="Enviando audio para o backend..." />
-        ) : null}
+      {requestStatus === "uploading" ? <LoadingBlock label="Executando STT, LLM e persistencia..." /> : null}
 
-        {voiceResult ? (
-          <div className="voice-mvp__result">
-            <div className="voice-mvp__result-block">
-              <strong>Origem da tentativa</strong>
-              <p>{lastInputSource === "microphone" ? "Microfone" : "Arquivo importado"}</p>
-            </div>
-            <div className="voice-mvp__result-block">
-              <strong>Transcricao</strong>
-              <p>{transcriptionText || "Audio processado, mas sem fala detectavel nesta tentativa."}</p>
-            </div>
-            <div className="voice-mvp__result-block">
-              <strong>Assistant text</strong>
-              <p>{assistantText || "Sem resposta textual retornada pelo backend."}</p>
-            </div>
-            {voiceResult.audioReplyUrl ? (
-              <small className="voice-mvp__hint">
-                Audio de resposta disponivel em {voiceResult.audioReplyUrl}
-              </small>
-            ) : null}
+      <div className="voice-results-grid">
+        <article className="voice-result-card">
+          <div className="voice-result-card__header">
+            <span>Transcript</span>
+            <Sparkle weight="duotone" />
           </div>
-        ) : (
-          <div className="voice-mvp__placeholder">
-            <UploadSimple weight="duotone" />
-            <p>
-              Nenhum audio enviado ainda. Importe um arquivo, envie para o backend e confira o retorno do STT.
-            </p>
+          <p>
+            {transcriptionText || "Nenhuma transcricao disponivel ainda. Execute um arquivo para validar o retorno do STT."}
+          </p>
+        </article>
+
+        <article className="voice-result-card voice-result-card--accent">
+          <div className="voice-result-card__header">
+            <span>Assistant reply</span>
+            <Waveform weight="duotone" />
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <p>
+            {assistantText || "A resposta textual aparecera aqui apos a execucao completa do fluxo no backend."}
+          </p>
+        </article>
+      </div>
+    </section>
   );
 }

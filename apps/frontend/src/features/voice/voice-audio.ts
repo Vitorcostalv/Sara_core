@@ -190,6 +190,16 @@ export function getMicrophoneFileName(blobType: string): string {
 export function getVoiceRequestErrorMessage(error: VoiceApiError): string {
   const normalizedMessage = error.message.toLowerCase();
 
+  if (error.status === 401) {
+    return "A API recusou a tentativa atual. Verifique a chave de integracao configurada neste ambiente.";
+  }
+
+  if (error.status === 429) {
+    return error.retryAfterSeconds
+      ? `Limite temporario de voz atingido. Aguarde cerca de ${error.retryAfterSeconds}s antes de tentar novamente.`
+      : "Limite temporario de voz atingido. Aguarde um pouco antes de tentar novamente.";
+  }
+
   if (error.status === 404) {
     return "Endpoint de voz nao encontrado no backend (POST /api/v1/voice/interactions).";
   }

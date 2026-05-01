@@ -31,6 +31,7 @@ import { useUiStore } from "../../state/ui.store";
 
 const fallbackApiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3333/api/v1";
+const optionalApiAuthKey = import.meta.env.VITE_API_AUTH_KEY?.trim() || "";
 
 function getApiBaseUrl(): string {
   const configured = useUiStore.getState().apiBaseUrl?.trim();
@@ -43,10 +44,21 @@ export function buildApiUrl(endpoint: string): string {
   return `${baseUrl}${path}`;
 }
 
+export function buildApiHeaders(headers: HeadersInit = {}): Headers {
+  const nextHeaders = new Headers(headers);
+
+  if (optionalApiAuthKey.length > 0) {
+    nextHeaders.set("x-sara-api-key", optionalApiAuthKey);
+  }
+
+  return nextHeaders;
+}
+
 export class ApiClientError extends Error {
   constructor(
     public readonly status: number,
     public readonly payload: ApiErrorResponse | null,
+    public readonly retryAfterSeconds: number | null,
     message: string
   ) {
     super(message);
@@ -60,6 +72,16 @@ export function isApiClientError(error: unknown): error is ApiClientError {
 
 export function getApiErrorMessage(error: unknown): string {
   if (isApiClientError(error)) {
+    if (error.status === 401) {
+      return "Acesso negado pela API. Verifique a chave de integracao configurada para este ambiente.";
+    }
+
+    if (error.status === 429) {
+      return error.retryAfterSeconds
+        ? `Limite temporario atingido. Tente novamente em cerca de ${error.retryAfterSeconds}s.`
+        : "Limite temporario atingido. Aguarde um pouco antes de tentar novamente.";
+    }
+
     return error.payload?.error.message ?? error.message;
   }
   if (error instanceof Error) {
@@ -85,15 +107,19 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const response = await fetch(buildApiUrl(endpoint), {
     method: options.method ?? "GET",
     headers:
-      options.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      options.body !== undefined ? buildApiHeaders({ "Content-Type": "application/json" }) : buildApiHeaders(),
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 
   if (!response.ok) {
     const errorPayload = await readApiErrorPayload(response);
+    const retryAfterHeader = response.headers.get("Retry-After");
+    const retryAfterSeconds =
+      retryAfterHeader && /^\d+$/.test(retryAfterHeader) ? Number.parseInt(retryAfterHeader, 10) : null;
     throw new ApiClientError(
       response.status,
       errorPayload,
+      retryAfterSeconds,
       errorPayload?.error.message ?? `Request failed with status ${response.status}`
     );
   }

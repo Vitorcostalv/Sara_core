@@ -4,7 +4,7 @@ interface LoadingBlockProps {
   label?: string;
 }
 
-export function LoadingBlock({ label = "Loading data..." }: LoadingBlockProps) {
+export function LoadingBlock({ label = "Carregando..." }: LoadingBlockProps) {
   return (
     <div className="ui-loading-block" role="status" aria-live="polite">
       <SpinnerGap className="ui-loading-block__icon" weight="duotone" />

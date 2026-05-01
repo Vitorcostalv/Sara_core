@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ConversationTurn, JsonValue, LlmGenerateResult, ToolCall } from "@sara/shared-types";
+import type { ConversationTurn, LlmGenerateResult, ToolCall } from "@sara/shared-types";
 import { AppError } from "../../core/errors/app-error";
 import { VoiceService } from "./voice.service";
 
@@ -20,7 +20,7 @@ function createToolCall(id: string, overrides: Partial<ToolCall> = {}): ToolCall
 
 test("VoiceService persists user and assistant turns and marks llm.generate as success", async () => {
   const turns: Array<{ role: string; content: string; source: string }> = [];
-  const toolCallUpdates: Array<{ status: string; outputPayload?: JsonValue | null }> = [];
+  const createdToolCalls: ToolCall[] = [];
 
   const service = new VoiceService(
     () => ({
@@ -31,7 +31,8 @@ test("VoiceService persists user and assistant turns and marks llm.generate as s
       userProfileRepository: {
         ensureLocalProfile: () => Promise.resolve({ id: "local-user" }),
       },
-      conversationTurnsRepository: {
+      runInTransaction: async (callback) => callback({ query: async () => { throw new Error("query should not be called in unit tests"); } } as never),
+      createConversationTurnsRepository: () => ({
         create: (input) => {
           turns.push({ role: input.role, content: input.content, source: input.source });
           return Promise.resolve({
@@ -43,14 +44,20 @@ test("VoiceService persists user and assistant turns and marks llm.generate as s
             createdAt: new Date().toISOString(),
           } as ConversationTurn);
         },
-      },
-      toolCallsRepository: {
-        create: () => Promise.resolve(createToolCall("tool-1")),
-        updateStatusById: (_id, input) => {
-          toolCallUpdates.push(input);
-          return Promise.resolve(createToolCall("tool-1", { status: input.status, outputPayload: input.outputPayload ?? null }));
+      }),
+      createToolCallsRepository: () => ({
+        create: (input) => {
+          const toolCall = createToolCall("tool-1", {
+            conversationTurnId: input.conversationTurnId,
+            status: input.status,
+            outputPayload: input.outputPayload ?? null,
+            durationMs: input.durationMs ?? null,
+          });
+          createdToolCalls.push(toolCall);
+          return Promise.resolve(toolCall);
         },
-      },
+        updateStatusById: () => Promise.resolve(null),
+      }),
       llmGenerator: {
         generate: () =>
           Promise.resolve({
@@ -85,12 +92,12 @@ test("VoiceService persists user and assistant turns and marks llm.generate as s
     turns.map((turn) => `${turn.role}:${turn.source}`),
     ["user:voice-user", "assistant:voice-assistant"]
   );
-  assert.equal(toolCallUpdates.length, 1);
-  assert.equal(toolCallUpdates[0]?.status, "success");
+  assert.equal(createdToolCalls.length, 1);
+  assert.equal(createdToolCalls[0]?.status, "success");
 });
 
 test("VoiceService falls back to the transcription echo and marks llm.generate as error when generation fails", async () => {
-  const toolCallUpdates: Array<{ status: string; outputPayload?: JsonValue | null }> = [];
+  const createdToolCalls: ToolCall[] = [];
 
   const service = new VoiceService(
     () => ({
@@ -101,7 +108,8 @@ test("VoiceService falls back to the transcription echo and marks llm.generate a
       userProfileRepository: {
         ensureLocalProfile: () => Promise.resolve({ id: "local-user" }),
       },
-      conversationTurnsRepository: {
+      runInTransaction: async (callback) => callback({ query: async () => { throw new Error("query should not be called in unit tests"); } } as never),
+      createConversationTurnsRepository: () => ({
         create: (input) =>
           Promise.resolve({
             id: input.role === "user" ? "turn-user" : "turn-assistant",
@@ -111,14 +119,20 @@ test("VoiceService falls back to the transcription echo and marks llm.generate a
             source: input.source,
             createdAt: new Date().toISOString(),
           } as ConversationTurn),
-      },
-      toolCallsRepository: {
-        create: () => Promise.resolve(createToolCall("tool-1")),
-        updateStatusById: (_id, input) => {
-          toolCallUpdates.push(input);
-          return Promise.resolve(createToolCall("tool-1", { status: input.status, outputPayload: input.outputPayload ?? null }));
+      }),
+      createToolCallsRepository: () => ({
+        create: (input) => {
+          const toolCall = createToolCall("tool-1", {
+            conversationTurnId: input.conversationTurnId,
+            status: input.status,
+            outputPayload: input.outputPayload ?? null,
+            durationMs: input.durationMs ?? null,
+          });
+          createdToolCalls.push(toolCall);
+          return Promise.resolve(toolCall);
         },
-      },
+        updateStatusById: () => Promise.resolve(null),
+      }),
       llmGenerator: {
         generate: () => Promise.reject(new AppError("LLM_PROVIDER_NOT_CONFIGURED", 503, "Provider disabled")),
       },
@@ -132,9 +146,9 @@ test("VoiceService falls back to the transcription echo and marks llm.generate a
   });
 
   assert.equal(result.assistantText, "Entendi: Transcricao offline disponivel");
-  assert.equal(toolCallUpdates.length, 1);
-  assert.equal(toolCallUpdates[0]?.status, "error");
-  assert.deepEqual(toolCallUpdates[0]?.outputPayload, {
+  assert.equal(createdToolCalls.length, 1);
+  assert.equal(createdToolCalls[0]?.status, "error");
+  assert.deepEqual(createdToolCalls[0]?.outputPayload, {
     code: "LLM_PROVIDER_NOT_CONFIGURED",
     message: "Provider disabled",
   });

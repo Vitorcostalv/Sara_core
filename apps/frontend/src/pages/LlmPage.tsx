@@ -1,17 +1,19 @@
 import { useState } from "react";
-import { SlidersHorizontal } from "@phosphor-icons/react";
+import {
+  BracketsCurly,
+  Diamond,
+  Gauge,
+  SlidersHorizontal,
+  Sparkle,
+  WarningCircle
+} from "@phosphor-icons/react";
 import type { GenerateLlmRequest, LlmGenerateResult } from "@sara/shared-types";
 import {
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
+  EmptyState,
   ErrorState,
   Input,
   PageHeader,
-  Section,
-  Select,
   StatusPill,
   TextArea
 } from "../components/ui";
@@ -21,17 +23,19 @@ interface LlmFormState {
   prompt: string;
   ecosystems: string;
   maxFacts: string;
-  includeProfile: "true" | "false";
-  dryRun: "true" | "false";
+  includeProfile: boolean;
+  dryRun: boolean;
 }
 
 const initialFormState: LlmFormState = {
-  prompt: "Quais ecossistemas estao ativos hoje no projeto?",
-  ecosystems: "sara-core,llm-grounding,voice-stt",
+  prompt: "Quais ecossistemas estao ativos hoje no projeto e como eles se conectam no fluxo principal?",
+  ecosystems: "sara-core,llm-grounding,voice-stt,environment",
   maxFacts: "12",
-  includeProfile: "true",
-  dryRun: "true"
+  includeProfile: true,
+  dryRun: true
 };
+
+const suggestedEcosystems = ["sara-core", "llm-grounding", "voice-stt", "environment"];
 
 function parseEcosystems(value: string) {
   return Array.from(
@@ -51,9 +55,19 @@ function buildRequestPayload(form: LlmFormState): GenerateLlmRequest {
     prompt: form.prompt.trim(),
     ecosystems: parseEcosystems(form.ecosystems),
     maxFacts: Number.isFinite(parsedMaxFacts) ? parsedMaxFacts : 12,
-    includeProfile: form.includeProfile === "true",
-    dryRun: form.dryRun === "true"
+    includeProfile: form.includeProfile,
+    dryRun: form.dryRun
   };
+}
+
+function toggleSuggestedEcosystem(currentValue: string, ecosystem: string) {
+  const next = parseEcosystems(currentValue);
+
+  if (next.includes(ecosystem)) {
+    return next.filter((item) => item !== ecosystem).join(",");
+  }
+
+  return [...next, ecosystem].join(",");
 }
 
 export function LlmPage() {
@@ -64,7 +78,7 @@ export function LlmPage() {
 
   const onSubmit = async () => {
     if (!form.prompt.trim()) {
-      setErrorMessage("Prompt is required.");
+      setErrorMessage("Escreva um prompt antes de executar a validacao.");
       return;
     }
 
@@ -81,34 +95,97 @@ export function LlmPage() {
     }
   };
 
+  const parsedEcosystems = parseEcosystems(form.ecosystems);
+
   return (
     <div className="page-stack">
       <PageHeader
-        title="LLM Grounding"
-        description="Minimal operational screen to inspect grounded context, warnings and provider answers without redesign work."
+        eyebrow="Grounding bench"
+        title="LLM Inspector"
+        description="Uma bancada séria de validacao grounded: prompt, filtros, contexto montado, warnings e resposta final organizados como artefatos auditaveis."
         icon={<SlidersHorizontal weight="duotone" />}
         actions={<StatusPill tone="info">POST /api/v1/llm/generate</StatusPill>}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Run Grounded Prompt</CardTitle>
-        </CardHeader>
-        <CardContent className="stack-sm">
+      <section className="llm-hero">
+        <div className="llm-hero__lead">
+          <span className="llm-hero__eyebrow">Prompt orchestration</span>
+          <h3>Inspecione a cadeia inteira antes de confiar na resposta.</h3>
+          <p>
+            A tela agora separa claramente entrada, grounding e saída. Dry run continua sendo o modo preferido
+            para auditoria de contexto antes de qualquer chamada externa.
+          </p>
+        </div>
+
+        <div className="llm-hero__stats">
+          <div className="signal-metric">
+            <span>Mode</span>
+            <strong>{form.dryRun ? "Dry run" : "Provider call"}</strong>
+            <small>{form.includeProfile ? "perfil incluido" : "sem perfil"}</small>
+          </div>
+          <div className="signal-metric">
+            <span>Ecosystems</span>
+            <strong>{parsedEcosystems.length}</strong>
+            <small>slugs selecionados</small>
+          </div>
+          <div className="signal-metric">
+            <span>Fact cap</span>
+            <strong>{form.maxFacts}</strong>
+            <small>limite atual de facts</small>
+          </div>
+        </div>
+      </section>
+
+      <div className="llm-layout">
+        <section className="signal-panel signal-panel--llm">
+          <div className="signal-panel__header">
+            <div>
+              <span className="signal-panel__eyebrow">Request composer</span>
+              <h3>Grounded prompt</h3>
+              <p>Monte a chamada com foco em clareza operacional, não em adivinhação do provider.</p>
+            </div>
+            {result ? (
+              <StatusPill tone={result.dryRun ? "warning" : "success"}>
+                {result.dryRun ? "Dry run" : "Provider"}
+              </StatusPill>
+            ) : null}
+          </div>
+
           <TextArea
             label="Prompt"
             value={form.prompt}
             onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
-            hint="Use dryRun first when auditing context quality."
+            hint="Use perguntas verificaveis e rastreaveis pelo banco."
           />
 
-          <div className="form-grid">
+          <div className="llm-chip-row">
+            {suggestedEcosystems.map((ecosystem) => {
+              const isActive = parsedEcosystems.includes(ecosystem);
+              return (
+                <button
+                  key={ecosystem}
+                  type="button"
+                  className={`llm-chip${isActive ? " is-active" : ""}`}
+                  onClick={() =>
+                    setForm((current) => ({
+                      ...current,
+                      ecosystems: toggleSuggestedEcosystem(current.ecosystems, ecosystem)
+                    }))
+                  }
+                >
+                  {ecosystem}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="llm-form-grid">
             <Input
               label="Ecosystems"
               value={form.ecosystems}
               onChange={(event) => setForm((current) => ({ ...current, ecosystems: event.target.value }))}
               placeholder="sara-core,llm-grounding,voice-stt"
-              hint="Comma-separated slugs. Leave empty to scan all ecosystem facts."
+              hint="Lista separada por virgulas."
             />
             <Input
               label="Max facts"
@@ -116,111 +193,212 @@ export function LlmPage() {
               onChange={(event) => setForm((current) => ({ ...current, maxFacts: event.target.value }))}
               inputMode="numeric"
             />
-            <Select
-              label="Include profile"
-              value={form.includeProfile}
-              onChange={(event) => setForm((current) => ({ ...current, includeProfile: event.target.value as LlmFormState["includeProfile"] }))}
+          </div>
+
+          <div className="toggle-grid">
+            <button
+              type="button"
+              className={`toggle-card${form.includeProfile ? " is-active" : ""}`}
+              onClick={() => setForm((current) => ({ ...current, includeProfile: !current.includeProfile }))}
             >
-              <option value="true">true</option>
-              <option value="false">false</option>
-            </Select>
-            <Select
-              label="Dry run"
-              value={form.dryRun}
-              onChange={(event) => setForm((current) => ({ ...current, dryRun: event.target.value as LlmFormState["dryRun"] }))}
+              <Diamond weight="duotone" />
+              <div>
+                <strong>Include profile</strong>
+                <span>Acopla `user_profile` ao contexto grounded.</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className={`toggle-card${form.dryRun ? " is-active" : ""}`}
+              onClick={() => setForm((current) => ({ ...current, dryRun: !current.dryRun }))}
             >
-              <option value="true">true</option>
-              <option value="false">false</option>
-            </Select>
+              <Gauge weight="duotone" />
+              <div>
+                <strong>Dry run</strong>
+                <span>Inspeciona contexto sem chamar provider externo.</span>
+              </div>
+            </button>
           </div>
 
           <div className="form-actions">
             <Button variant="primary" onClick={() => void onSubmit()} disabled={isSubmitting}>
-              {isSubmitting ? "Running..." : "Run request"}
+              {isSubmitting ? "Executando..." : "Executar validacao"}
             </Button>
-            {result ? (
-              <StatusPill tone={result.dryRun ? "warning" : "success"}>
-                {result.dryRun ? "dryRun" : "provider call"}
-              </StatusPill>
-            ) : null}
           </div>
-        </CardContent>
-      </Card>
+        </section>
 
-      {errorMessage ? <ErrorState message={errorMessage} onRetry={() => void onSubmit()} /> : null}
+        <section className="signal-panel signal-panel--secondary">
+          <div className="signal-panel__header">
+            <div>
+              <span className="signal-panel__eyebrow">Request summary</span>
+              <h3>Envelope atual</h3>
+              <p>Visao rapida do que sera enviado sem abrir a resposta completa.</p>
+            </div>
+          </div>
+
+          <div className="summary-list">
+            <div>
+              <strong>Prompt length</strong>
+              <span>{form.prompt.trim().length} caracteres</span>
+            </div>
+            <div>
+              <strong>Ecosystems</strong>
+              <span>{parsedEcosystems.length > 0 ? parsedEcosystems.join(", ") : "todos os disponiveis"}</span>
+            </div>
+            <div>
+              <strong>Profile</strong>
+              <span>{form.includeProfile ? "incluido" : "ignorado"}</span>
+            </div>
+            <div>
+              <strong>Execution</strong>
+              <span>{form.dryRun ? "somente contexto" : "contexto + provider"}</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {errorMessage ? <ErrorState title="Falha ao executar a validacao grounded" message={errorMessage} onRetry={() => void onSubmit()} /> : null}
+
+      {!result && !errorMessage ? (
+        <EmptyState
+          icon={<BracketsCurly weight="duotone" />}
+          title="Nenhuma execucao ainda"
+          description="Monte o request, rode em dry run e use a resposta como base para validar o comportamento grounded."
+          actionLabel="Executar agora"
+          onAction={() => void onSubmit()}
+        />
+      ) : null}
 
       {result ? (
         <>
-          <Section title="Execution Summary" subtitle="Inspect provider, model, warnings and the final answer returned by the backend.">
-            <div className="page-columns">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Result</CardTitle>
-                </CardHeader>
-                <CardContent className="stack-sm">
-                  <div className="inline-row">
-                    <strong>Provider</strong>
-                    <StatusPill tone="info">{result.provider}</StatusPill>
-                  </div>
-                  <div className="inline-row">
-                    <strong>Model</strong>
-                    <span className="ui-input-field__hint">{result.model}</span>
-                  </div>
-                  <div className="inline-row">
-                    <strong>Facts used</strong>
-                    <span className="ui-input-field__hint">{result.grounding.factCount}</span>
-                  </div>
-                  <div className="stack-sm">
-                    <strong>Answer</strong>
-                    <div className="voice-mvp__result-block">
-                      <p>{result.answer ?? "No answer returned. Dry run keeps provider output empty."}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          <div className="llm-results-grid">
+            <section className="signal-panel">
+              <div className="signal-panel__header">
+                <div>
+                  <span className="signal-panel__eyebrow">Response</span>
+                  <h3>Answer surface</h3>
+                </div>
+                <StatusPill tone={result.answer ? "success" : "warning"}>
+                  {result.answer ? "Answer ready" : "Sem answer"}
+                </StatusPill>
+              </div>
+              <article className="answer-card">
+                <div className="answer-card__meta">
+                  <StatusPill tone="info">{result.provider}</StatusPill>
+                  <StatusPill tone="neutral">{result.model}</StatusPill>
+                </div>
+                <p>{result.answer ?? "Nenhuma resposta final retornada. Em dry run isso e esperado."}</p>
+              </article>
+            </section>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Grounding Warnings</CardTitle>
-                </CardHeader>
-                <CardContent className="stack-sm">
-                  {result.grounding.warnings.length === 0 ? (
-                    <span className="ui-input-field__hint">No grounding warnings returned.</span>
-                  ) : (
-                    result.grounding.warnings.map((warning) => (
-                      <div key={warning} className="voice-mvp__notice">
+            <section className="signal-panel">
+              <div className="signal-panel__header">
+                <div>
+                  <span className="signal-panel__eyebrow">Grounding health</span>
+                  <h3>Warnings and coverage</h3>
+                </div>
+                <StatusPill tone={result.grounding.warnings.length > 0 ? "warning" : "success"}>
+                  {result.grounding.warnings.length > 0 ? "Atencao" : "Limpo"}
+                </StatusPill>
+              </div>
+
+              <div className="summary-list">
+                <div>
+                  <strong>Facts used</strong>
+                  <span>{result.grounding.factCount}</span>
+                </div>
+                <div>
+                  <strong>Ecosystems used</strong>
+                  <span>{result.grounding.ecosystemsUsed.join(", ") || "nenhum"}</span>
+                </div>
+              </div>
+
+              {result.grounding.warnings.length === 0 ? (
+                <div className="signal-message signal-message--success">
+                  <Sparkle weight="duotone" />
+                  <div>
+                    <strong>Sem warnings de grounding</strong>
+                    <span>O backend montou o contexto sem sinalizar cobertura insuficiente.</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="stack-sm">
+                  {result.grounding.warnings.map((warning) => (
+                    <div key={warning} className="signal-message signal-message--warning">
+                      <WarningCircle weight="duotone" />
+                      <div>
+                        <strong>Warning</strong>
                         <span>{warning}</span>
                       </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+
+          <section className="signal-panel">
+            <div className="signal-panel__header">
+              <div>
+                <span className="signal-panel__eyebrow">Context assembly</span>
+                <h3>Context preview</h3>
+                <p>Visualizacao textual exata do contexto que o backend montou antes da chamada ao provider.</p>
+              </div>
             </div>
-          </Section>
+            <pre className="context-panel">{result.contextPreview}</pre>
+          </section>
 
-          <Section title="Context Preview" subtitle="Audit the exact grounded preview assembled by the backend before the provider call.">
-            <Card>
-              <CardContent>
-                <pre className="llm-preview">{result.contextPreview}</pre>
-              </CardContent>
-            </Card>
-          </Section>
-
-          <Section title="Facts Preview" subtitle="Review the facts that actually entered the grounded context.">
-            <div className="llm-facts-grid">
+          <section className="signal-panel">
+            <div className="signal-panel__header">
+              <div>
+                <span className="signal-panel__eyebrow">Fact ingress</span>
+                <h3>Facts preview</h3>
+                <p>Os fatos abaixo representam o subconjunto real que entrou no grounding final.</p>
+              </div>
+            </div>
+            <div className="fact-preview-grid">
               {result.factsPreview.map((fact) => (
-                <Card key={fact.id}>
-                  <CardHeader>
-                    <CardTitle>{fact.key}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="stack-sm">
-                    <StatusPill tone={fact.isImportant ? "warning" : "neutral"}>{fact.category}</StatusPill>
-                    <p className="ui-card__description">{fact.valuePreview}</p>
-                  </CardContent>
-                </Card>
+                <article key={fact.id} className="fact-card">
+                  <div className="fact-card__header">
+                    <strong>{fact.key}</strong>
+                    <StatusPill tone={fact.isImportant ? "warning" : "neutral"}>
+                      {fact.isImportant ? "important" : "fact"}
+                    </StatusPill>
+                  </div>
+                  <span className="fact-card__category">{fact.category}</span>
+                  <p>{fact.valuePreview}</p>
+                </article>
               ))}
             </div>
-          </Section>
+          </section>
+
+          <section className="signal-panel">
+            <div className="signal-panel__header">
+              <div>
+                <span className="signal-panel__eyebrow">Ecosystem coverage</span>
+                <h3>Grouped by slug</h3>
+              </div>
+            </div>
+            <div className="ecosystem-grid">
+              {result.ecosystems.map((ecosystem) => (
+                <article key={ecosystem.slug} className="ecosystem-card">
+                  <div className="ecosystem-card__header">
+                    <strong>{ecosystem.slug}</strong>
+                    <StatusPill tone="info">{ecosystem.factCount} facts</StatusPill>
+                  </div>
+                  <ul>
+                    {ecosystem.facts.map((fact) => (
+                      <li key={fact.id}>
+                        <span>{fact.key}</span>
+                        <small>{fact.valuePreview}</small>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </section>
         </>
       ) : null}
     </div>

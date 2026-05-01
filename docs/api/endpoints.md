@@ -2,6 +2,12 @@
 
 Base URL: `/api/v1`
 
+## Authentication and limits
+
+- `GET /health` e `GET /health/...` permanecem publicos.
+- Os demais endpoints em `/api/v1` podem exigir o header `x-sara-api-key` quando `AUTH_MODE=api-key`.
+- `POST /voice/interactions` e `POST /llm/generate` possuem rate limiting basico em memoria por IP.
+
 ## Response pattern
 
 - Success (single): `{ "data": { ... } }`
@@ -44,9 +50,10 @@ Base URL: `/api/v1`
   "wakeWordDetected": null
 }
 ```
-- Possible errors: `VOICE_AUDIO_REQUIRED`, `VOICE_AUDIO_TOO_LARGE`, `VOICE_AUDIO_UNSUPPORTED_TYPE`, `VOICE_AUDIO_EMPTY`, `VOICE_FFMPEG_NOT_FOUND`, `VOICE_STT_PROVIDER_UNAVAILABLE`, `VOICE_STT_MODEL_NOT_FOUND`, `VOICE_AUDIO_CONVERSION_FAILED`, `VOICE_TRANSCRIPTION_FAILED`, `VOICE_PROCESSING_FAILED`, `VALIDATION_ERROR`, `INTERNAL_SERVER_ERROR`.
+- Possible errors: `AUTH_UNAUTHORIZED`, `RATE_LIMITED`, `VOICE_AUDIO_REQUIRED`, `VOICE_AUDIO_TOO_LARGE`, `VOICE_AUDIO_UNSUPPORTED_TYPE`, `VOICE_AUDIO_EMPTY`, `VOICE_FFMPEG_NOT_FOUND`, `VOICE_STT_PROVIDER_UNAVAILABLE`, `VOICE_STT_MODEL_NOT_FOUND`, `VOICE_AUDIO_CONVERSION_FAILED`, `VOICE_TRANSCRIPTION_FAILED`, `VOICE_PERSISTENCE_FAILED`, `VOICE_PROCESSING_FAILED`, `VALIDATION_ERROR`, `INTERNAL_SERVER_ERROR`.
 - Notes: conversao para PCM mono 16k via FFmpeg antes da transcricao.
 - Notes: quando a transcricao nao estiver vazia, o backend persiste automaticamente turno do usuario, tentativa de `llm.generate`, tool call e turno do assistente.
+- Notes: a persistencia final ocorre dentro de uma transacao unica; STT e chamada ao provider LLM ficam fora da transacao.
 
 ## LLM
 
@@ -56,7 +63,7 @@ Base URL: `/api/v1`
 - Query params: none.
 - Request body: `GenerateLlmRequest`.
 - Response body: `LlmGenerateResponse`.
-- Possible errors: `LLM_PROVIDER_NOT_CONFIGURED`, `LLM_API_KEY_MISSING`, `LLM_PROVIDER_REQUEST_FAILED`, `LLM_EMPTY_RESPONSE`, `VALIDATION_ERROR`, `INTERNAL_SERVER_ERROR`.
+- Possible errors: `AUTH_UNAUTHORIZED`, `RATE_LIMITED`, `LLM_PROVIDER_NOT_CONFIGURED`, `LLM_API_KEY_MISSING`, `LLM_PROVIDER_REQUEST_FAILED`, `LLM_EMPTY_RESPONSE`, `VALIDATION_ERROR`, `INTERNAL_SERVER_ERROR`.
 - Notes: `dryRun=true` monta o contexto e retorna preview sem chamar provider externo.
 - Notes: se o grounding for insuficiente, o backend retorna resposta explicita sem deixar o provider responder fora do banco.
 - Notes: facts historicos de meio ambiente foram normalizados para `ecosystem:environment`, entrando no grounding atual sem ampliar a whitelist.

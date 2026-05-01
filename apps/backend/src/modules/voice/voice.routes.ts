@@ -4,6 +4,7 @@ import multer from "multer";
 import { env } from "../../config/env";
 import { asyncHandler } from "../../core/http/async-handler";
 import { AppError } from "../../core/errors/app-error";
+import { createMemoryRateLimiter } from "../../core/middleware/rate-limit";
 import { voiceController } from "./voice.controller";
 import { isSupportedAudioMimeType, supportedAudioMimeTypes } from "./voice.schemas";
 
@@ -58,9 +59,15 @@ function parseVoiceUpload(req: Request, res: Response, next: NextFunction): void
 }
 
 export const voiceRoutes = Router();
+const voiceRateLimiter = createMemoryRateLimiter({
+  keyPrefix: "voice-interactions",
+  windowMs: env.voiceRateLimitWindowMs,
+  maxRequests: env.voiceRateLimitMax
+});
 
 voiceRoutes.post(
   "/interactions",
+  voiceRateLimiter,
   parseVoiceUpload,
   asyncHandler(voiceController.interact.bind(voiceController))
 );
