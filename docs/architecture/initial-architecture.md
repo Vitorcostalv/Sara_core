@@ -24,7 +24,7 @@ Arquitetura por camadas no backend:
 - `http/routes`: define rotas e compoe modulos.
 - `modules/*/*.controller.ts`: traduz HTTP para chamadas de aplicacao.
 - `modules/*/*.service.ts`: regras da aplicacao, coordenacao de casos de uso.
-- `modules/*/*.repository.ts`: acesso ao SQLite e mapeamento de entidades.
+- `modules/*/*.repository.ts`: acesso ao PostgreSQL e mapeamento de entidades.
 - `database`: conexao, migracao e reset do banco.
 - `core/middleware`: validacao e middlewares transversais.
 - `core/errors`: erros de dominio e handler global.
@@ -48,7 +48,7 @@ Estrutura orientada a crescimento:
 
 Separar layout, pagina, estado e API desde o inicio evita refactor grande quando o painel comeÃ§ar a consumir dados reais.
 
-## 5. Banco local (SQLite)
+## 5. Banco persistido (PostgreSQL / Neon)
 
 Modelo inicial com tabelas:
 
@@ -60,7 +60,7 @@ Modelo inicial com tabelas:
 
 ### Decisao
 
-SQLite foi escolhido por simplicidade operacional, custo zero e portabilidade para ambiente local/offline.
+O runtime atual usa PostgreSQL/Neon para persistencia principal. Isso preserva a arquitetura modular existente, mas remove a divergencia entre runtime real e documentacao historica.
 
 ## 6. Escalabilidade para proximas fases
 

@@ -2,6 +2,7 @@ import type {
   ApiErrorResponse,
   CreateConversationTurnRequest,
   CreateFactRequest,
+  GenerateLlmRequest,
   CreateTaskRequest,
   CreateToolCallRequest,
   ConversationTurnResponse,
@@ -9,6 +10,7 @@ import type {
   FactsListResponse,
   FactResponse,
   HealthStatusResponse,
+  LlmGenerateResponse,
   ListConversationTurnsQuery,
   ListFactsQuery,
   ListTasksQuery,
@@ -105,6 +107,11 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
 export const healthApi = {
   getStatus: () => request<HealthStatusResponse>("/health"),
+};
+
+export const llmApi = {
+  generate: (payload: GenerateLlmRequest) =>
+    request<LlmGenerateResponse>("/llm/generate", { method: "POST", body: payload }),
 };
 
 export const tasksApi = {

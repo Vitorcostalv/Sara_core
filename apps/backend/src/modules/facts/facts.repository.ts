@@ -112,9 +112,11 @@ export class FactsRepository {
     // ORDER BY CASE for requested ecosystem priority
     let requestedOrderSql = "";
     if (ecosystemCategories.length > 0) {
-      const caseWhen = ecosystemCategories.map(() => `WHEN category = $${idx++} THEN 0`).join(" ");
+      const caseWhen = ecosystemCategories
+        .map((_, order) => `WHEN category = $${idx++} THEN ${order}`)
+        .join(" ");
       params.push(...ecosystemCategories);
-      requestedOrderSql = `CASE ${caseWhen} ELSE 1 END,`;
+      requestedOrderSql = `CASE ${caseWhen} ELSE ${ecosystemCategories.length} END,`;
     }
 
     params.push(q.limit);

@@ -46,6 +46,7 @@ Base URL: `/api/v1`
 ```
 - Possible errors: `VOICE_AUDIO_REQUIRED`, `VOICE_AUDIO_TOO_LARGE`, `VOICE_AUDIO_UNSUPPORTED_TYPE`, `VOICE_AUDIO_EMPTY`, `VOICE_FFMPEG_NOT_FOUND`, `VOICE_STT_PROVIDER_UNAVAILABLE`, `VOICE_STT_MODEL_NOT_FOUND`, `VOICE_AUDIO_CONVERSION_FAILED`, `VOICE_TRANSCRIPTION_FAILED`, `VOICE_PROCESSING_FAILED`, `VALIDATION_ERROR`, `INTERNAL_SERVER_ERROR`.
 - Notes: conversao para PCM mono 16k via FFmpeg antes da transcricao.
+- Notes: quando a transcricao nao estiver vazia, o backend persiste automaticamente turno do usuario, tentativa de `llm.generate`, tool call e turno do assistente.
 
 ## LLM
 
@@ -58,6 +59,7 @@ Base URL: `/api/v1`
 - Possible errors: `LLM_PROVIDER_NOT_CONFIGURED`, `LLM_API_KEY_MISSING`, `LLM_PROVIDER_REQUEST_FAILED`, `LLM_EMPTY_RESPONSE`, `VALIDATION_ERROR`, `INTERNAL_SERVER_ERROR`.
 - Notes: `dryRun=true` monta o contexto e retorna preview sem chamar provider externo.
 - Notes: se o grounding for insuficiente, o backend retorna resposta explicita sem deixar o provider responder fora do banco.
+- Notes: facts historicos de meio ambiente foram normalizados para `ecosystem:environment`, entrando no grounding atual sem ampliar a whitelist.
 
 ## Facts
 

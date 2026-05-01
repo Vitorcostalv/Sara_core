@@ -12,12 +12,14 @@ import { StatusPill } from "../components/ui";
 
 const navItems = [
   { to: "/conversations", label: "Voice Validation", subtitle: "STT by file", icon: ClockCounterClockwise },
+  { to: "/llm", label: "LLM Grounding", subtitle: "Prompt audit", icon: SlidersHorizontal },
   { to: "/tool-calls", label: "Tool Calls", subtitle: "Execution trace", icon: Wrench },
 ];
 
 const routeTitles: Record<string, string> = {
   "/": "Voice Validation",
   "/conversations": "Voice Validation",
+  "/llm": "LLM Grounding",
   "/tool-calls": "Tool Calls",
 };
 

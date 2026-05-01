@@ -929,6 +929,20 @@ a {
   color: var(--color-text-muted);
 }
 
+.llm-preview {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  color: var(--color-text-secondary);
+}
+
+.llm-facts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--token-spacing-sm);
+}
+
 @media (max-width: 1160px) {
   .app-shell {
     grid-template-columns: 1fr;

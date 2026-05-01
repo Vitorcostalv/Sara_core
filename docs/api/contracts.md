@@ -174,6 +174,7 @@ Observacoes:
 - Nesta fase o grounding usa `user_profile` e `facts`.
 - `tasks` e `conversation_turns` ficam fora do contexto principal.
 - Convencao inicial recomendada para ecossistemas: `category = "ecosystem:<slug>"`.
+- O seed ambiental atual tambem segue `category = "ecosystem:environment"`.
 - Quando o contexto grounded for insuficiente, a resposta deve ser: `Nao encontrei informacao suficiente no banco para responder com seguranca.`
 
 ## Typed client base (shared)

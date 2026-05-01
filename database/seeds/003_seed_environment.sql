@@ -11,7 +11,7 @@ VALUES
     'local-user',
     'environment.reciclagem.separacao-residuos',
     'Separar resíduos recicláveis facilita a destinação correta e reduz o descarte inadequado.',
-    'environment:reciclagem',
+    'ecosystem:environment',
     TRUE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -21,7 +21,7 @@ VALUES
     'local-user',
     'environment.reciclagem.coleta-especial',
     'Pilhas, baterias e eletrônicos precisam de destinação adequada em pontos de coleta específicos.',
-    'environment:reciclagem',
+    'ecosystem:environment',
     TRUE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -33,7 +33,7 @@ VALUES
     'local-user',
     'environment.agua.reducao-desperdicio',
     'Reduzir desperdício de água em atividades diárias ajuda a preservar recursos hídricos.',
-    'environment:agua',
+    'ecosystem:environment',
     TRUE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -43,7 +43,7 @@ VALUES
     'local-user',
     'environment.agua.preservacao-nascentes',
     'A preservação de nascentes e matas ciliares ajuda a proteger corpos d''água e manter o abastecimento hídrico.',
-    'environment:agua',
+    'ecosystem:environment',
     TRUE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -55,7 +55,7 @@ VALUES
     'local-user',
     'environment.energia.reducao-consumo',
     'Apagar luzes e desligar equipamentos sem uso reduz o consumo de energia elétrica.',
-    'environment:energia',
+    'ecosystem:environment',
     TRUE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -67,7 +67,7 @@ VALUES
     'local-user',
     'environment.residuos.reutilizacao',
     'Reutilizar materiais quando possível diminui a geração de resíduos e reduz a pressão sobre aterros.',
-    'environment:residuos',
+    'ecosystem:environment',
     TRUE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -77,7 +77,7 @@ VALUES
     'local-user',
     'environment.residuos.oleo-cozinha',
     'Óleo de cozinha descartado incorretamente pode contaminar água e solo, afetando ecossistemas locais.',
-    'environment:residuos',
+    'ecosystem:environment',
     TRUE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -87,7 +87,7 @@ VALUES
     'local-user',
     'environment.residuos.compostagem',
     'Compostagem pode reduzir resíduos orgânicos enviados ao lixo comum e gerar adubo natural.',
-    'environment:residuos',
+    'ecosystem:environment',
     FALSE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -97,7 +97,7 @@ VALUES
     'local-user',
     'environment.residuos.descartaveis',
     'Evitar descartáveis reduz a pressão sobre coleta, transporte e destinação de resíduos sólidos.',
-    'environment:residuos',
+    'ecosystem:environment',
     FALSE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -109,7 +109,7 @@ VALUES
     'local-user',
     'environment.consumo-consciente.definicao',
     'Consumo consciente considera necessidade real, durabilidade, origem e descarte do produto antes da compra.',
-    'environment:consumo-consciente',
+    'ecosystem:environment',
     TRUE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -119,7 +119,7 @@ VALUES
     'local-user',
     'environment.consumo-consciente.planejamento',
     'Planejar compras ajuda a reduzir desperdício de alimentos e consumo desnecessário.',
-    'environment:consumo-consciente',
+    'ecosystem:environment',
     FALSE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -131,7 +131,7 @@ VALUES
     'local-user',
     'environment.biodiversidade.areas-verdes',
     'Áreas verdes contribuem para conforto térmico, biodiversidade e qualidade de vida urbana.',
-    'environment:biodiversidade',
+    'ecosystem:environment',
     TRUE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -143,7 +143,7 @@ VALUES
     'local-user',
     'environment.educacao-ambiental.mudanca-habitos',
     'Educação ambiental incentiva mudanças de hábito individuais e coletivas com impacto duradouro.',
-    'environment:educacao-ambiental',
+    'ecosystem:environment',
     TRUE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -153,7 +153,7 @@ VALUES
     'local-user',
     'environment.educacao-ambiental.medicamentos',
     'O descarte correto de medicamentos evita contaminação ambiental e deve ser feito em pontos de coleta autorizados.',
-    'environment:educacao-ambiental',
+    'ecosystem:environment',
     FALSE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'
@@ -165,7 +165,7 @@ VALUES
     'local-user',
     'environment.comunidade.hortas-comunitarias',
     'Hortas comunitárias podem fortalecer educação ambiental e segurança alimentar local.',
-    'environment:comunidade',
+    'ecosystem:environment',
     FALSE,
     '2026-04-26T00:00:00.000Z',
     '2026-04-26T00:00:00.000Z'

@@ -14,6 +14,7 @@ Usar a tabela `facts` como base estruturada para contexto de ecossistemas, sem c
   - `ecosystem:sara-core`
   - `ecosystem:voice-stt`
   - `ecosystem:llm-grounding`
+  - `ecosystem:environment`
 
 Categorias globais ainda aceitas no grounding:
 - `context`

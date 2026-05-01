@@ -5,7 +5,7 @@ API HTTP da Sara Core com arquitetura em camadas:
 - `http/routes`: registro de endpoints
 - `modules/*/controller`: entrada/saida HTTP
 - `modules/*/service`: regras de aplicacao
-- `modules/*/repository`: acesso ao SQLite
+- `modules/*/repository`: acesso ao PostgreSQL (Neon)
 - `database`: conexao, migracao e reset de schema
 - `core/errors`: erros padronizados
 - `core/middleware`: validacao e middleware cross-cutting
@@ -76,6 +76,11 @@ Exemplo:
 - limpa schema
 - reaplica migrations
 - reaplica seeds
+
+O runtime principal do backend nesta fase e:
+- PostgreSQL/Neon como store persistido
+- `database/postgres/migrations` como fonte de schema aplicada em runtime
+- scripts SQLite mantidos apenas como legado de migracao
 
 Seeds atuais:
 - `database/seeds/001_seed_dev.sql`

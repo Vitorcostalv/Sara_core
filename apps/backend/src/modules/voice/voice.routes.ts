@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import multer from "multer";
 import { env } from "../../config/env";
+import { asyncHandler } from "../../core/http/async-handler";
 import { AppError } from "../../core/errors/app-error";
 import { voiceController } from "./voice.controller";
 import { isSupportedAudioMimeType, supportedAudioMimeTypes } from "./voice.schemas";
@@ -58,4 +59,8 @@ function parseVoiceUpload(req: Request, res: Response, next: NextFunction): void
 
 export const voiceRoutes = Router();
 
-voiceRoutes.post("/interactions", parseVoiceUpload, voiceController.interact.bind(voiceController));
+voiceRoutes.post(
+  "/interactions",
+  parseVoiceUpload,
+  asyncHandler(voiceController.interact.bind(voiceController))
+);
