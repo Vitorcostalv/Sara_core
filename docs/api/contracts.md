@@ -23,6 +23,12 @@ interface ApiErrorResponse {
 }
 ```
 
+## Authentication contract
+
+- Header opcional nesta fase: `x-sara-api-key: <valor>`
+- Necessario para endpoints de `/api/v1` quando `AUTH_MODE=api-key`
+- `GET /api/v1/health` permanece publico
+
 ## Pagination contract
 
 ```ts
@@ -71,6 +77,7 @@ Response:
 Observacoes:
 - `audioReplyUrl` fica `null` neste MVP (TTS futuro).
 - `wakeWordDetected` fica `null` neste MVP (wake word futuro).
+- O endpoint pode responder `AUTH_UNAUTHORIZED` ou `RATE_LIMITED` antes de processar o upload.
 
 ## User profile payload
 
@@ -174,7 +181,9 @@ Observacoes:
 - Nesta fase o grounding usa `user_profile` e `facts`.
 - `tasks` e `conversation_turns` ficam fora do contexto principal.
 - Convencao inicial recomendada para ecossistemas: `category = "ecosystem:<slug>"`.
+- O seed ambiental atual tambem segue `category = "ecosystem:environment"`.
 - Quando o contexto grounded for insuficiente, a resposta deve ser: `Nao encontrei informacao suficiente no banco para responder com seguranca.`
+- O endpoint pode responder `AUTH_UNAUTHORIZED` ou `RATE_LIMITED` antes de chegar ao provider.
 
 ## Typed client base (shared)
 

@@ -156,6 +156,10 @@ function buildContextPreview(
   return sections.join("\n");
 }
 
+function buildFactsScanLimit(maxFacts: number, requestedEcosystemCount: number) {
+  return Math.max(defaultFactsScanLimit, maxFacts * 4, requestedEcosystemCount * 8);
+}
+
 export class LlmContextBuilderService {
   constructor(
     private readonly userProfileRepository: Pick<UserProfileRepository, "ensureLocalProfile" | "findById">,
@@ -164,9 +168,12 @@ export class LlmContextBuilderService {
 
   async buildContext(input: BuildLlmContextInput): Promise<LlmBuiltContext> {
     const userId = input.userId ?? "local-user";
-    const requestedEcosystems = new Set(
-      (input.ecosystems ?? []).map(normalizeSlug).filter((slug) => slug.length > 0)
+    const requestedEcosystemOrder = Array.from(
+      new Set((input.ecosystems ?? []).map(normalizeSlug).filter((slug) => slug.length > 0))
     );
+    const requestedEcosystems = new Set(requestedEcosystemOrder);
+    const maxFacts = input.maxFacts ?? 12;
+    const factsScanLimit = buildFactsScanLimit(maxFacts, requestedEcosystemOrder.length);
 
     const profile =
       input.includeProfile === false
@@ -178,7 +185,7 @@ export class LlmContextBuilderService {
     const candidateFacts = await this.factsRepository.listGroundingFacts({
       userId,
       ecosystems: Array.from(requestedEcosystems),
-      limit: defaultFactsScanLimit,
+      limit: factsScanLimit,
     });
 
     const invalidFacts = candidateFacts.filter((fact) => !isGroundingSafeFact(fact));
@@ -194,9 +201,27 @@ export class LlmContextBuilderService {
       return isRelevantGlobalFact(fact);
     });
 
-    const maxFacts = input.maxFacts ?? 12;
     const selectedFacts: Fact[] = [];
     const seenIds = new Set<string>();
+    const requestedFactsBySlug = new Map<string, Fact[]>();
+
+    requestedEcosystemOrder.forEach((slug) => {
+      requestedFactsBySlug.set(slug, []);
+    });
+
+    ecosystemFacts.forEach((fact) => {
+      const slug = extractEcosystemSlug(fact.category);
+      if (!slug || !requestedEcosystems.has(slug)) return;
+      requestedFactsBySlug.get(slug)?.push(fact);
+    });
+
+    requestedEcosystemOrder.forEach((slug) => {
+      if (selectedFacts.length >= maxFacts) return;
+      const prioritizedFact = requestedFactsBySlug.get(slug)?.[0];
+      if (!prioritizedFact || seenIds.has(prioritizedFact.id)) return;
+      seenIds.add(prioritizedFact.id);
+      selectedFacts.push(prioritizedFact);
+    });
 
     [...ecosystemFacts, ...globalFacts].forEach((fact) => {
       if (selectedFacts.length >= maxFacts || seenIds.has(fact.id)) return;
@@ -215,18 +240,37 @@ export class LlmContextBuilderService {
       ecosystemMap.set(slug, currentFacts);
     });
 
-    const ecosystems = Array.from(ecosystemMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([slug, facts]) => ({ slug, factCount: facts.length, facts }));
+    const ecosystemOrder =
+      requestedEcosystemOrder.length > 0
+        ? [
+            ...requestedEcosystemOrder.filter((slug) => ecosystemMap.has(slug)),
+            ...Array.from(ecosystemMap.keys())
+              .filter((slug) => !requestedEcosystems.has(slug))
+              .sort((left, right) => left.localeCompare(right)),
+          ]
+        : Array.from(ecosystemMap.keys()).sort((left, right) => left.localeCompare(right));
+
+    const ecosystems = ecosystemOrder.map((slug) => ({
+      slug,
+      factCount: ecosystemMap.get(slug)?.length ?? 0,
+      facts: ecosystemMap.get(slug) ?? [],
+    }));
 
     const warnings: string[] = [];
+    const requestedEcosystemsWithFacts = requestedEcosystemOrder.filter(
+      (slug) => (requestedFactsBySlug.get(slug)?.length ?? 0) > 0
+    );
 
-    if (requestedEcosystems.size > 0) {
-      requestedEcosystems.forEach((slug) => {
-        if (!ecosystemMap.has(slug)) {
-          warnings.push(`Requested ecosystem '${slug}' has no facts yet.`);
-        }
-      });
+    requestedEcosystemOrder.forEach((slug) => {
+      if ((requestedFactsBySlug.get(slug)?.length ?? 0) === 0) {
+        warnings.push(`Requested ecosystem '${slug}' has no facts yet.`);
+      }
+    });
+
+    if (requestedEcosystemsWithFacts.length > maxFacts) {
+      warnings.push(
+        `maxFacts=${maxFacts} is lower than the number of requested ecosystems with available facts (${requestedEcosystemsWithFacts.length}). Some requested ecosystems were omitted from the final context.`
+      );
     }
 
     if (ecosystems.length === 0) warnings.push("No ecosystem facts were found.");

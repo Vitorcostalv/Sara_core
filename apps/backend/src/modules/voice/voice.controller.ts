@@ -8,7 +8,7 @@ type VoiceRequest = Request & {
 };
 
 export class VoiceController {
-  interact(req: Request, res: Response): void {
+  async interact(req: Request, res: Response): Promise<void> {
     const voiceRequest = req as VoiceRequest;
 
     if (!voiceRequest.file) {
@@ -16,7 +16,7 @@ export class VoiceController {
     }
 
     const parsedBody = voiceInteractionBodySchema.parse(req.body ?? {});
-    const result = voiceService.processVoiceInteraction({
+    const result = await voiceService.processVoiceInteraction({
       audioBuffer: voiceRequest.file.buffer,
       mimeType: voiceRequest.file.mimetype,
       language: parsedBody.language

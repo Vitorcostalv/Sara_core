@@ -60,6 +60,16 @@ export class LlmService {
     const model = provider ? env.llmModel || provider.defaultModel : env.llmModel || "not-configured";
 
     if (input.dryRun) {
+      llmLogger.info(
+        {
+          provider: providerName,
+          model,
+          userId: builtContext.grounding.userId,
+          factsAvailable: builtContext.grounding.factCount,
+          ecosystems: builtContext.grounding.ecosystemsUsed,
+        },
+        "LLM dry run — returning grounded context without calling provider"
+      );
       return {
         provider: providerName,
         model,
@@ -111,6 +121,8 @@ export class LlmService {
 
     const systemPrompt = buildSystemPrompt();
     const userPrompt = buildUserPrompt(input.prompt, builtContext.contextPreview);
+
+    const providerCallStartedAt = Date.now();
     const generation = await provider.generateText({
       systemPrompt,
       userPrompt,
@@ -119,13 +131,18 @@ export class LlmService {
       baseUrl: normalizeBaseUrl(env.llmBaseUrl ?? provider.defaultBaseUrl),
       timeoutMs: env.llmTimeoutMs,
     });
+    const providerCallDurationMs = Date.now() - providerCallStartedAt;
 
     llmLogger.info(
       {
         provider: provider.name,
         model,
+        durationMs: providerCallDurationMs,
         factsUsed: builtContext.grounding.factCount,
-        ecosystems: builtContext.grounding.ecosystemsUsed,
+        ecosystemsUsed: builtContext.grounding.ecosystemsUsed,
+        promptLength: userPrompt.length,
+        responseLength: generation.text?.length ?? 0,
+        groundingWarnings: builtContext.grounding.warnings,
       },
       "LLM generation completed"
     );

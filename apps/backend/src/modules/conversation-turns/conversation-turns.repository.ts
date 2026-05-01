@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ConversationRole, ConversationTurn } from "@sara/shared-types";
-import { query } from "../../database/postgres";
+import { pool, type Queryable } from "../../database/postgres";
 import { getPaginationOffset, type PaginatedResult } from "../../core/http/pagination";
 import type {
   CreateConversationTurnInput,
@@ -28,6 +28,8 @@ function mapConversationTurn(row: ConversationTurnRow): ConversationTurn {
 }
 
 export class ConversationTurnsRepository {
+  constructor(private readonly db: Queryable = pool) {}
+
   async list(q: ListConversationTurnsQuery): Promise<PaginatedResult<ConversationTurn>> {
     const filters: string[] = ["user_id = $1"];
     const params: unknown[] = [q.userId];
@@ -39,12 +41,12 @@ export class ConversationTurnsRepository {
     const whereSql = `WHERE ${filters.join(" AND ")}`;
     const offset = getPaginationOffset(q);
 
-    const countResult = await query<{ total: string }>(
+    const countResult = await this.db.query<{ total: string }>(
       `SELECT COUNT(*) AS total FROM conversation_turns ${whereSql}`,
       params
     );
 
-    const rowsResult = await query<ConversationTurnRow>(
+    const rowsResult = await this.db.query<ConversationTurnRow>(
       `SELECT id, user_id, role, content, source, created_at
        FROM conversation_turns
        ${whereSql}
@@ -63,7 +65,7 @@ export class ConversationTurnsRepository {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    await query(
+    await this.db.query(
       `INSERT INTO conversation_turns (id, user_id, role, content, source, created_at)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [id, input.userId, input.role, input.content, input.source, now]
@@ -73,7 +75,7 @@ export class ConversationTurnsRepository {
   }
 
   async findById(id: string): Promise<ConversationTurn | null> {
-    const result = await query<ConversationTurnRow>(
+    const result = await this.db.query<ConversationTurnRow>(
       `SELECT id, user_id, role, content, source, created_at
        FROM conversation_turns WHERE id = $1`,
       [id]

@@ -7,7 +7,7 @@ interface ErrorStateProps {
   onRetry?: () => void;
 }
 
-export function ErrorState({ title = "Failed to load data", message, onRetry }: ErrorStateProps) {
+export function ErrorState({ title = "Falha ao carregar dados", message, onRetry }: ErrorStateProps) {
   return (
     <div className="ui-error-state" role="alert">
       <div className="ui-error-state__icon">
@@ -19,7 +19,7 @@ export function ErrorState({ title = "Failed to load data", message, onRetry }: 
       </div>
       {onRetry ? (
         <Button variant="secondary" onClick={onRetry}>
-          Try again
+          Tentar novamente
         </Button>
       ) : null}
     </div>

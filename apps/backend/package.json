@@ -10,7 +10,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --ext .ts",
-    "test": "tsx --test src/modules/tasks/tasks.service.test.ts src/modules/facts/facts.repository.test.ts src/modules/user-profile/user-profile.service.test.ts src/modules/llm/context-builder.service.test.ts",
+    "test": "tsx --test src/modules/tasks/tasks.service.test.ts src/modules/facts/facts.repository.test.ts src/modules/user-profile/user-profile.service.test.ts src/modules/llm/context-builder.service.test.ts src/modules/llm/providers/gemini.provider.test.ts src/modules/llm/providers/grok.provider.test.ts src/modules/tts/tts.service.test.ts src/modules/voice/voice.service.test.ts src/modules/voice/voice.persistence.integration.test.ts src/http/http.integration.test.ts src/database/seed-environment.test.ts",
     "db:migrate": "tsx src/database/migrate-postgres.ts",
     "db:reset": "tsx src/database/reset-postgres.ts",
     "db:seed": "tsx src/database/seed-postgres.ts",

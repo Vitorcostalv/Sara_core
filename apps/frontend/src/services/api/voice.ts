@@ -1,11 +1,12 @@
-import { buildApiUrl } from "./client";
+import { buildApiHeaders, buildApiUrl } from "./client";
 
 const defaultVoiceEndpoint = "/voice/interactions";
 
 export class VoiceApiError extends Error {
   constructor(
     message: string,
-    public readonly status: number
+    public readonly status: number,
+    public readonly retryAfterSeconds: number | null = null
   ) {
     super(message);
     this.name = "VoiceApiError";
@@ -128,13 +129,21 @@ export async function sendVoiceInteraction({
 
   const response = await fetch(buildApiUrl(endpoint), {
     method: "POST",
+    headers: buildApiHeaders(),
     body: formData
   });
 
   if (!response.ok) {
     const backendMessage = await readErrorMessage(response);
     const details = backendMessage ? `: ${backendMessage}` : "";
-    throw new VoiceApiError(`Voice request failed with status ${response.status}${details}`, response.status);
+    const retryAfterHeader = response.headers.get("Retry-After");
+    const retryAfterSeconds =
+      retryAfterHeader && /^\d+$/.test(retryAfterHeader) ? Number.parseInt(retryAfterHeader, 10) : null;
+    throw new VoiceApiError(
+      `Voice request failed with status ${response.status}${details}`,
+      response.status,
+      retryAfterSeconds
+    );
   }
 
   const payload = asRecord(await response.json()) ?? {};

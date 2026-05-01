@@ -1,27 +1,27 @@
 # Sara Core
 
 ## Visão geral
-Sara Core é um monorepo para uma assistente local/offline. Hoje o projeto combina um backend HTTP em Node.js, um frontend React para validação operacional, SQLite local, STT offline com Vosk e um módulo inicial de LLM grounded em dados do banco.
+Sara Core é um monorepo para uma assistente local/offline. Hoje o projeto combina um backend HTTP em Node.js, um frontend React para validação operacional, Neon PostgreSQL, STT offline com Vosk e um módulo inicial de LLM grounded em dados do banco.
 
 ## Status do projeto
-O estado atual é de **MVP técnico/local**.
+O estado atual é de **MVP técnico/local endurecido operacionalmente**.
 
 Isso significa:
-- a base já executa fluxos reais de voz, persistência e grounding;
+- a base já executa fluxos reais de voz, persistência, grounding e integração HTTP;
 - a arquitetura principal já existe;
 - o projeto ainda **não** está pronto para produção;
-- segurança, testes, ergonomia operacional e documentação ainda estão em evolução.
+- segurança, confiabilidade, testes e documentação já avançaram, mas ainda não estão finalizados.
 
 ## Tecnologias
 - Backend: Node.js, TypeScript, Express, Zod, Pino
 - Frontend: React, TypeScript, Vite, React Router, Zustand
-- Banco local: SQLite com `better-sqlite3`
+- Banco principal: PostgreSQL (Neon)
 - STT: Vosk + Python + FFmpeg
 - LLM grounded: providers configuráveis no backend, com contexto vindo de `user_profile` e `facts`
 - Monorepo/tooling: npm workspaces, TypeScript
 
 ## Estrutura do projeto
-- `apps/backend`: API HTTP, regras de aplicação, acesso ao SQLite e scripts de banco
+- `apps/backend`: API HTTP, regras de aplicação, acesso ao PostgreSQL e scripts de banco
 - `apps/frontend`: painel de validação e debug
 - `packages/shared-types`: contratos compartilhados entre backend e frontend
 - `database`: migrations, seeds e documentação do schema
@@ -29,15 +29,12 @@ Isso significa:
 - `docs`: arquitetura, contratos, endpoints e convenções
 
 ## Pré-requisitos
-- Node.js em versão compatível com `better-sqlite3`
-  Observação: no ambiente auditado, `Node.js v24.15.0` apresentou incompatibilidade ABI com o binário instalado e exigiu rebuild nativo.
+- Node.js 20+
 - npm
 - Python disponível no PATH
 - FFmpeg disponível no PATH
 - modelo Vosk extraído em `services/stt/models/pt-br`
 - arquivo `.env` baseado em `.env.example`
-
-Se você usar uma versão de Node sem binário compatível para `better-sqlite3`, será preciso recompilar o módulo nativo e ter toolchain C++ instalado no Windows.
 
 ## Como instalar
 ```bash
@@ -50,7 +47,7 @@ Depois:
 3. confirme que Python, FFmpeg e o modelo Vosk estão acessíveis.
 
 ## Como rodar
-Reset do banco local:
+Reset do banco PostgreSQL local/de desenvolvimento:
 ```bash
 npm run db:reset
 ```
@@ -83,23 +80,25 @@ Observação: o root atualmente expõe `build`, `typecheck`, `lint` e scripts de
 ## Fluxos implementados hoje
 - upload de áudio no frontend para `POST /api/v1/voice/interactions`
 - transcrição offline via Vosk no backend
-- histórico de `conversation_turns` para consulta/debug
+- persistência automática e transacional de `conversation_turns` e `tool_calls` durante interações reais de voz
 - operações básicas para `tasks`, `facts`, `tool_calls` e `user_profile`
 - geração grounded via `POST /api/v1/llm/generate`
 - `dryRun=true` para inspecionar o contexto da LLM sem chamar provider externo
+- tela operacional mínima de LLM no frontend para auditar grounding e resposta do provider
+- autenticação opcional por API key em `/api/v1`, com exceção do `health`
+- rate limiting básico para `voice` e `llm`
 
 ## Limitações conhecidas
 - o projeto ainda não é produção;
-- autenticação e autorização ainda não estão endurecidas;
+- autenticação por API key e limites básicos já existem, mas autenticação de usuário/autorização fina ainda não;
 - a API ainda assume um contexto local e simplificado em vários pontos;
-- `better-sqlite3` depende de ambiente Node compatível ou rebuild nativo bem configurado;
 - o fluxo de voz ainda depende de Python, FFmpeg e modelo local corretamente instalados;
 - o processamento de voz ainda pode ter limitações de desempenho e concorrência;
+- a transação cobre a persistência final do fluxo de voz, mas não engloba STT nem chamada externa de LLM;
 - a documentação ainda pode evoluir conforme a base for endurecida.
 
 ## Próximos passos técnicos
-- endurecer autenticação/autorização e reduzir dependência de `userId` vindo do cliente;
-- melhorar o lint e a automação de qualidade nos workspaces;
+- endurecer autenticação/autorização por usuário e reduzir dependência de `userId` vindo do cliente;
 - ampliar a cobertura de testes de frontend e integração;
 - reduzir trabalho síncrono no fluxo de voz;
-- revisar dependências vulneráveis e estabilizar o ambiente Node nativo.
+- revisar dependências vulneráveis, segredos locais e operação de STT/LLM em runtime real.

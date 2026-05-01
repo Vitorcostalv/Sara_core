@@ -10,7 +10,7 @@ export function PaginationControls({ meta, onPageChange }: PaginationControlsPro
   return (
     <div className="ui-pagination">
       <span className="ui-pagination__summary">
-        Page {meta.page} of {meta.totalPages} • {meta.total} items
+        Pagina {meta.page} de {meta.totalPages} • {meta.total} itens
       </span>
       <div className="ui-pagination__actions">
         <Button
@@ -19,7 +19,7 @@ export function PaginationControls({ meta, onPageChange }: PaginationControlsPro
           onClick={() => onPageChange(meta.page - 1)}
           disabled={!meta.hasPreviousPage}
         >
-          Previous
+          Anterior
         </Button>
         <Button
           variant="secondary"
@@ -27,7 +27,7 @@ export function PaginationControls({ meta, onPageChange }: PaginationControlsPro
           onClick={() => onPageChange(meta.page + 1)}
           disabled={!meta.hasNextPage}
         >
-          Next
+          Proxima
         </Button>
       </div>
     </div>

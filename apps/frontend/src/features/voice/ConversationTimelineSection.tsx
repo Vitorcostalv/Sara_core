@@ -1,8 +1,7 @@
+import { ChatCircleText, FunnelSimple, Sparkle } from "@phosphor-icons/react";
 import type { ConversationRole, ConversationTurn, PaginationMeta } from "@sara/shared-types";
 import {
-  Badge,
   Button,
-  DataTable,
   EmptyState,
   ErrorState,
   FilterBar,
@@ -10,7 +9,8 @@ import {
   LoadingBlock,
   PaginationControls,
   Section,
-  Select
+  Select,
+  StatusPill
 } from "../../components/ui";
 import { formatDateTime } from "../../utils/format";
 
@@ -29,28 +29,17 @@ interface ConversationTimelineSectionProps {
   onSourceChange: (source: string) => void;
 }
 
-const columns = [
-  {
-    key: "content",
-    header: "Content",
-    render: (turn: ConversationTurn) => (
-      <div>
-        <strong>{turn.content.slice(0, 90)}</strong>
-        <div className="ui-input-field__hint">{formatDateTime(turn.createdAt)}</div>
-      </div>
-    )
-  },
-  {
-    key: "role",
-    header: "Role",
-    render: (turn: ConversationTurn) => <Badge tone="info">{turn.role}</Badge>
-  },
-  {
-    key: "source",
-    header: "Source",
-    render: (turn: ConversationTurn) => <Badge tone="neutral">{turn.source}</Badge>
+function getRoleTone(role: ConversationRole) {
+  switch (role) {
+    case "assistant":
+      return "success";
+    case "system":
+      return "warning";
+    case "user":
+    default:
+      return "info";
   }
-] as const;
+}
 
 export function ConversationTimelineSection({
   filters,
@@ -65,18 +54,19 @@ export function ConversationTimelineSection({
 }: ConversationTimelineSectionProps) {
   return (
     <Section
-      title="Conversation Timeline"
-      subtitle="Historico util para debug. O fluxo de voz desta etapa prioriza resultado imediato; persistencia automatica de turns pode ser reforcada na fase seguinte."
+      title="Conversation trace"
+      subtitle="Historico recente para validar a persistencia observavel do fluxo de voz sem afogar a interface principal."
+      actions={
+        <StatusPill tone="neutral">
+          {meta.total} eventos
+        </StatusPill>
+      }
     >
       <FilterBar
         actions={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => onLoadTurns(meta.page)}
-              disabled={isLoading}
-            >
-              Atualizar lista
+            <Button variant="secondary" onClick={() => onLoadTurns(meta.page)} disabled={isLoading}>
+              Atualizar
             </Button>
             <Button variant="ghost" onClick={onClearFilters} disabled={isLoading}>
               Limpar filtros
@@ -89,7 +79,7 @@ export function ConversationTimelineSection({
           value={filters.role}
           onChange={(event) => onRoleChange(event.target.value as "" | ConversationRole)}
         >
-          <option value="">All</option>
+          <option value="">Todos</option>
           <option value="user">user</option>
           <option value="assistant">assistant</option>
           <option value="system">system</option>
@@ -102,19 +92,41 @@ export function ConversationTimelineSection({
         />
       </FilterBar>
 
-      {listError ? (
-        <ErrorState message={listError} onRetry={() => onLoadTurns(meta.page)} />
-      ) : null}
-      {isLoading ? <LoadingBlock label="Loading conversations..." /> : null}
+      {listError ? <ErrorState title="Nao foi possivel carregar a timeline" message={listError} onRetry={() => onLoadTurns(meta.page)} /> : null}
+      {isLoading ? <LoadingBlock label="Carregando eventos persistidos..." /> : null}
       {!isLoading && !listError && turns.length === 0 ? (
         <EmptyState
-          title="No turns found"
-          description="Nenhum turn encontrado com os filtros atuais."
+          icon={<FunnelSimple weight="duotone" />}
+          title="Nenhum turno encontrado"
+          description="Execute uma tentativa ou ajuste os filtros para trazer eventos persistidos."
         />
       ) : null}
       {!isLoading && !listError && turns.length > 0 ? (
         <>
-          <DataTable columns={[...columns]} data={turns} rowKey={(turn) => turn.id} />
+          <div className="timeline-grid">
+            {turns.map((turn) => (
+              <article key={turn.id} className="trace-card">
+                <div className="trace-card__header">
+                  <div className="trace-card__meta">
+                    <StatusPill tone={getRoleTone(turn.role)}>{turn.role}</StatusPill>
+                    <StatusPill tone="neutral">{turn.source}</StatusPill>
+                  </div>
+                  <span className="trace-card__time">{formatDateTime(turn.createdAt)}</span>
+                </div>
+
+                <div className="trace-card__body">
+                  <div className="trace-card__icon">
+                    {turn.role === "assistant" ? <Sparkle weight="duotone" /> : <ChatCircleText weight="duotone" />}
+                  </div>
+                  <p>{turn.content}</p>
+                </div>
+
+                <footer className="trace-card__footer">
+                  <span>{turn.id}</span>
+                </footer>
+              </article>
+            ))}
+          </div>
           <PaginationControls meta={meta} onPageChange={onLoadTurns} />
         </>
       ) : null}

@@ -48,6 +48,10 @@ export class VoskSttProvider implements SttProvider {
       throw new AppError("VOICE_STT_PROVIDER_UNAVAILABLE", 500, `Vosk script not found: ${this.scriptPath}`);
     }
 
+    const language = input.language ?? "pt-BR";
+    voskLogger.debug({ language, sampleRate: input.sampleRate }, "Starting Vosk STT transcription");
+
+    const startedAt = Date.now();
     const scriptResult = spawnSync(
       this.pythonPath,
       [
@@ -59,13 +63,14 @@ export class VoskSttProvider implements SttProvider {
         "--sample-rate",
         String(input.sampleRate),
         "--language",
-        input.language ?? "pt-BR"
+        language
       ],
       {
         encoding: "utf8",
         maxBuffer: 1024 * 1024 * 5
       }
     );
+    const durationMs = Date.now() - startedAt;
 
     if (scriptResult.error) {
       const errorCode = (scriptResult.error as NodeJS.ErrnoException).code;
@@ -84,13 +89,20 @@ export class VoskSttProvider implements SttProvider {
     }
 
     if (scriptResult.status !== 0) {
+      voskLogger.warn(
+        { language, durationMs, stderr: scriptResult.stderr?.trim() || null },
+        "Vosk transcription script exited with non-zero status"
+      );
       throw new AppError("VOICE_TRANSCRIPTION_FAILED", 500, "Vosk transcription script failed", {
         stderr: scriptResult.stderr?.trim() || null
       });
     }
 
     const transcription = parseVoskScriptOutput(scriptResult.stdout);
-    voskLogger.debug({ transcriptionLength: transcription.length }, "Audio transcribed with Vosk script");
+    voskLogger.debug(
+      { transcriptionLength: transcription.length, language, durationMs, isEmpty: transcription.length === 0 },
+      "Vosk STT transcription complete"
+    );
     return transcription;
   }
 }

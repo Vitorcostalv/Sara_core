@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { JsonValue, ToolCall, ToolCallStatus } from "@sara/shared-types";
-import { query } from "../../database/postgres";
+import { pool, type Queryable } from "../../database/postgres";
 import { getPaginationOffset, type PaginatedResult } from "../../core/http/pagination";
 import type { CreateToolCallInput, ListToolCallsQuery, UpdateToolCallStatusInput } from "./tool-calls.schemas";
 
@@ -38,6 +38,8 @@ function mapToolCall(row: ToolCallRow): ToolCall {
 }
 
 export class ToolCallsRepository {
+  constructor(private readonly db: Queryable = pool) {}
+
   async list(q: ListToolCallsQuery): Promise<PaginatedResult<ToolCall>> {
     const filters: string[] = [];
     const params: unknown[] = [];
@@ -49,12 +51,12 @@ export class ToolCallsRepository {
     const whereSql = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
     const offset = getPaginationOffset(q);
 
-    const countResult = await query<{ total: string }>(
+    const countResult = await this.db.query<{ total: string }>(
       `SELECT COUNT(*) AS total FROM tool_calls ${whereSql}`,
       params
     );
 
-    const rowsResult = await query<ToolCallRow>(
+    const rowsResult = await this.db.query<ToolCallRow>(
       `SELECT id, conversation_turn_id, tool_name, input_payload, output_payload, status, duration_ms, created_at
        FROM tool_calls
        ${whereSql}
@@ -75,7 +77,7 @@ export class ToolCallsRepository {
     const inputPayload = JSON.stringify(input.inputPayload ?? null);
     const outputPayload = input.outputPayload === undefined ? null : JSON.stringify(input.outputPayload);
 
-    await query(
+    await this.db.query(
       `INSERT INTO tool_calls (id, conversation_turn_id, tool_name, input_payload, output_payload, status, duration_ms, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [id, input.conversationTurnId, input.toolName, inputPayload, outputPayload, input.status, input.durationMs ?? null, now]
@@ -85,7 +87,7 @@ export class ToolCallsRepository {
   }
 
   async findById(id: string): Promise<ToolCall | null> {
-    const result = await query<ToolCallRow>(
+    const result = await this.db.query<ToolCallRow>(
       `SELECT id, conversation_turn_id, tool_name, input_payload, output_payload, status, duration_ms, created_at
        FROM tool_calls WHERE id = $1`,
       [id]
@@ -111,7 +113,7 @@ export class ToolCallsRepository {
 
     values.push(id);
 
-    const result = await query(
+    const result = await this.db.query(
       `UPDATE tool_calls SET ${fields.join(", ")} WHERE id = $${idx}`,
       values
     );
@@ -121,7 +123,7 @@ export class ToolCallsRepository {
   }
 
   async conversationTurnExists(conversationTurnId: string): Promise<boolean> {
-    const result = await query<{ id: string }>(
+    const result = await this.db.query<{ id: string }>(
       "SELECT id FROM conversation_turns WHERE id = $1",
       [conversationTurnId]
     );

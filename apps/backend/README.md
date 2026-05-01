@@ -5,7 +5,7 @@ API HTTP da Sara Core com arquitetura em camadas:
 - `http/routes`: registro de endpoints
 - `modules/*/controller`: entrada/saida HTTP
 - `modules/*/service`: regras de aplicacao
-- `modules/*/repository`: acesso ao SQLite
+- `modules/*/repository`: acesso ao PostgreSQL (Neon)
 - `database`: conexao, migracao e reset de schema
 - `core/errors`: erros padronizados
 - `core/middleware`: validacao e middleware cross-cutting
@@ -23,6 +23,15 @@ Endpoint disponivel para o MVP de voz:
 
 Endpoint inicial para a fase de LLM grounded:
 - `POST /api/v1/llm/generate`
+
+## Hardening operacional atual
+
+- `GET /api/v1/health` permanece publico para monitoramento
+- demais endpoints em `/api/v1` podem exigir `x-sara-api-key` quando `AUTH_MODE=api-key`
+- `voice` e `llm.generate` possuem rate limiting basico em memoria por IP
+- o fluxo persistido de voz grava turno do usuario, tool call e turno do assistente dentro de uma transacao unica
+- logs HTTP e de aplicacao redigem headers sensiveis e API keys
+- a conexao com Neon/PostgreSQL usa `DATABASE_SSL_MODE` para controlar SSL sem depender de `sslmode` na URL
 
 ## Como funciona a LLM hoje
 
@@ -77,6 +86,11 @@ Exemplo:
 - reaplica migrations
 - reaplica seeds
 
+O runtime principal do backend nesta fase e:
+- PostgreSQL/Neon como store persistido
+- `database/postgres/migrations` como fonte de schema aplicada em runtime
+- scripts SQLite mantidos apenas como legado de migracao
+
 Seeds atuais:
 - `database/seeds/001_seed_dev.sql`
 - `database/seeds/002_seed_ecosystems.sql`
@@ -88,6 +102,13 @@ Configuracoes de ambiente relevantes:
 - `LLM_MODEL=...`
 - `LLM_BASE_URL=...`
 - `LLM_TIMEOUT_MS=45000`
+- `AUTH_MODE=disabled|api-key`
+- `API_AUTH_KEY=...`
+- `VOICE_RATE_LIMIT_WINDOW_MS=60000`
+- `VOICE_RATE_LIMIT_MAX=10`
+- `LLM_RATE_LIMIT_WINDOW_MS=60000`
+- `LLM_RATE_LIMIT_MAX=20`
+- `DATABASE_SSL_MODE=disable|require|verify-full`
 - `STT_PROVIDER=vosk`
 - `STT_MODEL_PATH=services/stt/models/pt-br`
 - `STT_AUDIO_MAX_BYTES=10485760`
