@@ -76,37 +76,37 @@ test("FactsRepository.listGroundingFacts prioritizes requested ecosystems and re
 
     await repository.create({
       userId: TEST_USER_ID,
-      key: "identity.summary",
-      value: "Sara Core is a local assistant platform.",
-      category: "ecosystem:sara-core",
+      key: "definicao",
+      value: "Cerrado e um ecossistema savanico.",
+      category: "ecosystem:cerrado",
       isImportant: true,
     });
 
     await repository.create({
       userId: TEST_USER_ID,
-      key: "voice.endpoint",
-      value: "Voice upload uses /api/v1/voice/interactions.",
-      category: "ecosystem:voice-stt",
+      key: "definicao",
+      value: "Rio e um ecossistema lotico de agua corrente.",
+      category: "ecosystem:rio",
       isImportant: false,
     });
 
     await repository.create({
       userId: TEST_USER_ID,
-      key: "engineering.change-policy",
-      value: "Evolve incrementally without recreating architecture.",
-      category: "preferences",
+      key: "ecossistema.classificacao",
+      value: "Ecossistemas podem ser terrestres, aquaticos e de transicao.",
+      category: "concept",
       isImportant: true,
     });
 
     const facts = await repository.listGroundingFacts({
       userId: TEST_USER_ID,
-      ecosystems: ["sara-core"],
+      ecosystems: ["cerrado"],
       limit: 10,
     });
 
     assert.equal(facts.length, 2);
-    assert.equal(facts[0]?.category, "ecosystem:sara-core");
-    assert.equal(facts[1]?.category, "preferences");
+    assert.equal(facts[0]?.category, "ecosystem:cerrado");
+    assert.equal(facts[1]?.category, "concept");
   } finally {
     await cleanupTestUser();
   }

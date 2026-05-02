@@ -70,10 +70,14 @@ test("LLM: envia prompt em dryRun e exibe answer, warnings, contextPreview e fac
   await page.getByTestId("llm-prompt-input").fill("Mapeie o contexto grounded desta execucao.");
   await page.getByTestId("llm-maxfacts-input").fill("6");
   await page.getByTestId("llm-include-profile-toggle").click();
-  await page.getByTestId("llm-submit").click();
+  await page.getByTestId("llm-dryrun-toggle").click();
 
   await expect(page.getByTestId("llm-answer-panel")).toContainText("Resumo grounded auditado com sucesso.");
+  await expect(page.getByTestId("llm-answer-panel")).toContainText("Inspecao tecnica");
   await expect(page.getByTestId("llm-warnings-panel")).toContainText("Coverage parcial para voice-stt");
+
+  await expect(page.getByTestId("llm-technical-details")).not.toHaveAttribute("open", "");
+  await page.getByTestId("llm-technical-details").locator("summary").click();
   await expect(page.getByTestId("llm-context-preview")).toContainText("Grounding policy...");
   await expect(page.getByTestId("llm-facts-preview")).toContainText("ecosystem-summary");
 

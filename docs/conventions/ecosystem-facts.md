@@ -1,61 +1,92 @@
 # Ecosystem Facts Convention
 
-Convencao incremental adotada para grounding da LLM nesta fase.
+Convencao de compatibilidade para o grounding atual baseado em `facts`.
 
 ## Objetivo
 
-Usar a tabela `facts` como base estruturada para contexto de ecossistemas, sem criar nova tabela antes de validar uso real.
+Manter o MVP atual funcional enquanto a camada canônica nova de ecologia fica em `grounding_facts`.
+
+Leitura correta nesta fase:
+- `grounding_facts` = base ambiental canônica com proveniencia e metadados ricos
+- `facts` = camada legacy/compatibilidade ainda usada pelo grounding operacional atual
 
 ## Category
 
-- Regra para ecossistemas: `ecosystem:<slug>`
+- Regra principal: `ecosystem:<slug-ambiental>`
 - `slug` deve usar lowercase kebab-case
-- Exemplos:
-  - `ecosystem:sara-core`
-  - `ecosystem:voice-stt`
-  - `ecosystem:llm-grounding`
-  - `ecosystem:environment`
+- `ecosystem:*` fica reservado para ecossistemas da natureza
 
-Categorias globais ainda aceitas no grounding:
-- `context`
+Exemplos validos:
+- `ecosystem:floresta-tropical`
+- `ecosystem:manguezal`
+- `ecosystem:cerrado`
+- `ecosystem:caatinga`
+- `ecosystem:rio`
+- `ecosystem:lago`
+- `ecosystem:oceano`
+- `ecosystem:recife-de-coral`
+
+Categorias globais ainda aceitas no grounding legacy:
 - `concept`
 - `concepts`
-- `preference`
-- `preferences`
 - `profile`
 
-## Key
+Categorias fora do grounding principal:
+- `internal:project-context`
+- `reference:environmental-practices`
 
-- Regra: lowercase com segmentos separados por `.` ou `-`
-- Regex operacional: `^[a-z0-9]+(?:[.-][a-z0-9]+)*$`
-- Exemplos:
-  - `identity.summary`
-  - `api.llm-generate`
-  - `security.secret-handling`
-  - `performance.max-facts-guideline`
+## Key em `facts`
 
-## Value
+Para fatos de ecossistemas reais, use apenas chaves ecologicas padronizadas:
+- `definicao`
+- `componentes.bioticos`
+- `componentes.abioticos`
+- `tipos`
+- `exemplos`
+- `importancia`
+- `ameacas`
+- `conservacao`
+- `localizacao`
+- `relacoes-troficas`
+- `clima`
+- `flora`
+- `fauna`
+- `escala`
 
-- Deve conter informacao objetiva, auditavel e curta o bastante para caber em grounding limitado
-- Evitar instrucoes ao modelo, texto excessivamente longo, segredos, credenciais ou conteudo operacional sensivel
-- O valor deve ser dado de contexto, nao comando
+Regra de formato:
+- lowercase
+- segmentos separados por `.` ou `-`
+- regex operacional: `^[a-z0-9]+(?:[.-][a-z0-9]+)*$`
 
-## isImportant
+## Value em `facts`
 
-- `true` para fatos que precisam aparecer primeiro no grounding
-- `false` para detalhes complementares
-- Nao usar `isImportant=true` indiscriminadamente; reservar para fatos de alta prioridade
+- Deve conter informacao objetiva, correta e curta o bastante para grounding limitado
+- Deve descrever o ecossistema, nao instruir o modelo
+- Nao deve conter segredos, credenciais ou contexto tecnico do projeto
+
+## isImportant em `facts`
+
+- `true` para fatos nucleares do ecossistema
+- `false` para fatos complementares
 
 ## Regras praticas
 
-- Um ecossistema deve ter pelo menos 1 fato de identidade ou resumo
-- Priorizar fatos sobre:
-  - identidade
-  - arquitetura
-  - contratos
-  - restricoes
-  - roadmap
-  - seguranca
-  - performance
-- Nao usar `tasks` ou `conversation_turns` como base principal nesta fase
-- Nao armazenar API keys, tokens ou segredos em `facts`
+- Cada `ecosystem:<slug>` deve ter pelo menos `definicao`
+- Priorizar fatos sobre composicao, importancia, ameacas, conservacao e localizacao
+- Fatos tecnicos do projeto nao devem usar `ecosystem:*`
+- `tasks` e `conversation_turns` continuam fora do grounding principal nesta fase
+
+## Camada canônica nova
+
+O dominio ambiental relacional novo fica documentado em:
+- `database/schema/environmental-ecology-foundation.md`
+
+Categorias obrigatorias de `grounding_facts`:
+- `concept`
+- `ecosystem`
+- `formation-process`
+- `abiotic-factor`
+- `species`
+- `artificial-project`
+- `modeling-approach`
+- `reference`

@@ -1,55 +1,82 @@
 /**
  * seed-environment.test.ts
  *
- * Validates that 003_seed_environment.sql was applied correctly.
+ * Validates the ecological ecosystem grounding seed.
  * Requires DATABASE_URL and an already-seeded database.
  */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { pool } from "./postgres";
 
-test("environment facts: at least 15 records under ecosystem:environment", async () => {
+const deprecatedGroundingCategories = [
+  "ecosystem:sara-core",
+  "ecosystem:backend",
+  "ecosystem:frontend",
+  "ecosystem:voice-stt",
+  "ecosystem:llm-grounding",
+  "ecosystem:security",
+  "ecosystem:performance",
+  "ecosystem:environment",
+];
+
+test("ecological ecosystem facts: at least 70 records under ecosystem:<slug>", async () => {
   const result = await pool.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count
      FROM facts
      WHERE user_id = 'local-user'
-       AND category = 'ecosystem:environment'`
+       AND category LIKE 'ecosystem:%'`
   );
   const count = parseInt(result.rows[0]?.count ?? "0", 10);
-  assert.ok(count >= 15, `Expected >= 15 environment facts, found: ${count}`);
+  assert.ok(count >= 70, `Expected >= 70 ecological ecosystem facts, found: ${count}`);
 });
 
-test("environment tasks: at least 10 records with id task-env-", async () => {
+test("deprecated project and generic environment ecosystem categories are absent", async () => {
+  const result = await pool.query<{ category: string }>(
+    `SELECT DISTINCT category
+     FROM facts
+     WHERE user_id = 'local-user'
+       AND category = ANY($1::text[])`,
+    [deprecatedGroundingCategories]
+  );
+
+  assert.deepEqual(
+    result.rows.map((row) => row.category).sort(),
+    [],
+    "Deprecated ecosystem categories must not remain in the grounding path"
+  );
+});
+
+test("environmental practice references were preserved outside ecosystem grounding", async () => {
   const result = await pool.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count
-     FROM tasks
+     FROM facts
      WHERE user_id = 'local-user'
-       AND id LIKE 'task-env-%'`
+       AND category = 'reference:environmental-practices'`
   );
   const count = parseInt(result.rows[0]?.count ?? "0", 10);
-  assert.ok(count >= 10, `Expected >= 10 environment tasks, found: ${count}`);
+  assert.ok(count >= 15, `Expected >= 15 environmental practice references, found: ${count}`);
 });
 
-test("seed idempotency: re-inserting an existing environment fact does not change the total", async () => {
+test("seed idempotency: re-inserting an ecological ecosystem fact does not change the total", async () => {
   const before = await pool.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count
      FROM facts
      WHERE user_id = 'local-user'
-       AND category = 'ecosystem:environment'`
+       AND category LIKE 'ecosystem:%'`
   );
   const countBefore = parseInt(before.rows[0]?.count ?? "0", 10);
 
   await pool.query(`
     INSERT INTO facts (id, user_id, key, value, category, is_important, created_at, updated_at)
     VALUES (
-      'fact-env-reciclagem-separacao',
+      'fact-eco-oceano-definicao',
       'local-user',
-      'environment.reciclagem.separacao-residuos',
-      'Separar residuos reciclaveis facilita a destinacao correta e reduz o descarte inadequado.',
-      'ecosystem:environment',
+      'definicao',
+      'Oceano e o grande ecossistema marinho global.',
+      'ecosystem:oceano',
       TRUE,
-      '2026-04-26T00:00:00.000Z',
-      '2026-04-26T00:00:00.000Z'
+      '2026-05-01T00:00:00.000Z',
+      '2026-05-01T00:00:00.000Z'
     )
     ON CONFLICT (id) DO UPDATE SET
       key = EXCLUDED.key,
@@ -63,11 +90,11 @@ test("seed idempotency: re-inserting an existing environment fact does not chang
     `SELECT COUNT(*)::text AS count
      FROM facts
      WHERE user_id = 'local-user'
-       AND category = 'ecosystem:environment'`
+       AND category LIKE 'ecosystem:%'`
   );
   const countAfter = parseInt(after.rows[0]?.count ?? "0", 10);
 
-  assert.equal(countAfter, countBefore, "Re-inserting an existing fact must not create duplicates");
+  assert.equal(countAfter, countBefore, "Re-inserting an existing ecological fact must not create duplicates");
 });
 
 test("environment tasks keep valid status and priority ranges", async () => {

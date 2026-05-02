@@ -81,24 +81,29 @@ export function VoiceUploadSection({
 
   const togglePlay = () => {
     const audio = audioRef.current;
-    if (!audio || audioError) return;
+
+    if (!audio || audioError) {
+      return;
+    }
+
     if (isPlaying) {
       audio.pause();
-    } else {
-      void audio.play().catch(() => {
-        setAudioError(true);
-        setIsPlaying(false);
-      });
+      return;
     }
+
+    void audio.play().catch(() => {
+      setAudioError(true);
+      setIsPlaying(false);
+    });
   };
 
   return (
     <section className="signal-panel signal-panel--voice" data-testid="voice-upload-panel">
       <div className="signal-panel__header">
         <div>
-          <span className="signal-panel__eyebrow">Main execution path</span>
-          <h3>Upload and run</h3>
-          <p>Importe amostras reais, envie para o backend e compare transcrição e resposta no mesmo contexto.</p>
+          <span className="signal-panel__eyebrow">Fluxo principal</span>
+          <h3>Enviar audio</h3>
+          <p>Importe uma amostra, envie e confira a transcricao e a resposta na mesma tela.</p>
         </div>
         <StatusPill tone={statusTone}>{statusLabel}</StatusPill>
       </div>
@@ -128,13 +133,18 @@ export function VoiceUploadSection({
         </div>
 
         <div className="voice-dropzone__actions">
-          <Button variant="secondary" onClick={onOpenFilePicker} disabled={requestStatus === "uploading"} data-testid="voice-choose-file">
+          <Button
+            variant="secondary"
+            onClick={onOpenFilePicker}
+            disabled={requestStatus === "uploading"}
+            data-testid="voice-choose-file"
+          >
             <FileArrowUp weight="duotone" />
             Escolher arquivo
           </Button>
           <Button onClick={onSendSelectedAudioFile} disabled={!canSendSelectedFile} data-testid="voice-submit">
             <Waveform weight="duotone" />
-            {hasResult && selectedAudioFile ? "Rodar novamente" : "Executar fluxo"}
+            {hasResult && selectedAudioFile ? "Tentar novamente" : "Executar"}
           </Button>
           <Button
             variant="ghost"
@@ -151,21 +161,21 @@ export function VoiceUploadSection({
       <div className="voice-panel-grid">
         <div className="voice-config-card">
           <div className="voice-config-card__header">
-            <span>Request settings</span>
-            <small>multipart/form-data</small>
+            <span>Idioma</span>
+            <small>Opcional</small>
           </div>
           <Input
-            label="Language tag"
+            label="Idioma do audio"
             value={language}
             onChange={(event) => onLanguageChange(event.target.value)}
             placeholder="pt-BR"
-            hint="Campo opcional enviado junto ao upload para o backend."
+            hint="Use se quiser orientar o reconhecimento."
           />
         </div>
 
         <div className="voice-config-card">
           <div className="voice-config-card__header">
-            <span>Attempt context</span>
+            <span>Tentativa atual</span>
             <small>{lastInputSource === "microphone" ? "microfone" : "arquivo"}</small>
           </div>
           <div className="voice-context-list">
@@ -185,7 +195,7 @@ export function VoiceUploadSection({
         <div className="signal-message signal-message--error" role="alert" data-testid="voice-error">
           <ShieldWarning weight="duotone" />
           <div>
-            <strong>Falha na tentativa atual</strong>
+            <strong>Nao foi possivel processar este audio</strong>
             <span>{voiceError}</span>
           </div>
         </div>
@@ -195,33 +205,31 @@ export function VoiceUploadSection({
         <div className="signal-message signal-message--warning" role="status" data-testid="voice-notice">
           <Headphones weight="duotone" />
           <div>
-            <strong>Processado com observação</strong>
+            <strong>Processado com observacao</strong>
             <span>{voiceNotice}</span>
           </div>
         </div>
       ) : null}
 
-      {requestStatus === "uploading" ? <LoadingBlock label="Executando STT, LLM, TTS e persistencia..." /> : null}
+      {requestStatus === "uploading" ? <LoadingBlock label="Processando audio..." /> : null}
 
       <div className="voice-results-grid" data-testid="voice-results">
         <article className="voice-result-card" data-testid="voice-transcription-card">
           <div className="voice-result-card__header">
-            <span>Transcript</span>
+            <span>Transcricao</span>
             <Sparkle weight="duotone" />
           </div>
           <p>
-            {transcriptionText || "Nenhuma transcricao disponivel ainda. Execute um arquivo para validar o retorno do STT."}
+            {transcriptionText || "Nenhuma transcricao disponivel ainda. Execute um arquivo para validar o retorno."}
           </p>
         </article>
 
         <article className="voice-result-card voice-result-card--accent" data-testid="voice-assistant-card">
           <div className="voice-result-card__header">
-            <span>Assistant reply</span>
+            <span>Resposta</span>
             <Waveform weight="duotone" />
           </div>
-          <p>
-            {assistantText || "A resposta textual aparecera aqui apos a execucao completa do fluxo no backend."}
-          </p>
+          <p>{assistantText || "A resposta aparecera aqui apos a execucao completa do fluxo."}</p>
 
           {audioUrl ? (
             <div className="voice-audio-player" data-testid="voice-audio-player">

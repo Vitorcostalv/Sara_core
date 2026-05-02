@@ -1,14 +1,13 @@
 import type { ChangeEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Broadcast,
-  ClockCounterClockwise,
-  MicrophoneStage,
-  Pulse,
-  Sparkle
-} from "@phosphor-icons/react";
-import type { ConversationRole, ConversationTurn, PaginationMeta } from "@sara/shared-types";
-import { PageHeader, StatusPill } from "../components/ui";
+import { Broadcast, ClockCounterClockwise } from "@phosphor-icons/react";
+import type {
+  ConversationRole,
+  ConversationTurn,
+  ConversationTurnsListResponse,
+  PaginationMeta
+} from "@sara/shared-types";
+import { PageHeader } from "../components/ui";
 import { ConversationTimelineSection } from "../features/voice/ConversationTimelineSection";
 import { VoiceRecorderSection } from "../features/voice/VoiceRecorderSection";
 import { VoiceUploadSection } from "../features/voice/VoiceUploadSection";
@@ -38,6 +37,25 @@ interface ConversationFilters {
   source: string;
 }
 
+const turnsPageSize = 10;
+const timelineCacheTtlMs = 30_000;
+const conversationTurnsCache = new Map<
+  string,
+  {
+    timestamp: number;
+    response: ConversationTurnsListResponse;
+  }
+>();
+
+function buildTimelineCacheKey(page: number, filters: ConversationFilters) {
+  return JSON.stringify({
+    page,
+    pageSize: turnsPageSize,
+    role: filters.role || "",
+    source: filters.source.trim().toLowerCase()
+  });
+}
+
 export function ConversationsPage() {
   const [requestStatus, setRequestStatus] = useState<VoiceRequestStatus>("idle");
   const [language, setLanguage] = useState("pt-BR");
@@ -52,9 +70,11 @@ export function ConversationsPage() {
 
   const [turns, setTurns] = useState<ConversationTurn[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>(initialMeta);
+  const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ConversationFilters>({ role: "", source: "" });
+  const [appliedFilters, setAppliedFilters] = useState<ConversationFilters>({ role: "", source: "" });
 
   const clearVoiceFeedback = () => {
     setVoiceResult(null);
@@ -81,18 +101,34 @@ export function ConversationsPage() {
   };
 
   const loadTurns = useCallback(
-    async (page = 1) => {
+    async (nextPage = 1, options?: { force?: boolean; filters?: ConversationFilters }) => {
+      const nextFilters = options?.filters ?? appliedFilters;
+      const cacheKey = buildTimelineCacheKey(nextPage, nextFilters);
+      const cached = conversationTurnsCache.get(cacheKey);
+
+      if (!options?.force && cached && Date.now() - cached.timestamp < timelineCacheTtlMs) {
+        setTurns(cached.response.data);
+        setMeta(cached.response.meta);
+        setListError(null);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       setListError(null);
 
       try {
         const response = await conversationTurnsApi.list({
-          page,
-          pageSize: meta.pageSize,
-          role: filters.role || undefined,
-          source: filters.source.trim() || undefined
+          page: nextPage,
+          pageSize: turnsPageSize,
+          role: nextFilters.role || undefined,
+          source: nextFilters.source.trim() || undefined
         });
 
+        conversationTurnsCache.set(cacheKey, {
+          timestamp: Date.now(),
+          response
+        });
         setTurns(response.data);
         setMeta(response.meta);
       } catch (error) {
@@ -101,7 +137,7 @@ export function ConversationsPage() {
         setIsLoading(false);
       }
     },
-    [filters.role, filters.source, meta.pageSize]
+    [appliedFilters]
   );
 
   const submitAudio = useCallback(
@@ -133,7 +169,9 @@ export function ConversationsPage() {
             : null
         );
 
-        void loadTurns(1);
+        conversationTurnsCache.clear();
+        setPage(1);
+        void loadTurns(1, { force: true });
       } catch (error) {
         if (!isMountedRef.current) {
           return;
@@ -190,8 +228,24 @@ export function ConversationsPage() {
   }, []);
 
   useEffect(() => {
-    void loadTurns(1);
-  }, [loadTurns]);
+    void loadTurns(page);
+  }, [loadTurns, page]);
+
+  const applyFilters = () => {
+    setAppliedFilters({
+      role: filters.role,
+      source: filters.source
+    });
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    const nextFilters = { role: "", source: "" } satisfies ConversationFilters;
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    setPage(1);
+    void loadTurns(1, { force: true, filters: nextFilters });
+  };
 
   const openFilePicker = () => {
     if (requestStatus === "uploading") {
@@ -291,44 +345,24 @@ export function ConversationsPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="Primary flow"
-        title="Voice Console"
-        description="A área principal da Sara Core agora prioriza um ciclo claro: selecionar sinal, executar o backend e revisar transcrição, resposta e persistência sem sair da tela."
+        title="Voice"
+        description="Envie um audio, revise a transcricao e confira a resposta."
         icon={<ClockCounterClockwise weight="duotone" />}
-        actions={<StatusPill tone="info">POST /api/v1/voice/interactions</StatusPill>}
       />
 
       <section className="voice-hero">
         <div className="voice-hero__main">
           <div className="voice-hero__signal">
-            <span className="voice-hero__eyebrow">Voice validation</span>
-            <h3>Do audio bruto ao reply persistido, sem ambiguidade operacional.</h3>
-            <p>
-              Use arquivo como trilha principal, compare com microfone quando fizer sentido e mantenha o
-              histórico visível para validar o comportamento real do backend.
-            </p>
+            <h3>Um fluxo simples para testar audio e acompanhar o resultado.</h3>
+            <p>Escolha um arquivo ou grave um trecho curto para validar a experiencia completa.</p>
           </div>
 
           <div className="voice-hero__steps">
             <div className="voice-step">
               <Broadcast weight="duotone" />
               <div>
-                <strong>1. Capture</strong>
-                <span>Importe audio real ou grave um trecho curto.</span>
-              </div>
-            </div>
-            <div className="voice-step">
-              <Pulse weight="duotone" />
-              <div>
-                <strong>2. Execute</strong>
-                <span>O backend transcreve, tenta a LLM e persiste o fluxo.</span>
-              </div>
-            </div>
-            <div className="voice-step">
-              <Sparkle weight="duotone" />
-              <div>
-                <strong>3. Audit</strong>
-                <span>Valide texto, fallback, erros e rastros observáveis.</span>
+                <strong>Envie e acompanhe</strong>
+                <span>O resultado aparece na mesma tela, com tentativa atual e historico recente.</span>
               </div>
             </div>
           </div>
@@ -346,12 +380,12 @@ export function ConversationsPage() {
             <small>caracteres na ultima tentativa</small>
           </div>
           <div className="signal-metric">
-            <span>Assistant text</span>
+            <span>Resposta</span>
             <strong>{assistantLength}</strong>
             <small>caracteres retornados</small>
           </div>
           <div className="signal-metric">
-            <span>Timeline</span>
+            <span>Historico</span>
             <strong>{meta.total}</strong>
             <small>{latestTurnTime}</small>
           </div>
@@ -390,22 +424,6 @@ export function ConversationsPage() {
             onStartRecording={() => void startRecording()}
             onStopRecording={stopRecorder}
           />
-          <section className="side-note-card">
-            <span className="side-note-card__eyebrow">Operational note</span>
-            <h3>O upload continua sendo a trilha principal desta fase.</h3>
-            <p>
-              A captura por microfone fica disponível para comparação rápida, mas a leitura crítica do produto
-              deve partir de amostras de audio controladas e repetíveis.
-            </p>
-            <div className="side-note-card__pills">
-              <StatusPill tone="success">Transacao persistida</StatusPill>
-              <StatusPill tone="success">TTS MVP ativo</StatusPill>
-            </div>
-            <div className="side-note-card__footer">
-              <MicrophoneStage weight="duotone" />
-              <span>Mesmo endpoint, mesma trilha de persistencia, menos ruido operacional.</span>
-            </div>
-          </section>
         </div>
       </div>
 
@@ -415,8 +433,12 @@ export function ConversationsPage() {
         listError={listError}
         meta={meta}
         turns={turns}
-        onClearFilters={() => setFilters({ role: "", source: "" })}
-        onLoadTurns={(page) => void loadTurns(page)}
+        onApplyFilters={applyFilters}
+        onClearFilters={clearFilters}
+        onLoadTurns={(nextPage) => {
+          setPage(nextPage);
+        }}
+        onRefresh={() => void loadTurns(page, { force: true })}
         onRoleChange={(role) => setFilters((current) => ({ ...current, role }))}
         onSourceChange={(source) => setFilters((current) => ({ ...current, source }))}
       />

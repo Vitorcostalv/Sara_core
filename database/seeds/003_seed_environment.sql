@@ -1,298 +1,117 @@
 -- 003_seed_environment.sql
--- Base inicial de conhecimento ambiental para facts e tasks.
--- Idempotente: ON CONFLICT(id) atualiza sem duplicar.
--- Requer que 001_seed_dev.sql já tenha criado o usuário 'local-user'.
+-- Ecological grounding base for real environmental ecosystems.
+-- Idempotent: ON CONFLICT(id) updates existing rows without duplication.
+-- Requires 001_seed_dev.sql to have created the local profile.
 
 INSERT INTO facts (id, user_id, key, value, category, is_important, created_at, updated_at)
 VALUES
-  -- environment:reciclagem
-  (
-    'fact-env-reciclagem-separacao',
-    'local-user',
-    'environment.reciclagem.separacao-residuos',
-    'Separar resíduos recicláveis facilita a destinação correta e reduz o descarte inadequado.',
-    'ecosystem:environment',
-    TRUE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'fact-env-reciclagem-coleta-especial',
-    'local-user',
-    'environment.reciclagem.coleta-especial',
-    'Pilhas, baterias e eletrônicos precisam de destinação adequada em pontos de coleta específicos.',
-    'ecosystem:environment',
-    TRUE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
+  ('fact-concept-ecossistema-definicao', 'local-user', 'ecossistema.definicao', 'Um ecossistema e um conjunto dinamico formado pela interacao entre componentes bioticos e abioticos em um local, com fluxo de energia e ciclagem de materia.', 'concept', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-concept-ecossistema-componentes', 'local-user', 'ecossistema.componentes', 'Componentes bioticos incluem produtores, consumidores e decompositores; componentes abioticos incluem agua, solo, luz, salinidade, temperatura e nutrientes.', 'concept', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-concept-ecossistema-fluxo-energia', 'local-user', 'ecossistema.fluxo-de-energia', 'A energia entra principalmente pela fotossintese, percorre as cadeias alimentares e se dissipa como calor, enquanto a materia circula por ciclos biogeoquimicos.', 'concept', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-concept-ecossistema-classificacao', 'local-user', 'ecossistema.classificacao', 'Ecossistemas podem ser terrestres, aquaticos de agua doce, marinhos ou de transicao, e variam conforme clima, relevo, hidrologia e biodiversidade dominante.', 'concept', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
 
-  -- environment:agua
-  (
-    'fact-env-agua-desperdicio',
-    'local-user',
-    'environment.agua.reducao-desperdicio',
-    'Reduzir desperdício de água em atividades diárias ajuda a preservar recursos hídricos.',
-    'ecosystem:environment',
-    TRUE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'fact-env-agua-nascentes',
-    'local-user',
-    'environment.agua.preservacao-nascentes',
-    'A preservação de nascentes e matas ciliares ajuda a proteger corpos d''água e manter o abastecimento hídrico.',
-    'ecosystem:environment',
-    TRUE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
+  ('fact-eco-floresta-tropical-definicao', 'local-user', 'definicao', 'Floresta tropical e um ecossistema de clima quente e umido, com alta pluviosidade, estratificacao da vegetacao e grande diversidade biologica.', 'ecosystem:floresta-tropical', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-floresta-tropical-bioticos', 'local-user', 'componentes.bioticos', 'Arvores de grande porte, lianas, epifitas, insetos, aves, anfibios, primatas e decompositores do solo compoem o nucleo biotico.', 'ecosystem:floresta-tropical', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-floresta-tropical-abioticos', 'local-user', 'componentes.abioticos', 'Chuvas abundantes, alta umidade, temperaturas relativamente estaveis, solos lixiviados e baixa sazonalidade termica sao fatores abioticos comuns.', 'ecosystem:floresta-tropical', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-floresta-tropical-importancia', 'local-user', 'importancia', 'Esse ecossistema regula o clima, armazena carbono, protege nascentes e sustenta enorme diversidade genetica e de interacoes ecologicas.', 'ecosystem:floresta-tropical', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-floresta-tropical-ameacas', 'local-user', 'ameacas', 'Desmatamento, fragmentacao, queimadas, mineracao, especies invasoras e mudancas climaticas estao entre as principais ameacas.', 'ecosystem:floresta-tropical', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-floresta-tropical-conservacao', 'local-user', 'conservacao', 'Conservacao depende de areas protegidas, corredores ecologicos, fiscalizacao, restauracao florestal e respeito aos territorios tradicionais.', 'ecosystem:floresta-tropical', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-floresta-tropical-localizacao', 'local-user', 'localizacao', 'Florestas tropicais ocorrem em faixas equatoriais e tropicais, como Amazonia, bacia do Congo e Sudeste Asiatico.', 'ecosystem:floresta-tropical', FALSE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
 
-  -- environment:energia
-  (
-    'fact-env-energia-consumo',
-    'local-user',
-    'environment.energia.reducao-consumo',
-    'Apagar luzes e desligar equipamentos sem uso reduz o consumo de energia elétrica.',
-    'ecosystem:environment',
-    TRUE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
+  ('fact-eco-manguezal-definicao', 'local-user', 'definicao', 'Manguezal e um ecossistema costeiro de transicao entre terra e mar, influenciado pelas mares e adaptado a sedimentos lodosos e agua salobra.', 'ecosystem:manguezal', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-manguezal-bioticos', 'local-user', 'componentes.bioticos', 'Mangues, caranguejos, moluscos, peixes juvenis, crustaceos, aves aquaticas e microorganismos decompositores sao elementos centrais.', 'ecosystem:manguezal', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-manguezal-abioticos', 'local-user', 'componentes.abioticos', 'Salinidade variavel, lama rica em materia organica, oscilacao de mares, baixa oxigenacao no sedimento e influencia de rios e mar definem o meio.', 'ecosystem:manguezal', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-manguezal-importancia', 'local-user', 'importancia', 'Manguezais funcionam como bercarios de especies, protegem a linha de costa, filtram sedimentos e contribuem para pesca artesanal.', 'ecosystem:manguezal', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-manguezal-ameacas', 'local-user', 'ameacas', 'Aterros, poluicao, urbanizacao costeira, carcinicultura mal planejada e alteracoes hidrologicas comprometem esse ecossistema.', 'ecosystem:manguezal', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-manguezal-conservacao', 'local-user', 'conservacao', 'Conservacao exige saneamento, protecao legal, restauracao hidrologica e controle da ocupacao costeira.', 'ecosystem:manguezal', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-manguezal-localizacao', 'local-user', 'localizacao', 'Manguezais ocorrem em costas tropicais e subtropicais, especialmente em estuarios, baias e desembocaduras de rios.', 'ecosystem:manguezal', FALSE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
 
-  -- environment:residuos
-  (
-    'fact-env-residuos-reutilizacao',
-    'local-user',
-    'environment.residuos.reutilizacao',
-    'Reutilizar materiais quando possível diminui a geração de resíduos e reduz a pressão sobre aterros.',
-    'ecosystem:environment',
-    TRUE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'fact-env-residuos-oleo',
-    'local-user',
-    'environment.residuos.oleo-cozinha',
-    'Óleo de cozinha descartado incorretamente pode contaminar água e solo, afetando ecossistemas locais.',
-    'ecosystem:environment',
-    TRUE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'fact-env-residuos-compostagem',
-    'local-user',
-    'environment.residuos.compostagem',
-    'Compostagem pode reduzir resíduos orgânicos enviados ao lixo comum e gerar adubo natural.',
-    'ecosystem:environment',
-    FALSE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'fact-env-residuos-descartaveis',
-    'local-user',
-    'environment.residuos.descartaveis',
-    'Evitar descartáveis reduz a pressão sobre coleta, transporte e destinação de resíduos sólidos.',
-    'ecosystem:environment',
-    FALSE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
+  ('fact-eco-cerrado-definicao', 'local-user', 'definicao', 'Cerrado e um ecossistema savanico com mosaico de campos, arbustos e arvores retorcidas, marcado por estacao seca e solos geralmente acidos.', 'ecosystem:cerrado', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-cerrado-bioticos', 'local-user', 'componentes.bioticos', 'Gramineas, arvores de casca grossa, cupins, formigas, mamiferos de medio porte, aves campestres e polinizadores diversos sao frequentes.', 'ecosystem:cerrado', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-cerrado-abioticos', 'local-user', 'componentes.abioticos', 'Solos profundos e pobres em nutrientes, longa estacao seca, fogo natural ou recorrente e regime pluviometrico sazonal moldam o sistema.', 'ecosystem:cerrado', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-cerrado-importancia', 'local-user', 'importancia', 'O cerrado abriga nascentes de grandes bacias hidrograficas, alto endemismo e importante papel no ciclo da agua e do carbono.', 'ecosystem:cerrado', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-cerrado-ameacas', 'local-user', 'ameacas', 'Conversao para agricultura extensiva, fragmentacao, uso inadequado do fogo e perda de nascentes ameacam o equilibrio do cerrado.', 'ecosystem:cerrado', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-cerrado-conservacao', 'local-user', 'conservacao', 'Conservacao pede protecao de areas nucleares, manejo adequado do fogo, restauracao de matas de galeria e uso do solo mais sustentavel.', 'ecosystem:cerrado', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-cerrado-localizacao', 'local-user', 'localizacao', 'O cerrado se distribui principalmente pelo Brasil central, com conexoes ecologicas com Amazonia, Caatinga, Pantanal e Mata Atlantica.', 'ecosystem:cerrado', FALSE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
 
-  -- environment:consumo-consciente
-  (
-    'fact-env-consumo-definicao',
-    'local-user',
-    'environment.consumo-consciente.definicao',
-    'Consumo consciente considera necessidade real, durabilidade, origem e descarte do produto antes da compra.',
-    'ecosystem:environment',
-    TRUE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'fact-env-consumo-planejamento',
-    'local-user',
-    'environment.consumo-consciente.planejamento',
-    'Planejar compras ajuda a reduzir desperdício de alimentos e consumo desnecessário.',
-    'ecosystem:environment',
-    FALSE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
+  ('fact-eco-caatinga-definicao', 'local-user', 'definicao', 'Caatinga e um ecossistema semiarido com vegetacao adaptada a seca, perda sazonal de folhas e forte irregularidade de chuvas.', 'ecosystem:caatinga', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-caatinga-bioticos', 'local-user', 'componentes.bioticos', 'Cactaceas, arbustos espinhosos, bromelias, reptiles, aves resistentes a seca, insetos e mamiferos adaptados ao estresse hidrico compoem o sistema.', 'ecosystem:caatinga', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-caatinga-abioticos', 'local-user', 'componentes.abioticos', 'Altas temperaturas, baixa umidade, solos rasos em varias areas e chuvas concentradas em curtos periodos sao fatores dominantes.', 'ecosystem:caatinga', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-caatinga-importancia', 'local-user', 'importancia', 'A caatinga abriga especies endemicas, sustenta comunidades humanas do semiarido e presta servicos ecossistemicos associados a solo e agua.', 'ecosystem:caatinga', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-caatinga-ameacas', 'local-user', 'ameacas', 'Desmatamento para lenha, superpastejo, desertificacao local, caca e uso inadequado do solo reduzem a resiliencia da caatinga.', 'ecosystem:caatinga', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-caatinga-conservacao', 'local-user', 'conservacao', 'Conservacao depende de manejo do solo, recuperacao de areas degradadas, uso eficiente da agua e protecao de areas representativas.', 'ecosystem:caatinga', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-caatinga-localizacao', 'local-user', 'localizacao', 'A caatinga ocorre principalmente no interior do Nordeste brasileiro e em porcoes do norte de Minas Gerais.', 'ecosystem:caatinga', FALSE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
 
-  -- environment:biodiversidade
-  (
-    'fact-env-biodiversidade-areas-verdes',
-    'local-user',
-    'environment.biodiversidade.areas-verdes',
-    'Áreas verdes contribuem para conforto térmico, biodiversidade e qualidade de vida urbana.',
-    'ecosystem:environment',
-    TRUE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
+  ('fact-eco-deserto-definicao', 'local-user', 'definicao', 'Deserto e um ecossistema com baixa precipitacao anual, alta evaporacao e escassez hidrica persistente, podendo ser quente ou frio.', 'ecosystem:deserto', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-deserto-bioticos', 'local-user', 'componentes.bioticos', 'Plantas xerofitas, sementes dormentes, invertebrados, reptiles e mamiferos com adaptacoes ao calor ou a falta de agua sao frequentes.', 'ecosystem:deserto', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-deserto-abioticos', 'local-user', 'componentes.abioticos', 'Chuvas escassas, grande amplitude termica, ventos, solos arenosos ou pedregosos e baixa materia organica caracterizam o ambiente.', 'ecosystem:deserto', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-deserto-importancia', 'local-user', 'importancia', 'Desertos ajudam a entender limites de adaptacao biologica, armazenamento mineral e processos climaticos em areas aridas.', 'ecosystem:deserto', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-deserto-ameacas', 'local-user', 'ameacas', 'Superexploracao de agua subterranea, mineracao predatoria, especies invasoras e veiculos fora de trilha podem degradar desertos rapidamente.', 'ecosystem:deserto', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-deserto-conservacao', 'local-user', 'conservacao', 'Conservacao exige uso racional de agua, limitacao de perturbacoes fisicas e protecao de especies altamente especializadas.', 'ecosystem:deserto', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-deserto-localizacao', 'local-user', 'localizacao', 'Desertos ocorrem em varias regioes subtropicais e interiores continentais, como Saara, Atacama, Gobi e desertos australianos.', 'ecosystem:deserto', FALSE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
 
-  -- environment:educacao-ambiental
-  (
-    'fact-env-educacao-habitos',
-    'local-user',
-    'environment.educacao-ambiental.mudanca-habitos',
-    'Educação ambiental incentiva mudanças de hábito individuais e coletivas com impacto duradouro.',
-    'ecosystem:environment',
-    TRUE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'fact-env-educacao-medicamentos',
-    'local-user',
-    'environment.educacao-ambiental.medicamentos',
-    'O descarte correto de medicamentos evita contaminação ambiental e deve ser feito em pontos de coleta autorizados.',
-    'ecosystem:environment',
-    FALSE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
+  ('fact-eco-tundra-definicao', 'local-user', 'definicao', 'Tundra e um ecossistema frio, de curta estacao de crescimento, com solos congelados por longos periodos e vegetacao baixa.', 'ecosystem:tundra', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-tundra-bioticos', 'local-user', 'componentes.bioticos', 'Musgos, liquens, graminoides, pequenos arbustos, herbivoros migratorios, aves sazonais e decompositores de atividade lenta sao tipicos.', 'ecosystem:tundra', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-tundra-abioticos', 'local-user', 'componentes.abioticos', 'Permafrost, baixas temperaturas, ventos fortes, neve e pouca profundidade do solo ativo limitam a produtividade primaria.', 'ecosystem:tundra', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-tundra-importancia', 'local-user', 'importancia', 'A tundra armazena grande quantidade de carbono no solo congelado e influencia ciclos climaticos de alta latitude.', 'ecosystem:tundra', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-tundra-ameacas', 'local-user', 'ameacas', 'Aquecimento global, degelo do permafrost, infraestrutura mal planejada e alteracoes no regime hidrico ameacam a tundra.', 'ecosystem:tundra', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-tundra-conservacao', 'local-user', 'conservacao', 'Conservar tundra requer reduzir emissoes globais, limitar disturbios locais e monitorar solos, vegetacao e fauna migratoria.', 'ecosystem:tundra', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-tundra-localizacao', 'local-user', 'localizacao', 'A tundra ocorre em altas latitudes do Hemisferio Norte e em altitudes elevadas de montanhas frias.', 'ecosystem:tundra', FALSE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
 
-  -- environment:comunidade
-  (
-    'fact-env-comunidade-hortas',
-    'local-user',
-    'environment.comunidade.hortas-comunitarias',
-    'Hortas comunitárias podem fortalecer educação ambiental e segurança alimentar local.',
-    'ecosystem:environment',
-    FALSE,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  )
+  ('fact-eco-rio-definicao', 'local-user', 'definicao', 'Rio e um ecossistema lotico de agua corrente, conectado a nascentes, margens, planicies de inundacao e ao restante da bacia hidrografica.', 'ecosystem:rio', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-rio-bioticos', 'local-user', 'componentes.bioticos', 'Peixes, macroinvertebrados, algas, plantas riparias, anfibios, microorganismos e aves associadas as margens integram a biota fluvial.', 'ecosystem:rio', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-rio-abioticos', 'local-user', 'componentes.abioticos', 'Vazao, velocidade da corrente, oxigenio dissolvido, temperatura, turbidez, substrato e conectividade hidrologica sao fatores-chave.', 'ecosystem:rio', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-rio-importancia', 'local-user', 'importancia', 'Rios transportam agua, nutrientes e sedimentos, sustentam abastecimento, pesca, navegacao e conectam diferentes habitats.', 'ecosystem:rio', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-rio-ameacas', 'local-user', 'ameacas', 'Poluicao, barragens, assoreamento, retirada de mata ciliar, captacao excessiva e especies invasoras degradam rios.', 'ecosystem:rio', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-rio-conservacao', 'local-user', 'conservacao', 'Conservacao depende de saneamento, restauracao de matas ciliares, gestao por bacia e manutencao de vazoes ecologicas.', 'ecosystem:rio', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-rio-localizacao', 'local-user', 'localizacao', 'Rios ocorrem em praticamente todos os continentes e fazem parte de redes de drenagem que ligam nascentes a estuarios ou lagos.', 'ecosystem:rio', FALSE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+
+  ('fact-eco-lago-definicao', 'local-user', 'definicao', 'Lago e um ecossistema lentico com agua parada ou de baixa circulacao, sujeito a variacoes de profundidade, transparencia e nutrientes.', 'ecosystem:lago', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-lago-bioticos', 'local-user', 'componentes.bioticos', 'Fitoplancton, zooplancton, peixes, macrofitas aquaticas, anfibios, aves e microorganismos decompositores formam a comunidade biologica.', 'ecosystem:lago', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-lago-abioticos', 'local-user', 'componentes.abioticos', 'Profundidade, estratificacao termica, entrada de nutrientes, oxigenacao e regime de mistura sazonal influenciam o funcionamento do lago.', 'ecosystem:lago', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-lago-importancia', 'local-user', 'importancia', 'Lagos armazenam agua doce, regulam microclimas locais e sustentam pesca, recreacao e habitats importantes para aves e peixes.', 'ecosystem:lago', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-lago-ameacas', 'local-user', 'ameacas', 'Eutrofizacao, poluicao, retirada excessiva de agua, introducao de especies exoticas e ocupacao irregular das margens ameacam lagos.', 'ecosystem:lago', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-lago-conservacao', 'local-user', 'conservacao', 'Conservar lagos requer controle de nutrientes, protecao das margens, monitoramento da qualidade da agua e manejo de especies invasoras.', 'ecosystem:lago', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-lago-localizacao', 'local-user', 'localizacao', 'Lagos ocorrem em depressoes naturais, areas glaciadas, zonas tectonicas ou ambientes represados natural ou artificialmente.', 'ecosystem:lago', FALSE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+
+  ('fact-eco-oceano-definicao', 'local-user', 'definicao', 'Oceano e o grande ecossistema marinho global, dominado por agua salgada e conectado por correntes, zonas de profundidade e variacao de produtividade.', 'ecosystem:oceano', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-oceano-bioticos', 'local-user', 'componentes.bioticos', 'Fitoplancton, zooplancton, peixes, mamiferos marinhos, corais, algas, moluscos, crustaceos e decompositores marinhos integram a biota oceanica.', 'ecosystem:oceano', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-oceano-abioticos', 'local-user', 'componentes.abioticos', 'Salinidade, correntes, luz, profundidade, pressao, temperatura e disponibilidade de nutrientes controlam a dinamica oceanica.', 'ecosystem:oceano', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-oceano-importancia', 'local-user', 'importancia', 'O oceano regula o clima global, produz grande parte do oxigenio biologico, absorve calor e carbono e sustenta cadeias alimentares extensas.', 'ecosystem:oceano', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-oceano-ameacas', 'local-user', 'ameacas', 'Aquecimento global, acidificacao, sobrepesca, plastico, derramamentos e destruicao de habitats costeiros afetam o oceano.', 'ecosystem:oceano', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-oceano-conservacao', 'local-user', 'conservacao', 'Conservacao pede areas marinhas protegidas, pesca sustentavel, reducao da poluicao e mitigacao das mudancas climaticas.', 'ecosystem:oceano', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-oceano-localizacao', 'local-user', 'localizacao', 'O oceano cobre a maior parte da superficie terrestre e se organiza em grandes bacias como Atlantico, Pacifico, Indico, Artico e Austral.', 'ecosystem:oceano', FALSE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+
+  ('fact-eco-recife-definicao', 'local-user', 'definicao', 'Recife de coral e um ecossistema marinho de alta biodiversidade, estruturado por organismos construtores de carbonato em aguas rasas e iluminadas.', 'ecosystem:recife-de-coral', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-recife-bioticos', 'local-user', 'componentes.bioticos', 'Corais, algas associadas, peixes recifais, crustaceos, equinodermos, esponjas e microorganismos mantem a alta complexidade biologica dos recifes.', 'ecosystem:recife-de-coral', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-recife-abioticos', 'local-user', 'componentes.abioticos', 'Aguas claras, quentes, rasas, com baixa turbidez e boa penetracao de luz favorecem o crescimento de recifes de coral.', 'ecosystem:recife-de-coral', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-recife-importancia', 'local-user', 'importancia', 'Recifes protegem costas, sustentam pesca e turismo e concentram elevada diversidade de especies por unidade de area.', 'ecosystem:recife-de-coral', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-recife-ameacas', 'local-user', 'ameacas', 'Branqueamento por aquecimento, acidificacao, poluicao, pesca destrutiva e sedimentacao excessiva ameacam recifes de coral.', 'ecosystem:recife-de-coral', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-recife-conservacao', 'local-user', 'conservacao', 'Conservacao inclui controle da qualidade da agua, protecao de areas recifais, turismo responsavel e reducao do aquecimento global.', 'ecosystem:recife-de-coral', TRUE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z'),
+  ('fact-eco-recife-localizacao', 'local-user', 'localizacao', 'Recifes de coral ocorrem sobretudo em mares tropicais e subtropicais rasos, como Caribe, Indo-Pacifico e costa nordeste brasileira.', 'ecosystem:recife-de-coral', FALSE, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z')
 ON CONFLICT (id) DO UPDATE SET
-  key        = EXCLUDED.key,
-  value      = EXCLUDED.value,
-  category   = EXCLUDED.category,
+  key = EXCLUDED.key,
+  value = EXCLUDED.value,
+  category = EXCLUDED.category,
   is_important = EXCLUDED.is_important,
   updated_at = EXCLUDED.updated_at;
 
 INSERT INTO tasks (id, user_id, title, description, status, priority, due_date, created_at, updated_at)
 VALUES
-  (
-    'task-env-001',
-    'local-user',
-    'Criar rotina de separação de recicláveis',
-    'Definir dias e locais para separar resíduos secos e orgânicos em casa.',
-    'pending',
-    3,
-    NULL,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'task-env-002',
-    'local-user',
-    'Mapear pontos de coleta especiais',
-    'Identificar onde descartar pilhas, baterias, eletrônicos e óleo de cozinha na região.',
-    'pending',
-    3,
-    NULL,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'task-env-003',
-    'local-user',
-    'Verificar vazamentos ou desperdício de água',
-    'Inspecionar torneiras, vasos sanitários e tubulações em busca de vazamentos evitáveis.',
-    'pending',
-    2,
-    NULL,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'task-env-004',
-    'local-user',
-    'Reduzir uso de descartáveis durante a semana',
-    'Substituir pelo menos um item descartável por uma alternativa reutilizável.',
-    'pending',
-    3,
-    NULL,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'task-env-005',
-    'local-user',
-    'Criar lembrete para economia de energia',
-    'Configurar lembrete para apagar luzes e desligar equipamentos sem uso ao sair dos ambientes.',
-    'pending',
-    4,
-    NULL,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'task-env-006',
-    'local-user',
-    'Separar óleo de cozinha para descarte adequado',
-    'Guardar o óleo usado em garrafa PET e levar ao ponto de coleta mais próximo.',
-    'pending',
-    3,
-    NULL,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'task-env-007',
-    'local-user',
-    'Registrar hábitos sustentáveis adotados no mês',
-    'Listar e avaliar ações sustentáveis praticadas durante o mês para medir evolução.',
-    'pending',
-    2,
-    NULL,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'task-env-008',
-    'local-user',
-    'Pesquisar materiais recicláveis aceitos na região',
-    'Consultar o serviço de coleta seletiva local para saber quais materiais são aceitos.',
-    'pending',
-    2,
-    NULL,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'task-env-009',
-    'local-user',
-    'Montar checklist de consumo consciente',
-    'Criar lista de perguntas para avaliar necessidade real antes de realizar compras.',
-    'pending',
-    3,
-    NULL,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  ),
-  (
-    'task-env-010',
-    'local-user',
-    'Avaliar possibilidade de compostagem',
-    'Pesquisar opções de compostagem doméstica ou comunitária disponíveis na região.',
-    'pending',
-    2,
-    NULL,
-    '2026-04-26T00:00:00.000Z',
-    '2026-04-26T00:00:00.000Z'
-  )
+  ('task-env-001', 'local-user', 'Criar rotina de separacao de reciclaveis', 'Definir dias e locais para separar residuos secos e organicos em casa.', 'pending', 3, NULL, '2026-04-26T00:00:00.000Z', '2026-04-26T00:00:00.000Z'),
+  ('task-env-002', 'local-user', 'Mapear pontos de coleta especiais', 'Identificar onde descartar pilhas, baterias, eletronicos e oleo de cozinha na regiao.', 'pending', 3, NULL, '2026-04-26T00:00:00.000Z', '2026-04-26T00:00:00.000Z'),
+  ('task-env-003', 'local-user', 'Verificar vazamentos ou desperdicio de agua', 'Inspecionar torneiras, vasos sanitarios e tubulacoes em busca de vazamentos evitaveis.', 'pending', 2, NULL, '2026-04-26T00:00:00.000Z', '2026-04-26T00:00:00.000Z'),
+  ('task-env-004', 'local-user', 'Reduzir uso de descartaveis durante a semana', 'Substituir pelo menos um item descartavel por uma alternativa reutilizavel.', 'pending', 3, NULL, '2026-04-26T00:00:00.000Z', '2026-04-26T00:00:00.000Z'),
+  ('task-env-005', 'local-user', 'Criar lembrete para economia de energia', 'Configurar lembrete para apagar luzes e desligar equipamentos sem uso ao sair dos ambientes.', 'pending', 4, NULL, '2026-04-26T00:00:00.000Z', '2026-04-26T00:00:00.000Z'),
+  ('task-env-006', 'local-user', 'Separar oleo de cozinha para descarte adequado', 'Guardar o oleo usado em garrafa pet e levar ao ponto de coleta mais proximo.', 'pending', 3, NULL, '2026-04-26T00:00:00.000Z', '2026-04-26T00:00:00.000Z'),
+  ('task-env-007', 'local-user', 'Registrar habitos sustentaveis adotados no mes', 'Listar e avaliar acoes sustentaveis praticadas durante o mes para medir evolucao.', 'pending', 2, NULL, '2026-04-26T00:00:00.000Z', '2026-04-26T00:00:00.000Z'),
+  ('task-env-008', 'local-user', 'Pesquisar materiais reciclaveis aceitos na regiao', 'Consultar o servico de coleta seletiva local para saber quais materiais sao aceitos.', 'pending', 2, NULL, '2026-04-26T00:00:00.000Z', '2026-04-26T00:00:00.000Z'),
+  ('task-env-009', 'local-user', 'Montar checklist de consumo consciente', 'Criar lista de perguntas para avaliar necessidade real antes de realizar compras.', 'pending', 3, NULL, '2026-04-26T00:00:00.000Z', '2026-04-26T00:00:00.000Z'),
+  ('task-env-010', 'local-user', 'Avaliar possibilidade de compostagem', 'Pesquisar opcoes de compostagem domestica ou comunitaria disponiveis na regiao.', 'pending', 2, NULL, '2026-04-26T00:00:00.000Z', '2026-04-26T00:00:00.000Z')
 ON CONFLICT (id) DO UPDATE SET
-  title       = EXCLUDED.title,
+  title = EXCLUDED.title,
   description = EXCLUDED.description,
-  status      = EXCLUDED.status,
-  priority    = EXCLUDED.priority,
-  due_date    = EXCLUDED.due_date,
-  updated_at  = EXCLUDED.updated_at;
+  status = EXCLUDED.status,
+  priority = EXCLUDED.priority,
+  due_date = EXCLUDED.due_date,
+  updated_at = EXCLUDED.updated_at;
