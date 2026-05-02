@@ -361,6 +361,11 @@ code {
   gap: 1.25rem;
 }
 
+.stack-lg {
+  display: grid;
+  gap: 1rem;
+}
+
 .ui-page-header {
   position: relative;
   overflow: hidden;
@@ -1381,6 +1386,38 @@ code {
 .answer-card {
   display: grid;
   gap: 0.75rem;
+}
+
+.technical-details {
+  padding: 0;
+}
+
+.technical-details__summary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.25rem;
+  cursor: pointer;
+}
+
+.technical-details__summary::-webkit-details-marker {
+  display: none;
+}
+
+.technical-details__summary span {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--color-text-secondary);
+}
+
+.technical-details[open] .technical-details__summary {
+  border-bottom: 1px solid rgba(245, 208, 147, 0.12);
+}
+
+.technical-details__content {
+  padding: 1.1rem 1.25rem 1.25rem;
 }
 
 .fact-preview-grid {

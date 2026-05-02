@@ -76,7 +76,7 @@ test("Voice: upload, loading, resultado e nova tentativa funcionam sem travar", 
   await page.getByTestId("voice-file-input").setInputFiles(createVoiceFile("first.webm"));
   await page.getByTestId("voice-submit").click();
 
-  await expect(page.getByText("Executando STT, LLM, TTS e persistencia...")).toBeVisible();
+  await expect(page.getByText("Processando audio...")).toBeVisible();
   await expect(page.getByTestId("voice-transcription-card")).toContainText("Primeira transcricao");
   await expect(page.getByTestId("voice-assistant-card")).toContainText("Primeira resposta auditada");
 
@@ -221,6 +221,51 @@ test("Voice: erro 429 mostra retry-after e permite nova leitura visual", async (
 
   await expect(page.getByTestId("voice-error")).toContainText(
     "Limite temporario de voz atingido. Aguarde cerca de 12s antes de tentar novamente."
+  );
+  await expect(page.getByTestId("voice-submit")).toBeEnabled();
+});
+
+test("Voice: erro de runtime por FFmpeg ausente mostra mensagem limpa e libera nova tentativa", async ({ page }) => {
+  await installMockApi(page, [
+    {
+      pathname: "/health",
+      handler: (route) =>
+        fulfillJson(route, {
+          status: "ok",
+          service: "sara-core-backend",
+          environment: "test",
+          timestamp: "2026-05-01T18:00:00.000Z"
+        })
+    },
+    {
+      pathname: "/conversation-turns",
+      handler: (route) => fulfillJson(route, conversationTurnsResponse)
+    },
+    {
+      method: "POST",
+      pathname: "/voice/interactions",
+      handler: (route) =>
+        fulfillJson(
+          route,
+          {
+            error: {
+              code: "VOICE_FFMPEG_NOT_FOUND",
+              message: "FFmpeg not found at path \"ffmpeg\"."
+            }
+          },
+          {
+            status: 500
+          }
+        )
+    }
+  ]);
+
+  await page.goto("/voice");
+  await page.getByTestId("voice-file-input").setInputFiles(createVoiceFile("ffmpeg-missing.webm"));
+  await page.getByTestId("voice-submit").click();
+
+  await expect(page.getByTestId("voice-error")).toContainText(
+    "O processamento de audio nao esta disponivel neste ambiente agora. O FFmpeg nao foi encontrado."
   );
   await expect(page.getByTestId("voice-submit")).toBeEnabled();
 });
@@ -423,4 +468,43 @@ test("Voice TTS: nova tentativa limpa estado de erro do audio", async ({ page })
   await expect(page.getByTestId("voice-audio-unavailable")).not.toBeVisible();
   await expect(page.getByTestId("voice-audio-play-btn")).toBeVisible();
   await expect(page.getByTestId("voice-audio-play-btn")).toContainText("Reproduzir resposta");
+});
+
+test("Voice: filtros do historico nao disparam recarga ate aplicacao manual", async ({ page }) => {
+  let conversationTurnsRequests = 0;
+
+  await installMockApi(page, [
+    {
+      pathname: "/health",
+      handler: (route) =>
+        fulfillJson(route, {
+          status: "ok",
+          service: "sara-core-backend",
+          environment: "test",
+          timestamp: "2026-05-01T18:00:00.000Z"
+        })
+    },
+    {
+      pathname: "/conversation-turns",
+      handler: (route) => {
+        conversationTurnsRequests += 1;
+        return fulfillJson(route, conversationTurnsResponse);
+      }
+    }
+  ]);
+
+  await page.goto("/voice");
+  await expect
+    .poll(() => conversationTurnsRequests, { message: "carregamento inicial da timeline" })
+    .toBe(1);
+
+  await page.getByLabel("Source").fill("voice");
+  await page.getByLabel("Role").selectOption("assistant");
+  await page.waitForTimeout(250);
+  expect(conversationTurnsRequests).toBe(1);
+
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await expect
+    .poll(() => conversationTurnsRequests, { message: "aplicacao manual dos filtros da timeline" })
+    .toBe(2);
 });

@@ -66,7 +66,7 @@ Base URL: `/api/v1`
 - Possible errors: `AUTH_UNAUTHORIZED`, `RATE_LIMITED`, `LLM_PROVIDER_NOT_CONFIGURED`, `LLM_API_KEY_MISSING`, `LLM_PROVIDER_REQUEST_FAILED`, `LLM_EMPTY_RESPONSE`, `VALIDATION_ERROR`, `INTERNAL_SERVER_ERROR`.
 - Notes: `dryRun=true` monta o contexto e retorna preview sem chamar provider externo.
 - Notes: se o grounding for insuficiente, o backend retorna resposta explicita sem deixar o provider responder fora do banco.
-- Notes: facts historicos de meio ambiente foram normalizados para `ecosystem:environment`, entrando no grounding atual sem ampliar a whitelist.
+- Notes: `ecosystem:<slug>` ficou reservado para ecossistemas ecologicos reais; fatos tecnicos do projeto e praticas ambientais auxiliares ficaram fora do grounding principal.
 
 ## Facts
 

@@ -2,7 +2,8 @@ import { useState } from "react";
 import {
   BracketsCurly,
   Diamond,
-  Gauge,
+  CaretDown,
+  Flask,
   SlidersHorizontal,
   Sparkle,
   WarningCircle
@@ -28,14 +29,23 @@ interface LlmFormState {
 }
 
 const initialFormState: LlmFormState = {
-  prompt: "Quais ecossistemas estao ativos hoje no projeto e como eles se conectam no fluxo principal?",
-  ecosystems: "sara-core,llm-grounding,voice-stt,environment",
+  prompt: "Quais sao as principais caracteristicas do manguezal e como ele se diferencia de um recife de coral?",
+  ecosystems: "manguezal,recife-de-coral",
   maxFacts: "12",
   includeProfile: true,
   dryRun: true
 };
 
-const suggestedEcosystems = ["sara-core", "llm-grounding", "voice-stt", "environment"];
+const suggestedEcosystems = [
+  "floresta-tropical",
+  "manguezal",
+  "cerrado",
+  "caatinga",
+  "rio",
+  "lago",
+  "oceano",
+  "recife-de-coral"
+];
 
 function parseEcosystems(value: string) {
   return Array.from(
@@ -75,18 +85,26 @@ export function LlmPage() {
   const [result, setResult] = useState<LlmGenerateResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastSubmittedDryRun, setLastSubmittedDryRun] = useState(initialFormState.dryRun);
 
-  const onSubmit = async () => {
+  const onSubmit = async (dryRun: boolean) => {
     if (!form.prompt.trim()) {
-      setErrorMessage("Escreva um prompt antes de executar a validacao.");
+      setErrorMessage("Escreva uma pergunta antes de continuar.");
       return;
     }
 
     setIsSubmitting(true);
     setErrorMessage(null);
+    setResult(null);
+    setLastSubmittedDryRun(dryRun);
 
     try {
-      const response = await llmApi.generate(buildRequestPayload(form));
+      const response = await llmApi.generate(
+        buildRequestPayload({
+          ...form,
+          dryRun
+        })
+      );
       setResult(response.data);
     } catch (error) {
       setErrorMessage(getApiErrorMessage(error));
@@ -100,53 +118,21 @@ export function LlmPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="Grounding bench"
-        title="LLM Inspector"
-        description="Uma bancada séria de validacao grounded: prompt, filtros, contexto montado, warnings e resposta final organizados como artefatos auditaveis."
+        title="LLM"
+        description="Envie uma pergunta e escolha entre inspecionar o contexto ou gerar a resposta final."
         icon={<SlidersHorizontal weight="duotone" />}
-        actions={<StatusPill tone="info">POST /api/v1/llm/generate</StatusPill>}
       />
-
-      <section className="llm-hero">
-        <div className="llm-hero__lead">
-          <span className="llm-hero__eyebrow">Prompt orchestration</span>
-          <h3>Inspecione a cadeia inteira antes de confiar na resposta.</h3>
-          <p>
-            A tela agora separa claramente entrada, grounding e saída. Dry run continua sendo o modo preferido
-            para auditoria de contexto antes de qualquer chamada externa.
-          </p>
-        </div>
-
-        <div className="llm-hero__stats">
-          <div className="signal-metric">
-            <span>Mode</span>
-            <strong>{form.dryRun ? "Dry run" : "Provider call"}</strong>
-            <small>{form.includeProfile ? "perfil incluido" : "sem perfil"}</small>
-          </div>
-          <div className="signal-metric">
-            <span>Ecosystems</span>
-            <strong>{parsedEcosystems.length}</strong>
-            <small>slugs selecionados</small>
-          </div>
-          <div className="signal-metric">
-            <span>Fact cap</span>
-            <strong>{form.maxFacts}</strong>
-            <small>limite atual de facts</small>
-          </div>
-        </div>
-      </section>
 
       <div className="llm-layout">
         <section className="signal-panel signal-panel--llm" data-testid="llm-request-panel">
           <div className="signal-panel__header">
             <div>
-              <span className="signal-panel__eyebrow">Request composer</span>
-              <h3>Grounded prompt</h3>
-              <p>Monte a chamada com foco em clareza operacional, não em adivinhação do provider.</p>
+              <h3>Executar teste</h3>
+              <p>Preencha a pergunta e escolha se voce quer inspecionar o contexto ou gerar a resposta.</p>
             </div>
             {result ? (
               <StatusPill tone={result.dryRun ? "warning" : "success"}>
-                {result.dryRun ? "Dry run" : "Provider"}
+                {result.dryRun ? "Inspecao tecnica" : "Resposta final"}
               </StatusPill>
             ) : null}
           </div>
@@ -155,7 +141,6 @@ export function LlmPage() {
             label="Prompt"
             value={form.prompt}
             onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
-            hint="Use perguntas verificaveis e rastreaveis pelo banco."
             data-testid="llm-prompt-input"
           />
 
@@ -186,8 +171,7 @@ export function LlmPage() {
               label="Ecosystems"
               value={form.ecosystems}
               onChange={(event) => setForm((current) => ({ ...current, ecosystems: event.target.value }))}
-              placeholder="sara-core,llm-grounding,voice-stt"
-              hint="Lista separada por virgulas."
+              placeholder="manguezal,recife-de-coral"
               data-testid="llm-ecosystems-input"
             />
             <Input
@@ -208,71 +192,47 @@ export function LlmPage() {
             >
               <Diamond weight="duotone" />
               <div>
-                <strong>Include profile</strong>
-                <span>Acopla `user_profile` ao contexto grounded.</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              className={`toggle-card${form.dryRun ? " is-active" : ""}`}
-              data-testid="llm-dryrun-toggle"
-              onClick={() => setForm((current) => ({ ...current, dryRun: !current.dryRun }))}
-            >
-              <Gauge weight="duotone" />
-              <div>
-                <strong>Dry run</strong>
-                <span>Inspeciona contexto sem chamar provider externo.</span>
+                <strong>Perfil</strong>
+                <span>Inclui dados do perfil na montagem do contexto.</span>
               </div>
             </button>
           </div>
 
           <div className="form-actions">
-            <Button variant="primary" onClick={() => void onSubmit()} disabled={isSubmitting} data-testid="llm-submit">
-              {isSubmitting ? "Executando..." : "Executar validacao"}
+            <Button
+              variant="secondary"
+              onClick={() => void onSubmit(true)}
+              disabled={isSubmitting}
+              data-testid="llm-dryrun-toggle"
+            >
+              <Flask weight="duotone" />
+              {isSubmitting ? "Executando..." : "Inspecionar contexto"}
             </Button>
-          </div>
-        </section>
-
-        <section className="signal-panel signal-panel--secondary">
-          <div className="signal-panel__header">
-            <div>
-              <span className="signal-panel__eyebrow">Request summary</span>
-              <h3>Envelope atual</h3>
-              <p>Visao rapida do que sera enviado sem abrir a resposta completa.</p>
-            </div>
-          </div>
-
-          <div className="summary-list">
-            <div>
-              <strong>Prompt length</strong>
-              <span>{form.prompt.trim().length} caracteres</span>
-            </div>
-            <div>
-              <strong>Ecosystems</strong>
-              <span>{parsedEcosystems.length > 0 ? parsedEcosystems.join(", ") : "todos os disponiveis"}</span>
-            </div>
-            <div>
-              <strong>Profile</strong>
-              <span>{form.includeProfile ? "incluido" : "ignorado"}</span>
-            </div>
-            <div>
-              <strong>Execution</strong>
-              <span>{form.dryRun ? "somente contexto" : "contexto + provider"}</span>
-            </div>
+            <Button variant="primary" onClick={() => void onSubmit(false)} disabled={isSubmitting} data-testid="llm-submit">
+              <Sparkle weight="duotone" />
+              {isSubmitting ? "Executando..." : "Gerar resposta"}
+            </Button>
           </div>
         </section>
       </div>
 
-      {errorMessage ? <div data-testid="llm-error"><ErrorState title="Falha ao executar a validacao grounded" message={errorMessage} onRetry={() => void onSubmit()} /></div> : null}
+      {errorMessage ? (
+        <div data-testid="llm-error">
+          <ErrorState
+            title="Falha ao executar"
+            message={errorMessage}
+            onRetry={() => void onSubmit(lastSubmittedDryRun)}
+          />
+        </div>
+      ) : null}
 
       {!result && !errorMessage ? (
         <EmptyState
           icon={<BracketsCurly weight="duotone" />}
-          title="Nenhuma execucao ainda"
-          description="Monte o request, rode em dry run e use a resposta como base para validar o comportamento grounded."
-          actionLabel="Executar agora"
-          onAction={() => void onSubmit()}
+          title="Nenhum resultado ainda"
+          description="Execute uma inspecao tecnica ou gere a resposta final para ver o resultado aqui."
+          actionLabel="Inspecionar contexto"
+          onAction={() => void onSubmit(true)}
         />
       ) : null}
 
@@ -282,11 +242,15 @@ export function LlmPage() {
             <section className="signal-panel" data-testid="llm-answer-panel">
               <div className="signal-panel__header">
                 <div>
-                  <span className="signal-panel__eyebrow">Response</span>
-                  <h3>Answer surface</h3>
+                  <h3>{result.dryRun ? "Inspecao tecnica" : "Resposta"}</h3>
+                  <p>
+                    {result.dryRun
+                      ? "Nenhuma resposta final foi gerada. Revise o contexto antes de seguir."
+                      : "Resposta principal retornada pelo fluxo configurado."}
+                  </p>
                 </div>
-                <StatusPill tone={result.answer ? "success" : "warning"}>
-                  {result.answer ? "Answer ready" : "Sem answer"}
+                <StatusPill tone={result.dryRun ? "warning" : result.answer ? "success" : "warning"}>
+                  {result.dryRun ? "Modo tecnico" : result.answer ? "Disponivel" : "Sem resposta"}
                 </StatusPill>
               </div>
               <article className="answer-card">
@@ -294,28 +258,33 @@ export function LlmPage() {
                   <StatusPill tone="info">{result.provider}</StatusPill>
                   <StatusPill tone="neutral">{result.model}</StatusPill>
                 </div>
-                <p>{result.answer ?? "Nenhuma resposta final retornada. Em dry run isso e esperado."}</p>
+                <p>
+                  {result.answer ??
+                    (result.dryRun
+                      ? "A inspecao foi concluida. Abra os detalhes tecnicos se quiser revisar o grounding."
+                      : "Nenhuma resposta final foi retornada nesta tentativa.")}
+                </p>
               </article>
             </section>
 
             <section className="signal-panel" data-testid="llm-warnings-panel">
               <div className="signal-panel__header">
                 <div>
-                  <span className="signal-panel__eyebrow">Grounding health</span>
-                  <h3>Warnings and coverage</h3>
+                  <h3>Avisos</h3>
+                  <p>Use esta area para conferir cobertura e observacoes do contexto.</p>
                 </div>
                 <StatusPill tone={result.grounding.warnings.length > 0 ? "warning" : "success"}>
-                  {result.grounding.warnings.length > 0 ? "Atencao" : "Limpo"}
+                  {result.grounding.warnings.length > 0 ? "Atencao" : "Tudo certo"}
                 </StatusPill>
               </div>
 
               <div className="summary-list">
                 <div>
-                  <strong>Facts used</strong>
+                  <strong>Fatos usados</strong>
                   <span>{result.grounding.factCount}</span>
                 </div>
                 <div>
-                  <strong>Ecosystems used</strong>
+                  <strong>Contextos</strong>
                   <span>{result.grounding.ecosystemsUsed.join(", ") || "nenhum"}</span>
                 </div>
               </div>
@@ -324,8 +293,8 @@ export function LlmPage() {
                 <div className="signal-message signal-message--success">
                   <Sparkle weight="duotone" />
                   <div>
-                    <strong>Sem warnings de grounding</strong>
-                    <span>O backend montou o contexto sem sinalizar cobertura insuficiente.</span>
+                    <strong>Sem avisos</strong>
+                    <span>O contexto foi montado sem alertas adicionais.</span>
                   </div>
                 </div>
               ) : (
@@ -334,7 +303,7 @@ export function LlmPage() {
                     <div key={warning} className="signal-message signal-message--warning">
                       <WarningCircle weight="duotone" />
                       <div>
-                        <strong>Warning</strong>
+                        <strong>Aviso</strong>
                         <span>{warning}</span>
                       </div>
                     </div>
@@ -344,67 +313,74 @@ export function LlmPage() {
             </section>
           </div>
 
-          <section className="signal-panel">
-            <div className="signal-panel__header">
+          <details className="signal-panel technical-details" data-testid="llm-technical-details">
+            <summary className="technical-details__summary">
               <div>
-                <span className="signal-panel__eyebrow">Context assembly</span>
-                <h3>Context preview</h3>
-                <p>Visualizacao textual exata do contexto que o backend montou antes da chamada ao provider.</p>
+                <strong>Detalhes tecnicos</strong>
+                <span>Abra para revisar contexto, fatos e agrupamentos usados nesta execucao.</span>
               </div>
-            </div>
-            <pre className="context-panel" data-testid="llm-context-preview">{result.contextPreview}</pre>
-          </section>
+              <CaretDown weight="bold" />
+            </summary>
 
-          <section className="signal-panel">
-            <div className="signal-panel__header">
-              <div>
-                <span className="signal-panel__eyebrow">Fact ingress</span>
-                <h3>Facts preview</h3>
-                <p>Os fatos abaixo representam o subconjunto real que entrou no grounding final.</p>
-              </div>
-            </div>
-            <div className="fact-preview-grid" data-testid="llm-facts-preview">
-              {result.factsPreview.map((fact) => (
-                <article key={fact.id} className="fact-card">
-                  <div className="fact-card__header">
-                    <strong>{fact.key}</strong>
-                    <StatusPill tone={fact.isImportant ? "warning" : "neutral"}>
-                      {fact.isImportant ? "important" : "fact"}
-                    </StatusPill>
+            <div className="stack-lg technical-details__content">
+              <section>
+                <div className="signal-panel__header">
+                  <div>
+                    <h3>Contexto usado</h3>
                   </div>
-                  <span className="fact-card__category">{fact.category}</span>
-                  <p>{fact.valuePreview}</p>
-                </article>
-              ))}
-            </div>
-          </section>
+                </div>
+                <pre className="context-panel" data-testid="llm-context-preview">{result.contextPreview}</pre>
+              </section>
 
-          <section className="signal-panel">
-            <div className="signal-panel__header">
-              <div>
-                <span className="signal-panel__eyebrow">Ecosystem coverage</span>
-                <h3>Grouped by slug</h3>
-              </div>
-            </div>
-            <div className="ecosystem-grid" data-testid="llm-ecosystem-grid">
-              {result.ecosystems.map((ecosystem) => (
-                <article key={ecosystem.slug} className="ecosystem-card">
-                  <div className="ecosystem-card__header">
-                    <strong>{ecosystem.slug}</strong>
-                    <StatusPill tone="info">{ecosystem.factCount} facts</StatusPill>
+              <section>
+                <div className="signal-panel__header">
+                  <div>
+                    <h3>Fatos selecionados</h3>
                   </div>
-                  <ul>
-                    {ecosystem.facts.map((fact) => (
-                      <li key={fact.id}>
-                        <span>{fact.key}</span>
-                        <small>{fact.valuePreview}</small>
-                      </li>
-                    ))}
-                  </ul>
-                </article>
-              ))}
+                </div>
+                <div className="fact-preview-grid" data-testid="llm-facts-preview">
+                  {result.factsPreview.map((fact) => (
+                    <article key={fact.id} className="fact-card">
+                      <div className="fact-card__header">
+                        <strong>{fact.key}</strong>
+                        <StatusPill tone={fact.isImportant ? "warning" : "neutral"}>
+                          {fact.isImportant ? "Importante" : "Fato"}
+                        </StatusPill>
+                      </div>
+                      <span className="fact-card__category">{fact.category}</span>
+                      <p>{fact.valuePreview}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <div className="signal-panel__header">
+                  <div>
+                    <h3>Grupos por ecosystem</h3>
+                  </div>
+                </div>
+                <div className="ecosystem-grid" data-testid="llm-ecosystem-grid">
+                  {result.ecosystems.map((ecosystem) => (
+                    <article key={ecosystem.slug} className="ecosystem-card">
+                      <div className="ecosystem-card__header">
+                        <strong>{ecosystem.slug}</strong>
+                        <StatusPill tone="info">{ecosystem.factCount} facts</StatusPill>
+                      </div>
+                      <ul>
+                        {ecosystem.facts.map((fact) => (
+                          <li key={fact.id}>
+                            <span>{fact.key}</span>
+                            <small>{fact.valuePreview}</small>
+                          </li>
+                        ))}
+                      </ul>
+                    </article>
+                  ))}
+                </div>
+              </section>
             </div>
-          </section>
+          </details>
         </>
       ) : null}
     </div>

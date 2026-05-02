@@ -35,11 +35,8 @@ export interface ListGroundingFactsQuery {
 }
 
 const groundingGlobalCategories = [
-  "context",
   "concept",
   "concepts",
-  "preference",
-  "preferences",
   "profile",
 ] as const;
 

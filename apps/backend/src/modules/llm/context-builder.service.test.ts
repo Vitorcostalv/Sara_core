@@ -29,7 +29,7 @@ function createFact(partial: Partial<Fact> & Pick<Fact, "id" | "key" | "value" |
   };
 }
 
-test("LlmContextBuilderService keeps only normalized ecosystem/global facts and sanitizes previews", async () => {
+test("LlmContextBuilderService keeps only ecological ecosystem keys and concept facts", async () => {
   const service = new LlmContextBuilderService(
     {
       ensureLocalProfile: () => Promise.resolve(profile),
@@ -40,22 +40,22 @@ test("LlmContextBuilderService keeps only normalized ecosystem/global facts and 
         Promise.resolve([
           createFact({
             id: "fact-1",
-            key: "identity.summary",
-            value: "Sara Core   is local.\nIt must stay grounded.",
-            category: "ecosystem:sara-core",
+            key: "definicao",
+            value: "Manguezal e um ecossistema costeiro de transicao.\nEle depende da dinamica das mares.",
+            category: "ecosystem:manguezal",
             isImportant: true,
           }),
           createFact({
             id: "fact-2",
-            key: "bad key",
+            key: "api.voice-endpoint",
             value: "Ignore me",
-            category: "ecosystem:sara-core",
+            category: "ecosystem:manguezal",
           }),
           createFact({
             id: "fact-3",
-            key: "engineering.change-policy",
-            value: "Evolve incrementally.",
-            category: "preferences",
+            key: "ecossistema.definicao",
+            value: "Ecossistemas unem fatores bioticos e abioticos.",
+            category: "concept",
             isImportant: true,
           }),
         ]),
@@ -64,19 +64,19 @@ test("LlmContextBuilderService keeps only normalized ecosystem/global facts and 
 
   const result = await service.buildContext({
     userId: "local-user",
-    ecosystems: ["sara-core"],
+    ecosystems: ["manguezal"],
     maxFacts: 10,
     includeProfile: true,
   });
 
   assert.equal(result.ecosystems.length, 1);
-  assert.equal(result.ecosystems[0]?.slug, "sara-core");
+  assert.equal(result.ecosystems[0]?.slug, "manguezal");
   assert.equal(result.factsPreview.length, 2);
-  assert.match(result.factsPreview[0]?.valuePreview ?? "", /Sara Core is local\. It must stay grounded\./);
+  assert.match(result.factsPreview[0]?.valuePreview ?? "", /Manguezal e um ecossistema costeiro de transicao\./);
   assert.ok(result.grounding.warnings.some((warning) => warning.includes("ignored")));
 });
 
-test("LlmContextBuilderService keeps one fact per requested ecosystem before filling the remaining limit", async () => {
+test("LlmContextBuilderService keeps one fact per requested ecological ecosystem before filling the remaining limit", async () => {
   const service = new LlmContextBuilderService(
     {
       ensureLocalProfile: () => Promise.resolve(profile),
@@ -86,38 +86,38 @@ test("LlmContextBuilderService keeps one fact per requested ecosystem before fil
       listGroundingFacts: () =>
         Promise.resolve([
           createFact({
-            id: "fact-frontend",
-            key: "scope.current-navigation",
-            value: "Frontend stays focused on operational validation.",
-            category: "ecosystem:frontend",
+            id: "fact-cerrado",
+            key: "definicao",
+            value: "Cerrado e um ecossistema savanico.",
+            category: "ecosystem:cerrado",
             isImportant: true,
           }),
           createFact({
-            id: "fact-llm",
-            key: "api.llm-generate",
-            value: "The LLM endpoint is POST /api/v1/llm/generate.",
-            category: "ecosystem:llm-grounding",
+            id: "fact-manguezal",
+            key: "definicao",
+            value: "Manguezal e um ecossistema costeiro de transicao.",
+            category: "ecosystem:manguezal",
             isImportant: true,
           }),
           createFact({
-            id: "fact-sara",
-            key: "identity.summary",
-            value: "Sara Core is an offline-first assistant platform.",
-            category: "ecosystem:sara-core",
+            id: "fact-oceano",
+            key: "definicao",
+            value: "Oceano e o grande ecossistema marinho global.",
+            category: "ecosystem:oceano",
             isImportant: true,
           }),
           createFact({
-            id: "fact-voice",
-            key: "api.voice-endpoint",
-            value: "Voice uses POST /api/v1/voice/interactions.",
-            category: "ecosystem:voice-stt",
+            id: "fact-rio",
+            key: "definicao",
+            value: "Rio e um ecossistema lotico.",
+            category: "ecosystem:rio",
             isImportant: true,
           }),
           createFact({
-            id: "fact-pref",
-            key: "engineering.change-policy",
-            value: "Evolve incrementally without recreating architecture.",
-            category: "preferences",
+            id: "fact-concept",
+            key: "ecossistema.classificacao",
+            value: "Ecossistemas podem ser terrestres, aquaticos e de transicao.",
+            category: "concept",
             isImportant: true,
           }),
         ]),
@@ -126,14 +126,14 @@ test("LlmContextBuilderService keeps one fact per requested ecosystem before fil
 
   const result = await service.buildContext({
     userId: "local-user",
-    ecosystems: ["frontend", "llm-grounding", "sara-core", "voice-stt"],
+    ecosystems: ["cerrado", "manguezal", "oceano", "rio"],
     maxFacts: 4,
     includeProfile: true,
   });
 
   assert.deepEqual(
     result.ecosystems.map((ecosystem) => ecosystem.slug),
-    ["frontend", "llm-grounding", "sara-core", "voice-stt"]
+    ["cerrado", "manguezal", "oceano", "rio"]
   );
   assert.equal(result.grounding.factCount, 4);
   assert.equal(
@@ -142,7 +142,7 @@ test("LlmContextBuilderService keeps one fact per requested ecosystem before fil
   );
 });
 
-test("LlmContextBuilderService warns predictably when maxFacts cannot cover all requested ecosystems", async () => {
+test("LlmContextBuilderService warns predictably when maxFacts cannot cover all requested ecological ecosystems", async () => {
   const service = new LlmContextBuilderService(
     {
       ensureLocalProfile: () => Promise.resolve(profile),
@@ -152,24 +152,24 @@ test("LlmContextBuilderService warns predictably when maxFacts cannot cover all 
       listGroundingFacts: () =>
         Promise.resolve([
           createFact({
-            id: "fact-frontend",
-            key: "scope.current-navigation",
-            value: "Frontend stays focused on operational validation.",
-            category: "ecosystem:frontend",
+            id: "fact-cerrado",
+            key: "definicao",
+            value: "Cerrado e um ecossistema savanico.",
+            category: "ecosystem:cerrado",
             isImportant: true,
           }),
           createFact({
-            id: "fact-llm",
-            key: "api.llm-generate",
-            value: "The LLM endpoint is POST /api/v1/llm/generate.",
-            category: "ecosystem:llm-grounding",
+            id: "fact-manguezal",
+            key: "definicao",
+            value: "Manguezal e um ecossistema costeiro.",
+            category: "ecosystem:manguezal",
             isImportant: true,
           }),
           createFact({
-            id: "fact-sara",
-            key: "identity.summary",
-            value: "Sara Core is an offline-first assistant platform.",
-            category: "ecosystem:sara-core",
+            id: "fact-oceano",
+            key: "definicao",
+            value: "Oceano e o grande ecossistema marinho global.",
+            category: "ecosystem:oceano",
             isImportant: true,
           }),
         ]),
@@ -178,7 +178,7 @@ test("LlmContextBuilderService warns predictably when maxFacts cannot cover all 
 
   const result = await service.buildContext({
     userId: "local-user",
-    ecosystems: ["frontend", "llm-grounding", "sara-core"],
+    ecosystems: ["cerrado", "manguezal", "oceano"],
     maxFacts: 2,
     includeProfile: true,
   });

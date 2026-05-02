@@ -7,7 +7,13 @@ import {
   WarningCircle,
   Wrench
 } from "@phosphor-icons/react";
-import type { JsonValue, PaginationMeta, ToolCallStatus, ToolCall } from "@sara/shared-types";
+import type {
+  JsonValue,
+  PaginationMeta,
+  ToolCallStatus,
+  ToolCall,
+  ToolCallsListResponse
+} from "@sara/shared-types";
 import {
   Button,
   EmptyState,
@@ -53,6 +59,16 @@ const initialForm: ToolCallForm = {
   inputPayload: "{}"
 };
 
+const toolCallsPageSize = 10;
+const toolCallsCacheTtlMs = 30_000;
+const toolCallsCache = new Map<
+  string,
+  {
+    timestamp: number;
+    response: ToolCallsListResponse;
+  }
+>();
+
 function previewJson(value: JsonValue | null | undefined) {
   if (value === null || value === undefined) {
     return "null";
@@ -61,29 +77,56 @@ function previewJson(value: JsonValue | null | undefined) {
   return JSON.stringify(value, null, 2);
 }
 
+function buildToolCallsCacheKey(page: number, filters: ToolCallFilters) {
+  return JSON.stringify({
+    page,
+    pageSize: toolCallsPageSize,
+    status: filters.status || "",
+    conversationTurnId: filters.conversationTurnId.trim().toLowerCase()
+  });
+}
+
 export function ToolCallsPage() {
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>(initialMeta);
+  const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [filters, setFilters] = useState<ToolCallFilters>({ status: "", conversationTurnId: "" });
+  const [appliedFilters, setAppliedFilters] = useState<ToolCallFilters>({ status: "", conversationTurnId: "" });
   const [form, setForm] = useState<ToolCallForm>(initialForm);
 
   const loadToolCalls = useCallback(
-    async (page = 1) => {
+    async (nextPage = 1, options?: { force?: boolean; filters?: ToolCallFilters }) => {
+      const nextFilters = options?.filters ?? appliedFilters;
+      const cacheKey = buildToolCallsCacheKey(nextPage, nextFilters);
+      const cached = toolCallsCache.get(cacheKey);
+
+      if (!options?.force && cached && Date.now() - cached.timestamp < toolCallsCacheTtlMs) {
+        setToolCalls(cached.response.data);
+        setMeta(cached.response.meta);
+        setErrorMessage(null);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       setErrorMessage(null);
 
       try {
         const response = await toolCallsApi.list({
-          page,
-          pageSize: meta.pageSize,
-          status: filters.status || undefined,
-          conversationTurnId: filters.conversationTurnId.trim() || undefined
+          page: nextPage,
+          pageSize: toolCallsPageSize,
+          status: nextFilters.status || undefined,
+          conversationTurnId: nextFilters.conversationTurnId.trim() || undefined
         });
 
+        toolCallsCache.set(cacheKey, {
+          timestamp: Date.now(),
+          response
+        });
         setToolCalls(response.data);
         setMeta(response.meta);
       } catch (error) {
@@ -92,12 +135,28 @@ export function ToolCallsPage() {
         setIsLoading(false);
       }
     },
-    [filters.conversationTurnId, filters.status, meta.pageSize]
+    [appliedFilters]
   );
 
   useEffect(() => {
-    void loadToolCalls(1);
-  }, [loadToolCalls]);
+    void loadToolCalls(page);
+  }, [loadToolCalls, page]);
+
+  const applyFilters = () => {
+    setAppliedFilters({
+      status: filters.status,
+      conversationTurnId: filters.conversationTurnId
+    });
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    const nextFilters = { status: "", conversationTurnId: "" } satisfies ToolCallFilters;
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    setPage(1);
+    void loadToolCalls(1, { force: true, filters: nextFilters });
+  };
 
   const onCreateToolCall = async () => {
     if (!form.conversationTurnId.trim() || !form.toolName.trim()) {
@@ -126,9 +185,11 @@ export function ToolCallsPage() {
         inputPayload: parsedPayload as JsonValue
       });
 
+      toolCallsCache.clear();
       setForm(initialForm);
-      setSuccessMessage("Tool call sintetico registrado.");
-      await loadToolCalls(1);
+      setSuccessMessage("Registro criado com sucesso.");
+      setPage(1);
+      await loadToolCalls(1, { force: true });
     } catch (error) {
       setErrorMessage(getApiErrorMessage(error));
     } finally {
@@ -146,8 +207,9 @@ export function ToolCallsPage() {
         outputPayload: toolCall.outputPayload
       });
 
-      setSuccessMessage(`Tool call atualizado para ${status}.`);
-      await loadToolCalls(meta.page);
+      toolCallsCache.clear();
+      setSuccessMessage(`Status atualizado para ${status}.`);
+      await loadToolCalls(page, { force: true });
     } catch (error) {
       setErrorMessage(getApiErrorMessage(error));
     }
@@ -160,34 +222,32 @@ export function ToolCallsPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="Observability rail"
-        title="Tool Trace"
-        description="A trilha de ferramentas deixa de ser tabela crua e passa a operar como painel de observabilidade compacto: status, payload e atualizacao rapida em um fluxo legivel."
+        title="Trilha de execucao"
+        description="Aqui voce acompanha as acoes internas executadas pelo sistema e o rastreamento tecnico de cada processamento."
         icon={<PlayCircle weight="duotone" />}
-        actions={<StatusPill tone="info">GET / POST / PATCH tool-calls</StatusPill>}
       />
 
       <section className="tool-hero">
         <div className="tool-hero__stats">
           <div className="signal-metric">
-            <span>Total visivel</span>
+            <span>Visiveis</span>
             <strong>{toolCalls.length}</strong>
-            <small>{meta.total} no backend paginado</small>
+            <small>{meta.total} no total</small>
           </div>
           <div className="signal-metric">
-            <span>Success</span>
+            <span>Concluidas</span>
             <strong>{successCount}</strong>
-            <small>traces concluidos</small>
+            <small>execucoes finalizadas</small>
           </div>
           <div className="signal-metric">
-            <span>Error</span>
+            <span>Com erro</span>
             <strong>{errorCount}</strong>
-            <small>traces com falha</small>
+            <small>precisam de revisao</small>
           </div>
           <div className="signal-metric">
-            <span>Running</span>
+            <span>Em andamento</span>
             <strong>{runningCount}</strong>
-            <small>aguardando desfecho</small>
+            <small>aguardando retorno</small>
           </div>
         </div>
       </section>
@@ -196,20 +256,22 @@ export function ToolCallsPage() {
         <section className="signal-panel" data-testid="toolcalls-trace-panel">
           <div className="signal-panel__header">
             <div>
-              <span className="signal-panel__eyebrow">Trace filter</span>
-              <h3>Execution stream</h3>
-              <p>Observe chamadas reais e refine a lista sem poluir a tela principal.</p>
+              <h3>Atividade recente</h3>
+              <p>Uma visao clara das execucoes internas, util para acompanhamento e debug.</p>
             </div>
           </div>
 
           <FilterBar
             actions={
               <>
-                <Button variant="secondary" onClick={() => void loadToolCalls(meta.page)} disabled={isLoading}>
+                <Button variant="secondary" onClick={applyFilters} disabled={isLoading}>
+                  Aplicar filtros
+                </Button>
+                <Button variant="secondary" onClick={() => void loadToolCalls(page, { force: true })} disabled={isLoading}>
                   Atualizar
                 </Button>
-                <Button variant="ghost" onClick={() => setFilters({ status: "", conversationTurnId: "" })}>
-                  Resetar
+                <Button variant="ghost" onClick={clearFilters}>
+                  Limpar
                 </Button>
               </>
             }
@@ -234,7 +296,13 @@ export function ToolCallsPage() {
             />
           </FilterBar>
 
-          {errorMessage ? <ErrorState title="Nao foi possivel carregar tool calls" message={errorMessage} onRetry={() => void loadToolCalls(meta.page)} /> : null}
+          {errorMessage ? (
+            <ErrorState
+              title="Nao foi possivel carregar a trilha"
+              message={errorMessage}
+              onRetry={() => void loadToolCalls(page, { force: true })}
+            />
+          ) : null}
           {successMessage ? (
             <div className="signal-message signal-message--success">
               <CheckCircle weight="duotone" />
@@ -244,12 +312,12 @@ export function ToolCallsPage() {
               </div>
             </div>
           ) : null}
-          {isLoading ? <LoadingBlock label="Carregando traces..." /> : null}
+          {isLoading ? <LoadingBlock label="Carregando execucoes..." /> : null}
           {!isLoading && !errorMessage && toolCalls.length === 0 ? (
             <EmptyState
               icon={<Pulse weight="duotone" />}
-              title="Nenhum trace encontrado"
-              description="Gere chamadas reais via voz ou registre um tool call sintetico para iniciar a observabilidade."
+              title="Nenhuma execucao encontrada"
+              description="As acoes internas do sistema aparecerao aqui assim que houver atividade."
             />
           ) : null}
           {!isLoading && !errorMessage && toolCalls.length > 0 ? (
@@ -277,11 +345,11 @@ export function ToolCallsPage() {
 
                     <div className="tool-trace-card__payloads">
                       <div>
-                        <span>Input</span>
+                        <span>Entrada</span>
                         <pre>{previewJson(toolCall.inputPayload)}</pre>
                       </div>
                       <div>
-                        <span>Output</span>
+                        <span>Saida</span>
                         <pre>{previewJson(toolCall.outputPayload)}</pre>
                       </div>
                     </div>
@@ -309,7 +377,7 @@ export function ToolCallsPage() {
                   </article>
                 ))}
               </div>
-              <PaginationControls meta={meta} onPageChange={(page) => void loadToolCalls(page)} />
+              <PaginationControls meta={meta} onPageChange={setPage} />
             </>
           ) : null}
         </section>
@@ -317,20 +385,8 @@ export function ToolCallsPage() {
         <section className="signal-panel signal-panel--secondary" data-testid="toolcalls-manual-panel">
           <div className="signal-panel__header">
             <div>
-              <span className="signal-panel__eyebrow">Synthetic event</span>
               <h3>Registrar manualmente</h3>
-              <p>Util para smoke tests e validacao de payload sem depender do fluxo completo.</p>
-            </div>
-          </div>
-
-          <div className="summary-list">
-            <div>
-              <strong>Contract</strong>
-              <span>Sem mudancas de payload nesta etapa.</span>
-            </div>
-            <div>
-              <strong>Use case</strong>
-              <span>Debug pontual e ensaio de estados na interface.</span>
+              <p>Use esta area para criar uma execucao de teste quando precisar validar estados.</p>
             </div>
           </div>
 
@@ -364,15 +420,15 @@ export function ToolCallsPage() {
 
           <div className="form-actions">
             <Button variant="primary" onClick={() => void onCreateToolCall()} disabled={isSubmitting}>
-              {isSubmitting ? "Salvando..." : "Registrar tool call"}
+              {isSubmitting ? "Salvando..." : "Registrar"}
             </Button>
           </div>
 
           <div className="signal-message signal-message--neutral">
             <Code weight="duotone" />
             <div>
-              <strong>Observabilidade compacta</strong>
-              <span>Esta lateral existe para suporte tecnico, sem roubar foco da trilha principal de traces.</span>
+              <strong>O que aparece aqui</strong>
+              <span>Uma trilha curta das acoes internas do sistema e dos processamentos executados.</span>
             </div>
           </div>
         </section>

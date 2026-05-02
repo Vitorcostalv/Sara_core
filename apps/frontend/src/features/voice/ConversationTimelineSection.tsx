@@ -23,8 +23,10 @@ interface ConversationTimelineSectionProps {
   listError: string | null;
   meta: PaginationMeta;
   turns: ConversationTurn[];
+  onApplyFilters: () => void;
   onClearFilters: () => void;
   onLoadTurns: (page: number) => void;
+  onRefresh: () => void;
   onRoleChange: (role: "" | ConversationRole) => void;
   onSourceChange: (source: string) => void;
 }
@@ -47,15 +49,17 @@ export function ConversationTimelineSection({
   listError,
   meta,
   turns,
+  onApplyFilters,
   onClearFilters,
   onLoadTurns,
+  onRefresh,
   onRoleChange,
   onSourceChange
 }: ConversationTimelineSectionProps) {
   return (
     <Section
-      title="Conversation trace"
-      subtitle="Historico recente para validar a persistencia observavel do fluxo de voz sem afogar a interface principal."
+      title="Historico recente"
+      subtitle="Acompanhe os ultimos turnos gravados sem deixar a tela principal sobrecarregada."
       actions={
         <StatusPill tone="neutral">
           {meta.total} eventos
@@ -65,7 +69,10 @@ export function ConversationTimelineSection({
       <FilterBar
         actions={
           <>
-            <Button variant="secondary" onClick={() => onLoadTurns(meta.page)} disabled={isLoading}>
+            <Button variant="secondary" onClick={onApplyFilters} disabled={isLoading}>
+              Aplicar filtros
+            </Button>
+            <Button variant="secondary" onClick={onRefresh} disabled={isLoading}>
               Atualizar
             </Button>
             <Button variant="ghost" onClick={onClearFilters} disabled={isLoading}>
@@ -124,9 +131,9 @@ export function ConversationTimelineSection({
                 <footer className="trace-card__footer">
                   <span>{turn.id}</span>
                 </footer>
-              </article>
-            ))}
-          </div>
+          </article>
+        ))}
+      </div>
           <PaginationControls meta={meta} onPageChange={onLoadTurns} />
         </>
       ) : null}

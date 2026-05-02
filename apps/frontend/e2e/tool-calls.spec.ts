@@ -74,7 +74,7 @@ test("Tool Calls: renderiza listagem, status, payloads e paginacao", async ({ pa
 
   await page.goto("/tool-calls");
 
-  await expect(page.getByText("Carregando traces...")).toBeVisible();
+  await expect(page.getByText("Carregando execucoes...")).toBeVisible();
   await expect(page.getByTestId("toolcalls-trace-list")).toContainText("llm.generate");
   await expect(page.getByTestId("toolcalls-trace-list")).toContainText("success");
   await expect(page.getByTestId("toolcalls-trace-list")).toContainText("\"prompt\": \"Auditar fluxo grounded\"");
@@ -88,4 +88,44 @@ test("Tool Calls: renderiza listagem, status, payloads e paginacao", async ({ pa
   await expect(page.getByText("Pagina 2 de 2 • 2 itens")).toBeVisible();
   await expect(page.getByTestId("toolcalls-trace-list")).toContainText("voice.persist");
   await expect(page.getByTestId("toolcalls-trace-list")).toContainText("running");
+});
+
+test("Tool Calls: filtros nao recarregam automaticamente antes da acao manual", async ({ page }) => {
+  let toolCallsRequests = 0;
+
+  await installMockApi(page, [
+    {
+      pathname: "/health",
+      handler: (route) =>
+        fulfillJson(route, {
+          status: "ok",
+          service: "sara-core-backend",
+          environment: "test",
+          timestamp: "2026-05-01T18:00:00.000Z"
+        })
+    },
+    {
+      pathname: "/tool-calls",
+      handler: (route) => {
+        toolCallsRequests += 1;
+        return fulfillJson(route, pageOne);
+      }
+    }
+  ]);
+
+  await page.goto("/tool-calls");
+  await expect
+    .poll(() => toolCallsRequests, { message: "carregamento inicial das execucoes" })
+    .toBe(1);
+
+  const tracePanel = page.getByTestId("toolcalls-trace-panel");
+  await tracePanel.getByLabel("Conversation Turn ID").fill("turn-voice-1");
+  await tracePanel.getByLabel("Status").selectOption("success");
+  await page.waitForTimeout(250);
+  expect(toolCallsRequests).toBe(1);
+
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await expect
+    .poll(() => toolCallsRequests, { message: "aplicacao manual dos filtros de execucoes" })
+    .toBe(2);
 });

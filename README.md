@@ -47,9 +47,15 @@ Depois:
 3. confirme que Python, FFmpeg e o modelo Vosk estão acessíveis.
 
 ## Como rodar
-Reset do banco PostgreSQL local/de desenvolvimento:
+Limpar o schema PostgreSQL local/de desenvolvimento:
 ```bash
 npm run db:reset
+```
+
+Reaplicar schema e seeds:
+```bash
+npm run db:migrate
+npm run db:seed
 ```
 
 Subir backend e frontend:
@@ -73,7 +79,9 @@ npm run dev:frontend
 - `npm run typecheck`: checagem de tipos nos workspaces
 - `npm run lint`: lint do monorepo
 - `npm run test`: testes disponíveis por workspace
-- `npm run db:reset`: limpa schema, reaplica migrations e seeds
+- `npm run db:reset`: limpa o schema do PostgreSQL local/de desenvolvimento
+- `npm run db:migrate`: aplica migrations SQL do runtime real
+- `npm run db:seed`: aplica seeds SQL idempotentes
 
 Observação: o root atualmente expõe `build`, `typecheck`, `lint` e scripts de banco. O escopo e a qualidade do lint dependem da configuração presente nos workspaces.
 

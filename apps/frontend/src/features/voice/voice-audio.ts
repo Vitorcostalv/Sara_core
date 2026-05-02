@@ -231,11 +231,18 @@ export function getVoiceRequestErrorMessage(error: VoiceApiError): string {
   }
 
   if (error.status >= 500) {
+    if (
+      normalizedMessage.includes("voice_ffmpeg_not_found") ||
+      normalizedMessage.includes("ffmpeg not found")
+    ) {
+      return "O processamento de audio nao esta disponivel neste ambiente agora. O FFmpeg nao foi encontrado.";
+    }
+
     if (normalizedMessage.includes("failed to convert audio")) {
       return "O backend nao conseguiu converter o audio enviado. Tente outro arquivo.";
     }
 
-    return "Falha interna ao processar o audio no backend.";
+    return "Falha interna ao processar o audio.";
   }
 
   return error.message;

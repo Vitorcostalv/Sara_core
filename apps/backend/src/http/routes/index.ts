@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { conversationTurnsRoutes } from "../../modules/conversation-turns/conversation-turns.routes";
+import { ecologyRoutes } from "../../modules/ecology/ecology.routes";
 import { factsRoutes } from "../../modules/facts/facts.routes";
 import { healthRoutes } from "../../modules/health/health.routes";
 import { llmRoutes } from "../../modules/llm/llm.routes";
@@ -18,3 +19,4 @@ apiRouter.use("/tool-calls", toolCallsRoutes);
 apiRouter.use("/user-profile", userProfileRoutes);
 apiRouter.use("/voice", voiceRoutes);
 apiRouter.use("/llm", llmRoutes);
+apiRouter.use("/ecology", ecologyRoutes);
