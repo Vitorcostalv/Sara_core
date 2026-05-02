@@ -79,7 +79,7 @@ VALUES
     'src-sara-part1', 'SARA-PART1-2026',
     '{}'::jsonb, NOW(), TRUE
   )
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (domain_id, category, slug) DO UPDATE SET
   fact_text = EXCLUDED.fact_text,
   importance = EXCLUDED.importance,
   is_active = EXCLUDED.is_active,
@@ -136,7 +136,7 @@ VALUES
     'src-sara-part1', 'SARA-PART1-2026',
     '{}'::jsonb, NOW(), TRUE
   )
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (domain_id, category, slug) DO UPDATE SET
   fact_text = EXCLUDED.fact_text,
   is_active = EXCLUDED.is_active,
   updated_at = NOW();
@@ -192,7 +192,7 @@ VALUES
     'src-sara-part1', 'SARA-PART1-2026',
     '{}'::jsonb, NOW(), TRUE
   )
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (domain_id, category, slug) DO UPDATE SET
   fact_text = EXCLUDED.fact_text,
   is_active = EXCLUDED.is_active,
   updated_at = NOW();
@@ -248,7 +248,7 @@ VALUES
     'src-sara-analytical-report', 'SARA-ANALYTICAL-2026',
     '{}'::jsonb, NOW(), TRUE
   )
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (domain_id, category, slug) DO UPDATE SET
   fact_text = EXCLUDED.fact_text,
   is_active = EXCLUDED.is_active,
   updated_at = NOW();
@@ -315,7 +315,7 @@ VALUES
     'src-sara-part1', 'SARA-PART1-2026',
     '{}'::jsonb, NOW(), TRUE
   )
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (domain_id, category, slug) DO UPDATE SET
   fact_text = EXCLUDED.fact_text,
   is_active = EXCLUDED.is_active,
   updated_at = NOW();
@@ -458,7 +458,7 @@ VALUES
     'Dependente de polinizadores e dispersores de sementes especializados.',
     '{}'::jsonb
   )
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (ecosystem_id, species_id) DO UPDATE SET
   trophic_role_id = EXCLUDED.trophic_role_id,
   ecological_function = EXCLUDED.ecological_function,
   native_status = EXCLUDED.native_status,
@@ -467,6 +467,6 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- ─── Track this seed in schema_migrations ────────────────────────────────────
 
-INSERT INTO schema_migrations (version, applied_at)
+INSERT INTO schema_migrations (id, applied_at)
 VALUES ('006_seed_ecological_part2', NOW())
-ON CONFLICT (version) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
