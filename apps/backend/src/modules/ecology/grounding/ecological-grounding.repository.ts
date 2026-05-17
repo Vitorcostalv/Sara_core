@@ -20,6 +20,7 @@ export interface GroundingFactRow {
   source_title: string | null;
   source_type: string | null;
   source_year: number | null;
+  ecosystem_slug: string | null;
 }
 
 export interface EcosystemRow {
@@ -174,7 +175,12 @@ export class EcologicalGroundingRepository {
         gf.updated_at,
         s.title AS source_title,
         s.source_type::text AS source_type,
-        s.year AS source_year
+        s.year AS source_year,
+        CASE
+          WHEN gf.entity_table = 'ecosystems'
+          THEN (SELECT e.slug FROM ecosystems e WHERE e.id = gf.entity_id LIMIT 1)
+          ELSE NULL
+        END AS ecosystem_slug
       FROM grounding_facts gf
       LEFT JOIN sources s ON s.id = gf.source_id
       WHERE gf.domain_id = $1

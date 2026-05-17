@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from "react";
-import { Broadcast, Sparkle, Waveform, Wrench } from "@phosphor-icons/react";
+import { Broadcast, Leaf, Sparkle, Waveform, Wrench } from "@phosphor-icons/react";
 import { useLocation } from "react-router-dom";
 import { SidebarNavItem } from "../components/layout/SidebarNavItem";
 
@@ -15,6 +15,12 @@ const navItems = [
     label: "LLM",
     subtitle: "Perguntas e contexto",
     icon: Sparkle
+  },
+  {
+    to: "/ecology",
+    label: "Ecologia",
+    subtitle: "Dados e simulacoes",
+    icon: Leaf
   },
   {
     to: "/tool-calls",
@@ -42,6 +48,10 @@ const routeMeta: Record<
   "/llm": {
     title: "LLM",
     description: "Escreva um prompt, execute e revise o contexto usado."
+  },
+  "/ecology": {
+    title: "Ecologia",
+    description: "Consulte dados ecologicos grounded, explore simulacoes e navegue pelo catalogo ambiental."
   },
   "/tool-calls": {
     title: "Execucoes",
