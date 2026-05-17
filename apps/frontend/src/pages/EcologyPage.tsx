@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { Cube, Leaf, Mountains, Stack, Thermometer } from "@phosphor-icons/react";
+import { Leaf, Mountains, Stack, Thermometer } from "@phosphor-icons/react";
 import { PageHeader } from "../components/ui";
-import { EcologyArtificialSection } from "../features/ecology/EcologyArtificialSection";
 import { EcologyCatalogSection } from "../features/ecology/EcologyCatalogSection";
 import { EcologyQuerySection } from "../features/ecology/EcologyQuerySection";
 import { EcologyScenarioSection } from "../features/ecology/EcologyScenarioSection";
@@ -9,7 +8,7 @@ import { EcologyTerrainSection } from "../features/ecology/EcologyTerrainSection
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
-type EcologyTab = "consulta" | "catalogo" | "terreno" | "cenario" | "artificial";
+type EcologyTab = "consulta" | "catalogo" | "terreno" | "cenario";
 
 interface TabDef {
   id: EcologyTab;
@@ -43,12 +42,6 @@ const TABS: TabDef[] = [
     subtitle: "Risco climático",
     icon: <Thermometer weight="duotone" />,
   },
-  {
-    id: "artificial",
-    label: "Artificial",
-    subtitle: "Ambientes criados",
-    icon: <Cube weight="duotone" />,
-  },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -60,7 +53,7 @@ export function EcologyPage() {
     <div className="page-stack">
       <PageHeader
         title="Ecologia"
-        description="Consulte dados ecológicos grounded, navegue pelo catálogo e explore simulações de terreno, cenários climáticos e ambientes artificiais."
+        description="Consulte dados ecológicos grounded, navegue pelo catálogo e explore simulações de terreno e cenários climáticos."
         icon={<Leaf weight="duotone" />}
       />
 
@@ -86,7 +79,6 @@ export function EcologyPage() {
       {activeTab === "catalogo" && <EcologyCatalogSection />}
       {activeTab === "terreno" && <EcologyTerrainSection />}
       {activeTab === "cenario" && <EcologyScenarioSection />}
-      {activeTab === "artificial" && <EcologyArtificialSection />}
     </div>
   );
 }
