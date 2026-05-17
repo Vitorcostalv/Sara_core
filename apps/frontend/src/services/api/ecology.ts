@@ -1,0 +1,367 @@
+import type { ApiErrorResponse } from "@sara/shared-types";
+import { buildApiUrl, buildApiHeaders, ApiClientError } from "./client";
+
+// ─── Response envelope ────────────────────────────────────────────────────────
+
+export interface ApiSingle<T> {
+  data: T;
+}
+
+export interface ApiPaged<T> {
+  data: T[];
+  meta: { page: number; pageSize: number; total: number };
+}
+
+// ─── Domain rows (mirror backend shapes) ─────────────────────────────────────
+
+export interface EcosystemRow {
+  id: string;
+  slug: string;
+  title: string;
+  ecosystem_kind: string;
+  medium: string;
+  description: string;
+  operational_definition: string;
+  biotic_summary: string | null;
+  abiotic_summary: string | null;
+  climate_code: string | null;
+  biome_title: string | null;
+  realm_title: string | null;
+  ecoregion_label: string | null;
+  is_active: boolean;
+}
+
+export interface SpeciesRow {
+  id: string;
+  scientific_name: string;
+  common_name: string | null;
+  native_range: string | null;
+  conservation_status: string | null;
+  trophic_role_label: string | null;
+  trophic_level: number | null;
+  ecosystem_slugs: string[];
+}
+
+export interface AbioticFactorRow {
+  id: string;
+  slug: string;
+  title: string;
+  factor_type: string;
+  unit: string | null;
+  description: string | null;
+  is_active: boolean;
+}
+
+export interface ArtificialProjectRow {
+  id: string;
+  slug: string;
+  title: string;
+  project_type: string;
+  ecosystem_kind: string;
+  description: string;
+  objective: string;
+  intervention_scale: string | null;
+  caution_notes: string | null;
+  is_active: boolean;
+  target_ecosystem_slugs: string[];
+}
+
+export interface ModelingApproachRow {
+  id: string;
+  slug: string;
+  title: string;
+  family: string;
+  description: string;
+  primary_use: string | null;
+  strengths: string | null;
+  limitations: string | null;
+  is_active: boolean;
+}
+
+export interface DomainCoverageStats {
+  totalFacts?: number;
+  activeFacts?: number;
+  byCategory?: Record<string, number>;
+  [key: string]: unknown;
+}
+
+// ─── Ecology LLM result ───────────────────────────────────────────────────────
+
+export interface EcologicalLlmResult {
+  provider: string;
+  model: string;
+  answer: string | null;
+  dryRun: boolean;
+  queryType: string;
+  contextPreview: string;
+  factsUsed: number;
+  ecosystemsFound: string[];
+  warnings: string[];
+  inspection: unknown;
+  groundingCoverage: "sufficient" | "insufficient";
+}
+
+// ─── Terrain ──────────────────────────────────────────────────────────────────
+
+export interface TerrainCell {
+  x: number;
+  y: number;
+  elevation: number;
+  temperatureC: number;
+  humidityPct: number;
+  precipitationMmYear: number;
+  salinityPsu: number;
+  climateCode: string;
+  biomeSuggestion: string;
+  isWater: boolean;
+}
+
+export interface TerrainGrid {
+  width: number;
+  height: number;
+  seed: number;
+  baseTemperatureC: number;
+  basePrecipitationMm: number;
+  cells: TerrainCell[][];
+  simulationNote: string;
+}
+
+// ─── Scenario ─────────────────────────────────────────────────────────────────
+
+export type RiskLevel = "low" | "moderate" | "high" | "critical";
+
+export interface ScenarioState {
+  temperatureC: number;
+  precipitationMmYear: number;
+  humidityPct: number;
+  biomeSuggestion: string;
+  riskLevel: RiskLevel;
+  riskFactors: string[];
+}
+
+export interface ScenarioChange {
+  parameter: string;
+  before: number | string;
+  after: number | string;
+  delta: string;
+}
+
+export interface ScenarioResult {
+  ecosystemSlug: string;
+  baseline: ScenarioState;
+  modified: ScenarioState;
+  appliedChanges: ScenarioChange[];
+  riskFlags: string[];
+  connectivityImpact: string;
+  disturbanceImpact: string | null;
+  simulationNote: string;
+}
+
+// ─── Artificial environment ───────────────────────────────────────────────────
+
+export type ComponentType = "biotic" | "abiotic" | "structural" | "management";
+export type ConstraintCategory = "ecological" | "technical" | "governance";
+
+export interface ArtificialEnvComponent {
+  name: string;
+  type: ComponentType;
+  description: string;
+  isCritical: boolean;
+}
+
+export interface ArtificialEnvConstraint {
+  constraint: string;
+  category: ConstraintCategory;
+}
+
+export interface ArtificialEnvResult {
+  projectSlug: string;
+  projectTitle: string;
+  projectType: string;
+  ecosystemKind: string;
+  objective: string;
+  targetEcosystemSlugs: string[];
+  scale: string;
+  designComponents: ArtificialEnvComponent[];
+  constraints: ArtificialEnvConstraint[];
+  monitoringRecommendations: string[];
+  cautionNotes: string;
+  simulationNote: string;
+}
+
+// ─── Succession ───────────────────────────────────────────────────────────────
+
+export interface SuccessionStageInfo {
+  stageIndex: number;
+  stageName: string;
+  description: string;
+  dominantFunctionalGroups: string[];
+  typicalDurationYears: string;
+}
+
+export interface SuccessionResult {
+  type: string;
+  startingStage: number;
+  projectedStage: number;
+  startingInfo: SuccessionStageInfo;
+  projectedInfo: SuccessionStageInfo;
+  disturbanceNote: string | null;
+  simulationNote: string;
+}
+
+// ─── Request helpers (mirrors client.ts internals, reuses exported helpers) ───
+
+async function ecologyRequest<T>(
+  endpoint: string,
+  options: { method?: "GET" | "POST"; body?: unknown } = {}
+): Promise<T> {
+  const response = await fetch(buildApiUrl(endpoint), {
+    method: options.method ?? "GET",
+    headers:
+      options.body !== undefined
+        ? buildApiHeaders({ "Content-Type": "application/json" })
+        : buildApiHeaders(),
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  });
+
+  if (!response.ok) {
+    let errorPayload: ApiErrorResponse | null = null;
+    try {
+      errorPayload = (await response.json()) as ApiErrorResponse;
+    } catch {
+      // ignore
+    }
+    const retryAfterHeader = response.headers.get("Retry-After");
+    const retryAfterSeconds =
+      retryAfterHeader && /^\d+$/.test(retryAfterHeader)
+        ? Number.parseInt(retryAfterHeader, 10)
+        : null;
+    throw new ApiClientError(
+      response.status,
+      errorPayload,
+      retryAfterSeconds,
+      errorPayload?.error?.message ?? `Request failed with status ${response.status}`
+    );
+  }
+
+  return (await response.json()) as T;
+}
+
+// ─── API ──────────────────────────────────────────────────────────────────────
+
+export const ecologyApi = {
+  // LLM grounded query
+  generate: (payload: {
+    prompt: string;
+    ecosystems?: string[];
+    categories?: string[];
+    maxFacts?: number;
+    dryRun?: boolean;
+    includeInspection?: boolean;
+  }) =>
+    ecologyRequest<ApiSingle<EcologicalLlmResult>>("/ecology/generate", {
+      method: "POST",
+      body: payload,
+    }),
+
+  inspect: (payload: {
+    ecosystems?: string[];
+    categories?: string[];
+    maxFacts?: number;
+  }) =>
+    ecologyRequest<ApiSingle<unknown>>("/ecology/inspect", {
+      method: "POST",
+      body: payload,
+    }),
+
+  // Catalog
+  listEcosystems: (params?: { medium?: string; kind?: string; page?: number; pageSize?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.medium) qs.set("medium", params.medium);
+    if (params?.kind) qs.set("kind", params.kind);
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return ecologyRequest<ApiPaged<EcosystemRow>>(`/ecology/ecosystems${suffix}`);
+  },
+
+  getEcosystem: (slug: string) =>
+    ecologyRequest<ApiSingle<EcosystemRow>>(`/ecology/ecosystems/${slug}`),
+
+  listSpecies: (params?: { ecosystem?: string; trophicRole?: string; page?: number; pageSize?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.ecosystem) qs.set("ecosystem", params.ecosystem);
+    if (params?.trophicRole) qs.set("trophicRole", params.trophicRole);
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return ecologyRequest<ApiPaged<SpeciesRow>>(`/ecology/species${suffix}`);
+  },
+
+  listAbioticFactors: () =>
+    ecologyRequest<ApiSingle<AbioticFactorRow[]>>("/ecology/abiotic-factors"),
+
+  listArtificialProjects: (params?: { page?: number; pageSize?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return ecologyRequest<ApiPaged<ArtificialProjectRow>>(`/ecology/artificial-projects${suffix}`);
+  },
+
+  listModelingApproaches: () =>
+    ecologyRequest<ApiSingle<ModelingApproachRow[]>>("/ecology/modeling-approaches"),
+
+  getCoverage: () =>
+    ecologyRequest<ApiSingle<DomainCoverageStats>>("/ecology/coverage"),
+
+  // Simulations
+  simulateTerrain: (payload: {
+    width?: number;
+    height?: number;
+    seed?: number;
+    baseTemperatureC?: number;
+    basePrecipitationMm?: number;
+    baseHumidityPct?: number;
+  }) =>
+    ecologyRequest<ApiSingle<TerrainGrid>>("/ecology/simulate/terrain", {
+      method: "POST",
+      body: payload,
+    }),
+
+  simulateScenario: (payload: {
+    ecosystemSlug: string;
+    baseTemperatureC?: number;
+    basePrecipitationMmYear?: number;
+    deltaTemperatureC?: number;
+    deltaPrecipitationPct?: number;
+    disturbanceType?: string;
+    disturbanceIntensity?: number;
+    connectivityIndex?: number;
+  }) =>
+    ecologyRequest<ApiSingle<ScenarioResult>>("/ecology/simulate/scenario", {
+      method: "POST",
+      body: payload,
+    }),
+
+  simulateArtificial: (payload: {
+    projectSlug: string;
+    targetEcosystemSlug?: string;
+    scale?: string;
+  }) =>
+    ecologyRequest<ApiSingle<ArtificialEnvResult>>("/ecology/simulate/artificial", {
+      method: "POST",
+      body: payload,
+    }),
+
+  simulateSuccession: (payload: {
+    type?: string;
+    startingStage?: number;
+    disturbanceIntensity?: number;
+    ecosystemSlug?: string;
+  }) =>
+    ecologyRequest<ApiSingle<SuccessionResult>>("/ecology/simulate/succession", {
+      method: "POST",
+      body: payload,
+    }),
+};

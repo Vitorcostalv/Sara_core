@@ -24,6 +24,7 @@ export interface EcologicalGroundingFactPreview {
   id: string;
   category: string;
   slug: string;
+  ecosystem_slug: string | null;
   title: string;
   valuePreview: string;
   importance: number;
@@ -74,6 +75,7 @@ function toFactPreview(fact: GroundingFactRow): EcologicalGroundingFactPreview {
     id: fact.id,
     category: fact.category,
     slug: fact.slug,
+    ecosystem_slug: fact.ecosystem_slug,
     title: fact.title,
     valuePreview: trimFactText(fact.fact_text),
     importance: fact.importance,
@@ -176,8 +178,8 @@ export class EcologicalContextBuilderService {
     const ecosystemsFound = Array.from(
       new Set(
         factsPreview
-          .filter((f) => f.category === "ecosystem")
-          .map((f) => f.slug)
+          .filter((f) => f.category === "ecosystem" && f.ecosystem_slug)
+          .map((f) => f.ecosystem_slug!)
       )
     );
 

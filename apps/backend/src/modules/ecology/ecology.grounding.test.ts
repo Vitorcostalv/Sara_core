@@ -31,6 +31,7 @@ function makeGroundingFact(overrides: Partial<GroundingFactRow> = {}): Grounding
     source_title: "Sara Core Foundation",
     source_type: "internal_document",
     source_year: 2026,
+    ecosystem_slug: null,
     ...overrides,
   };
 }

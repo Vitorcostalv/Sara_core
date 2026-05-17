@@ -84,8 +84,8 @@ export function validateCoverage(
   // Verify requested ecosystems are covered
   const coveredEcosystemSlugs = new Set<string>();
   activeFacts.forEach((f) => {
-    if (f.category === "ecosystem" && f.entity_table === "ecosystems") {
-      coveredEcosystemSlugs.add(f.slug);
+    if (f.ecosystem_slug) {
+      coveredEcosystemSlugs.add(f.ecosystem_slug);
     }
   });
 
@@ -150,9 +150,9 @@ export function rankFacts(
   const requestedSet = new Set(requestedEcosystems);
 
   return [...facts].sort((a, b) => {
-    // 1. Requested ecosystem facts first
-    const aRequested = requestedSet.has(a.slug) ? 0 : 1;
-    const bRequested = requestedSet.has(b.slug) ? 0 : 1;
+    // 1. Requested ecosystem facts first — use ecosystem_slug, not the fact's own slug
+    const aRequested = a.ecosystem_slug && requestedSet.has(a.ecosystem_slug) ? 0 : 1;
+    const bRequested = b.ecosystem_slug && requestedSet.has(b.ecosystem_slug) ? 0 : 1;
     if (aRequested !== bRequested) return aRequested - bRequested;
 
     // 2. Ecosystem facts over other categories
