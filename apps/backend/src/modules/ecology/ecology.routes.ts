@@ -11,6 +11,7 @@ import {
   ecologyScenarioSchema,
   ecologyArtificialEnvSchema,
   ecologyInspectSchema,
+  ecologyFaunaSchema,
 } from "./ecology.schemas";
 
 export const ecologyRoutes = Router();
@@ -64,6 +65,13 @@ ecologyRoutes.get(
 ecologyRoutes.get(
   "/coverage",
   asyncHandler(ecologyController.getDomainCoverage.bind(ecologyController))
+);
+
+// ─── Fauna ────────────────────────────────────────────────────────────────────
+ecologyRoutes.post(
+  "/fauna",
+  validateBody(ecologyFaunaSchema),
+  asyncHandler(ecologyController.fauna.bind(ecologyController))
 );
 
 // ─── Simulation ───────────────────────────────────────────────────────────────

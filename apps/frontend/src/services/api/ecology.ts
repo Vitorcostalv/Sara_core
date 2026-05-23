@@ -209,6 +209,40 @@ export interface SuccessionResult {
   simulationNote: string;
 }
 
+// ─── Fauna ────────────────────────────────────────────────────────────────────
+
+export type FaunaCategory =
+  | "herbivore-small"
+  | "herbivore-large"
+  | "predator-medium"
+  | "predator-large"
+  | "bird"
+  | "fish";
+
+export interface SpeciesDefinition {
+  id: string;
+  commonName: string;
+  scientificName: string;
+  category: FaunaCategory;
+  habitableBiomes: string[];
+  preySpeciesIds: string[];
+  populationTarget: number;
+  movementProfile: {
+    maxSpeed: number;
+    turnRate: number;
+    fleeMultiplier: number;
+  };
+  flockProfile: {
+    formsFlocks: boolean;
+    flockRadius: number;
+    separationDistance: number;
+  };
+}
+
+export interface FaunaResult {
+  species: SpeciesDefinition[];
+}
+
 // ─── Request helpers (mirrors client.ts internals, reuses exported helpers) ───
 
 async function ecologyRequest<T>(
@@ -361,6 +395,12 @@ export const ecologyApi = {
     ecosystemSlug?: string;
   }) =>
     ecologyRequest<ApiSingle<SuccessionResult>>("/ecology/simulate/succession", {
+      method: "POST",
+      body: payload,
+    }),
+
+  fauna: (payload: { ecosystemSlug?: string; biomes: string[]; grid?: TerrainGrid }) =>
+    ecologyRequest<ApiSingle<FaunaResult>>("/ecology/fauna", {
       method: "POST",
       body: payload,
     }),

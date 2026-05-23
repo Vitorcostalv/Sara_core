@@ -98,6 +98,41 @@ export const ecologyInspectSchema = z.object({
   maxFacts: z.coerce.number().int().min(1).max(30).default(16),
 });
 
+// POST /ecology/fauna
+const terrainCellBodySchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  elevation: z.number(),
+  temperatureC: z.number(),
+  humidityPct: z.number(),
+  precipitationMmYear: z.number(),
+  salinityPsu: z.number(),
+  climateCode: z.string(),
+  biomeSuggestion: z.string(),
+  isWater: z.boolean(),
+});
+
+const faunaGridSchema = z.object({
+  width: z.number().int().min(4).max(64),
+  height: z.number().int().min(4).max(64),
+  seed: z.number().int(),
+  baseTemperatureC: z.number(),
+  basePrecipitationMm: z.number(),
+  cells: z.array(z.array(terrainCellBodySchema)),
+  simulationNote: z.string(),
+});
+
+export const ecologyFaunaSchema = z
+  .object({
+    ecosystemSlug: ecosystemSlugSchema.optional(),
+    biomes: z.array(z.string().trim().min(1)).max(64).optional(),
+    grid: faunaGridSchema.optional(),
+  })
+  .refine((payload) => (payload.biomes?.length ?? 0) > 0 || payload.grid !== undefined, {
+    message: "Either 'biomes' or 'grid' is required.",
+    path: ["biomes"],
+  });
+
 export type EcologyGroundedQueryInput = z.infer<typeof ecologyGroundedQuerySchema>;
 export type EcologyListEcosystemsInput = z.infer<typeof ecologyListEcosystemsSchema>;
 export type EcologyListSpeciesInput = z.infer<typeof ecologyListSpeciesSchema>;
@@ -106,3 +141,4 @@ export type EcologySuccessionInput = z.infer<typeof ecologySuccessionSchema>;
 export type EcologyScenarioInput = z.infer<typeof ecologyScenarioSchema>;
 export type EcologyArtificialEnvInput = z.infer<typeof ecologyArtificialEnvSchema>;
 export type EcologyInspectInput = z.infer<typeof ecologyInspectSchema>;
+export type EcologyFaunaInput = z.infer<typeof ecologyFaunaSchema>;

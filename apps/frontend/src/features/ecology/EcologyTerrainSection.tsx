@@ -19,7 +19,8 @@ import { Mountains, WarningCircle } from "@phosphor-icons/react";
 import { Button, EmptyState, ErrorState, LoadingBlock } from "../../components/ui";
 import { getApiErrorMessage } from "../../services/api/client";
 import { ecologyApi } from "../../services/api/ecology";
-import type { TerrainCell, TerrainGrid } from "../../services/api/ecology";
+import type { SpeciesDefinition, TerrainCell, TerrainGrid } from "../../services/api/ecology";
+import { FaunaLayer } from "./FaunaLayer";
 
 const BIOME_COLORS: Record<string, number> = {
   "floresta-tropical-umida": 0x2f7a4f,
@@ -159,6 +160,61 @@ function variedFoliageColor(baseColor: number, cell: TerrainCell, seed: number) 
 
 function biomeLabel(biomeSuggestion: string) {
   return BIOME_LABELS[biomeSuggestion] ?? biomeSuggestion.replaceAll("-", " ");
+}
+
+function collectBiomes(grid: TerrainGrid) {
+  const biomes = new Set<string>();
+  for (const row of grid.cells) {
+    for (const cell of row) {
+      biomes.add(cell.biomeSuggestion);
+    }
+  }
+  return Array.from(biomes);
+}
+
+function buildCompactFaunaGrid(grid: TerrainGrid): TerrainGrid {
+  const biomeCells = new Map<string, TerrainCell>();
+
+  for (const row of grid.cells) {
+    for (const cell of row) {
+      if (!biomeCells.has(cell.biomeSuggestion)) {
+        biomeCells.set(cell.biomeSuggestion, cell);
+      }
+    }
+  }
+
+  const sourceCells = Array.from(biomeCells.values());
+  const minWidth = 4;
+  const minHeight = 4;
+  const width = Math.max(minWidth, Math.ceil(Math.sqrt(sourceCells.length || 1)));
+  const height = Math.max(minHeight, Math.ceil((sourceCells.length || 1) / width));
+  const cells: TerrainCell[][] = [];
+
+  for (let row = 0; row < height; row += 1) {
+    const terrainRow: TerrainCell[] = [];
+
+    for (let column = 0; column < width; column += 1) {
+      const flatIndex = row * width + column;
+      const template = sourceCells[flatIndex % sourceCells.length]!;
+      terrainRow.push({
+        ...template,
+        x: column,
+        y: row,
+      });
+    }
+
+    cells.push(terrainRow);
+  }
+
+  return {
+    width,
+    height,
+    seed: grid.seed,
+    baseTemperatureC: grid.baseTemperatureC,
+    basePrecipitationMm: grid.basePrecipitationMm,
+    cells,
+    simulationNote: "compact fauna payload",
+  };
 }
 
 function scatter(cell: TerrainCell, seed: number, slot: number) {
@@ -746,7 +802,23 @@ function AutoOrbitControls({ worldRadius }: { worldRadius: number }) {
   );
 }
 
-function TerrainScene({ sceneData }: { sceneData: SceneData }) {
+function TerrainScene({
+  sceneData,
+  grid,
+  faunaSpecies,
+  faunaPaused,
+  faunaSpeedMultiplier,
+  showFauna,
+  onFaunaCountUpdate,
+}: {
+  sceneData: SceneData;
+  grid: TerrainGrid;
+  faunaSpecies: SpeciesDefinition[];
+  faunaPaused: boolean;
+  faunaSpeedMultiplier: number;
+  showFauna: boolean;
+  onFaunaCountUpdate: (count: number) => void;
+}) {
   const [hovered, setHovered] = useState<HoverState | null>(null);
   const gradientMap = useMemo(() => {
     const steps = new Uint8Array([50, 130, 200, 255]);
@@ -789,6 +861,15 @@ function TerrainScene({ sceneData }: { sceneData: SceneData }) {
         setHovered={setHovered}
       />
       <VegetationField sceneData={sceneData} gradientMap={gradientMap} />
+      <FaunaLayer
+        grid={grid}
+        species={faunaSpecies}
+        gradientMap={gradientMap}
+        paused={faunaPaused}
+        speedMultiplier={faunaSpeedMultiplier}
+        visible={showFauna}
+        onCountUpdate={onFaunaCountUpdate}
+      />
       <ContactShadows
         position={[0, 0.01, 0]}
         opacity={0.3}
@@ -829,7 +910,21 @@ class CanvasErrorBoundary extends React.Component<
   }
 }
 
-function TerrainView({ grid }: { grid: TerrainGrid }) {
+function TerrainView({
+  grid,
+  faunaSpecies,
+  faunaPaused,
+  faunaSpeedMultiplier,
+  showFauna,
+  onFaunaCountUpdate,
+}: {
+  grid: TerrainGrid;
+  faunaSpecies: SpeciesDefinition[];
+  faunaPaused: boolean;
+  faunaSpeedMultiplier: number;
+  showFauna: boolean;
+  onFaunaCountUpdate: (count: number) => void;
+}) {
   const sceneData = useMemo(() => buildSceneData(grid), [grid]);
   const cameraPosition = useMemo(() => {
     const span = sceneData.worldRadius;
@@ -874,7 +969,15 @@ function TerrainView({ grid }: { grid: TerrainGrid }) {
           >
             {/* If postprocessing is reintroduced later, it belongs here after the scene content. */}
             <Suspense fallback={null}>
-              <TerrainScene sceneData={sceneData} />
+              <TerrainScene
+                sceneData={sceneData}
+                grid={grid}
+                faunaSpecies={faunaSpecies}
+                faunaPaused={faunaPaused}
+                faunaSpeedMultiplier={faunaSpeedMultiplier}
+                showFauna={showFauna}
+                onFaunaCountUpdate={onFaunaCountUpdate}
+              />
             </Suspense>
           </Canvas>
         </CanvasErrorBoundary>
@@ -895,6 +998,13 @@ const INITIAL_FORM = {
 function EcologyTerrainSection() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [grid, setGrid] = useState<TerrainGrid | null>(null);
+  const [faunaSpecies, setFaunaSpecies] = useState<SpeciesDefinition[]>([]);
+  const [faunaPaused, setFaunaPaused] = useState(false);
+  const [faunaSpeedMultiplier, setFaunaSpeedMultiplier] = useState(1);
+  const [showFauna, setShowFauna] = useState(true);
+  const [faunaLiveCount, setFaunaLiveCount] = useState(0);
+  const [isFaunaLoading, setIsFaunaLoading] = useState(false);
+  const [faunaError, setFaunaError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -915,6 +1025,10 @@ function EcologyTerrainSection() {
   async function generate() {
     setIsLoading(true);
     setError(null);
+    setFaunaSpecies([]);
+    setFaunaLiveCount(0);
+    setFaunaError(null);
+    setIsFaunaLoading(false);
 
     try {
       const response = await ecologyApi.simulateTerrain({
@@ -926,6 +1040,19 @@ function EcologyTerrainSection() {
         baseHumidityPct: numberOr(form.baseHumidityPct, 60),
       });
       setGrid(response.data);
+
+      setIsFaunaLoading(true);
+      try {
+        const faunaResponse = await ecologyApi.fauna({
+          biomes: collectBiomes(response.data),
+          grid: buildCompactFaunaGrid(response.data),
+        });
+        setFaunaSpecies(faunaResponse.data.species);
+      } catch (faunaRequestError) {
+        setFaunaError(getApiErrorMessage(faunaRequestError));
+      } finally {
+        setIsFaunaLoading(false);
+      }
     } catch (requestError) {
       setError(getApiErrorMessage(requestError));
     } finally {
@@ -1093,6 +1220,45 @@ function EcologyTerrainSection() {
             linear-gradient(180deg, rgba(255, 246, 234, 0.98), rgba(244, 224, 198, 0.94));
         }
 
+        .terrain-fauna-control {
+          display: grid;
+          gap: 0.6rem;
+          padding: 0.85rem 0.95rem;
+          border-radius: 1rem;
+          border: 1px solid rgba(129, 91, 53, 0.14);
+          background: rgba(255, 248, 237, 0.82);
+        }
+
+        .terrain-fauna-control__label {
+          font-size: 0.72rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #7a573c;
+        }
+
+        .terrain-fauna-control__actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.6rem;
+        }
+
+        .terrain-fauna-control__range {
+          width: 100%;
+          accent-color: #9c6f3d;
+        }
+
+        .terrain-fauna-control--status strong {
+          font-size: 1.1rem;
+          color: #50311d;
+        }
+
+        .terrain-fauna-control__meta {
+          color: #7c5f4a;
+          font-size: 0.9rem;
+          line-height: 1.4;
+        }
+
         @media (min-width: 960px) {
           .terrain-stage__chrome {
             grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
@@ -1175,6 +1341,60 @@ function EcologyTerrainSection() {
               {...field("baseHumidityPct")}
             />
           </div>
+          <div className="terrain-fauna-control">
+            <span className="terrain-fauna-control__label">Fauna animada</span>
+            <div className="terrain-fauna-control__actions">
+              <Button
+                variant="ghost"
+                onClick={() => setFaunaPaused((current) => !current)}
+                disabled={!grid}
+              >
+                {faunaPaused ? "Play" : "Pause"}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setShowFauna((current) => !current)}
+                disabled={!grid}
+              >
+                {showFauna ? "Ocultar" : "Mostrar"}
+              </Button>
+            </div>
+          </div>
+          <div className="terrain-fauna-control">
+            <label className="terrain-fauna-control__label" htmlFor="terrain-fauna-speed">
+              Velocidade {faunaSpeedMultiplier.toFixed(2)}x
+            </label>
+            <input
+              id="terrain-fauna-speed"
+              type="range"
+              className="terrain-fauna-control__range"
+              min={0.25}
+              max={4}
+              step={0.25}
+              value={faunaSpeedMultiplier}
+              onChange={(event) => setFaunaSpeedMultiplier(Number(event.target.value))}
+              disabled={!grid}
+            />
+          </div>
+          <div className="terrain-fauna-control terrain-fauna-control--status">
+            <span className="terrain-fauna-control__label">Fauna viva</span>
+            <strong>
+              {isFaunaLoading
+                ? "carregando..."
+                : faunaSpecies.length > 0
+                  ? `${faunaLiveCount} individuos`
+                  : grid
+                    ? "sem especies"
+                    : "--"}
+            </strong>
+            <span className="terrain-fauna-control__meta">
+              {faunaSpecies.length > 0
+                ? `${faunaSpecies.length} especies do bioma`
+                : grid && !isFaunaLoading
+                  ? "aguardando especies compativeis"
+                  : "gera o terreno para ativar"}
+            </span>
+          </div>
         </div>
 
         <div className="form-actions">
@@ -1207,7 +1427,34 @@ function EcologyTerrainSection() {
 
       {grid && !isLoading ? (
         <section className="signal-panel terrain-shell">
-          <TerrainView grid={grid} />
+          <TerrainView
+            grid={grid}
+            faunaSpecies={faunaSpecies}
+            faunaPaused={faunaPaused}
+            faunaSpeedMultiplier={faunaSpeedMultiplier}
+            showFauna={showFauna}
+            onFaunaCountUpdate={setFaunaLiveCount}
+          />
+
+          {faunaError ? (
+            <div className="signal-message signal-message--warning" style={{ marginTop: "1rem" }}>
+              <WarningCircle weight="duotone" />
+              <div>
+                <strong>Fauna indisponivel</strong>
+                <span>{faunaError}</span>
+              </div>
+            </div>
+          ) : null}
+
+          {isFaunaLoading ? (
+            <div className="signal-message signal-message--neutral" style={{ marginTop: "1rem" }}>
+              <WarningCircle weight="duotone" />
+              <div>
+                <strong>Fauna em preparacao</strong>
+                <span>Filtrando especies compativeis com os biomas do grid.</span>
+              </div>
+            </div>
+          ) : null}
 
           <div className="signal-message signal-message--neutral" style={{ marginTop: "0.25rem" }}>
             <WarningCircle weight="duotone" />
@@ -1224,4 +1471,3 @@ function EcologyTerrainSection() {
 
 export { EcologyTerrainSection };
 export default EcologyTerrainSection;
-

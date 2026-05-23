@@ -8,6 +8,7 @@ import { terrainGeneratorService } from "./simulation/terrain-generator.service"
 import { successionSimulatorService } from "./simulation/succession-simulator.service";
 import { scenarioEngineService } from "./simulation/scenario-engine.service";
 import { artificialEnvironmentService } from "./simulation/artificial-environment.service";
+import { faunaDefinitionService } from "./simulation/fauna-definition.service";
 import type {
   EcologyGroundedQueryInput,
   EcologyListEcosystemsInput,
@@ -17,6 +18,7 @@ import type {
   EcologyScenarioInput,
   EcologyArtificialEnvInput,
   EcologyInspectInput,
+  EcologyFaunaInput,
 } from "./ecology.schemas";
 
 export class EcologyController {
@@ -153,6 +155,16 @@ export class EcologyController {
       disturbanceIntensity: payload.disturbanceIntensity,
       connectivityIndex: payload.connectivityIndex,
     });
+    sendOk(res, result);
+  }
+
+  // POST /ecology/fauna
+  async fauna(req: Request, res: Response): Promise<void> {
+    const payload = req.body as EcologyFaunaInput;
+    const result =
+      payload.biomes && payload.biomes.length > 0
+        ? faunaDefinitionService.resolveBiomes(payload.biomes)
+        : faunaDefinitionService.resolve(payload.grid!);
     sendOk(res, result);
   }
 
