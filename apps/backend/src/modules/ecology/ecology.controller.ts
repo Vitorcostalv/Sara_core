@@ -2,12 +2,14 @@ import type { Request, Response } from "express";
 import { sendOk, sendPaginated } from "../../core/http/response";
 import { AppError } from "../../core/errors/app-error";
 import { ecologicalLlmService } from "./llm/ecological-llm.service";
+import { ecologicalTerrainPromptService } from "./llm/ecological-terrain-prompt.service";
 import { ecologicalGroundingRepository } from "./grounding/ecological-grounding.repository";
 import { ecologicalContextBuilderService } from "./grounding/ecological-context-builder.service";
 import { terrainGeneratorService } from "./simulation/terrain-generator.service";
 import { successionSimulatorService } from "./simulation/succession-simulator.service";
 import { scenarioEngineService } from "./simulation/scenario-engine.service";
 import { artificialEnvironmentService } from "./simulation/artificial-environment.service";
+import { faunaDefinitionService } from "./simulation/fauna-definition.service";
 import type {
   EcologyGroundedQueryInput,
   EcologyListEcosystemsInput,
@@ -17,6 +19,8 @@ import type {
   EcologyScenarioInput,
   EcologyArtificialEnvInput,
   EcologyInspectInput,
+  EcologyFaunaInput,
+  EcologyPromptTerrainInput,
 } from "./ecology.schemas";
 
 export class EcologyController {
@@ -114,6 +118,18 @@ export class EcologyController {
     sendOk(res, result.inspection ?? result);
   }
 
+  // POST /ecology/prompt-terrain
+  async promptTerrain(req: Request, res: Response): Promise<void> {
+    const payload = req.body as EcologyPromptTerrainInput;
+    const result = await ecologicalTerrainPromptService.generate({
+      prompt: payload.prompt,
+      width: payload.width,
+      height: payload.height,
+      seed: payload.seed,
+    });
+    sendOk(res, result);
+  }
+
   // POST /ecology/simulate/terrain
   async simulateTerrain(req: Request, res: Response): Promise<void> {
     const payload = req.body as EcologyTerrainInput;
@@ -153,6 +169,16 @@ export class EcologyController {
       disturbanceIntensity: payload.disturbanceIntensity,
       connectivityIndex: payload.connectivityIndex,
     });
+    sendOk(res, result);
+  }
+
+  // POST /ecology/fauna
+  async fauna(req: Request, res: Response): Promise<void> {
+    const payload = req.body as EcologyFaunaInput;
+    const result =
+      payload.biomes && payload.biomes.length > 0
+        ? faunaDefinitionService.resolveBiomes(payload.biomes)
+        : faunaDefinitionService.resolve(payload.grid!);
     sendOk(res, result);
   }
 

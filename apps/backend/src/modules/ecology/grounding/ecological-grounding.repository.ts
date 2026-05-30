@@ -116,7 +116,7 @@ export class EcologicalGroundingRepository {
 
     const categoryCondition =
       q.categories && q.categories.length > 0
-        ? `AND gf.category = ANY($${idx++}::text[])`
+        ? `AND gf.category::text = ANY($${idx++}::text[])`
         : "";
     if (q.categories && q.categories.length > 0) {
       params.push(q.categories);

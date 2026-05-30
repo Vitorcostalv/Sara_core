@@ -85,6 +85,24 @@ export interface DomainCoverageStats {
   [key: string]: unknown;
 }
 
+// ─── Prompt terrain result ────────────────────────────────────────────────────
+
+export interface TerrainPromptResult {
+  biomeName: string;
+  biomeSlug: string;
+  interpretation: string;
+  terrainParams: {
+    baseTemperatureC: number;
+    basePrecipitationMm: number;
+    baseHumidityPct: number;
+    width: number;
+    height: number;
+    seed: number;
+  };
+  terrain: TerrainGrid;
+  source: "llm" | "keyword" | "default";
+}
+
 // ─── Ecology LLM result ───────────────────────────────────────────────────────
 
 export interface EcologicalLlmResult {
@@ -207,6 +225,40 @@ export interface SuccessionResult {
   projectedInfo: SuccessionStageInfo;
   disturbanceNote: string | null;
   simulationNote: string;
+}
+
+// ─── Fauna ────────────────────────────────────────────────────────────────────
+
+export type FaunaCategory =
+  | "herbivore-small"
+  | "herbivore-large"
+  | "predator-medium"
+  | "predator-large"
+  | "bird"
+  | "fish";
+
+export interface SpeciesDefinition {
+  id: string;
+  commonName: string;
+  scientificName: string;
+  category: FaunaCategory;
+  habitableBiomes: string[];
+  preySpeciesIds: string[];
+  populationTarget: number;
+  movementProfile: {
+    maxSpeed: number;
+    turnRate: number;
+    fleeMultiplier: number;
+  };
+  flockProfile: {
+    formsFlocks: boolean;
+    flockRadius: number;
+    separationDistance: number;
+  };
+}
+
+export interface FaunaResult {
+  species: SpeciesDefinition[];
 }
 
 // ─── Request helpers (mirrors client.ts internals, reuses exported helpers) ───
@@ -361,6 +413,18 @@ export const ecologyApi = {
     ecosystemSlug?: string;
   }) =>
     ecologyRequest<ApiSingle<SuccessionResult>>("/ecology/simulate/succession", {
+      method: "POST",
+      body: payload,
+    }),
+
+  fauna: (payload: { ecosystemSlug?: string; biomes: string[]; grid?: TerrainGrid }) =>
+    ecologyRequest<ApiSingle<FaunaResult>>("/ecology/fauna", {
+      method: "POST",
+      body: payload,
+    }),
+
+  promptTerrain: (payload: { prompt: string; width?: number; height?: number; seed?: number }) =>
+    ecologyRequest<ApiSingle<TerrainPromptResult>>("/ecology/prompt-terrain", {
       method: "POST",
       body: payload,
     }),
