@@ -85,6 +85,24 @@ export interface DomainCoverageStats {
   [key: string]: unknown;
 }
 
+// ─── Prompt terrain result ────────────────────────────────────────────────────
+
+export interface TerrainPromptResult {
+  biomeName: string;
+  biomeSlug: string;
+  interpretation: string;
+  terrainParams: {
+    baseTemperatureC: number;
+    basePrecipitationMm: number;
+    baseHumidityPct: number;
+    width: number;
+    height: number;
+    seed: number;
+  };
+  terrain: TerrainGrid;
+  source: "llm" | "keyword" | "default";
+}
+
 // ─── Ecology LLM result ───────────────────────────────────────────────────────
 
 export interface EcologicalLlmResult {
@@ -401,6 +419,12 @@ export const ecologyApi = {
 
   fauna: (payload: { ecosystemSlug?: string; biomes: string[]; grid?: TerrainGrid }) =>
     ecologyRequest<ApiSingle<FaunaResult>>("/ecology/fauna", {
+      method: "POST",
+      body: payload,
+    }),
+
+  promptTerrain: (payload: { prompt: string; width?: number; height?: number; seed?: number }) =>
+    ecologyRequest<ApiSingle<TerrainPromptResult>>("/ecology/prompt-terrain", {
       method: "POST",
       body: payload,
     }),

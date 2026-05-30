@@ -11,3 +11,9 @@ coverage/
 .vscode/
 .claude/
 .agents/skills/
+
+# Large binaries — never commit
+*.exe
+*.pdf
+apps/frontend/public/models/
+apps/frontend/test-results/
