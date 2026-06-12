@@ -76,6 +76,20 @@ export interface ScientificExplanation {
   sources: string[];
 }
 
+export type PlausibilityRating = "alto" | "medio" | "baixo";
+
+export interface PlausibilityCriterion {
+  label: string;
+  rating: PlausibilityRating;
+  detail: string;
+}
+
+export interface PlausibilityAssessment {
+  overall: PlausibilityRating;
+  criteria: PlausibilityCriterion[];
+  caveat: string;
+}
+
 export interface EcosystemReport {
   climate: ClimateSummary;
   relief: ReliefSummary;
@@ -83,6 +97,7 @@ export interface EcosystemReport {
   fauna: FaunaSummary;
   abioticFactors: AbioticFactor[];
   scientificExplanation: ScientificExplanation;
+  plausibility: PlausibilityAssessment;
   limitations: string[];
 }
 
@@ -254,6 +269,73 @@ function averageSalinity(grid: TerrainGrid): number {
   return total > 0 ? sum / total : 0;
 }
 
+const RATING_SCORE: Record<PlausibilityRating, number> = { alto: 2, medio: 1, baixo: 0 };
+
+function ratingFrom(value: number, highMin: number, midMin: number): PlausibilityRating {
+  if (value >= highMin) return "alto";
+  if (value >= midMin) return "medio";
+  return "baixo";
+}
+
+function buildPlausibility(
+  source: TerrainPromptResult["source"],
+  vegetation: VegetationSummary,
+  fauna: FaunaSummary,
+  abioticCount: number,
+  scientific: ScientificExplanation
+): PlausibilityAssessment {
+  const dominantPct = vegetation.dominantBiomes[0]?.pct ?? 0;
+
+  const climate: PlausibilityCriterion =
+    source === "default"
+      ? { label: "Clima compatível", rating: "baixo", detail: "Bioma não identificado; parâmetros climáticos genéricos." }
+      : {
+          label: "Clima compatível",
+          rating: ratingFrom(dominantPct, 50, 30),
+          detail: `Parâmetros derivados do preset do bioma; ${dominantPct}% do grid converge para o bioma dominante.`,
+        };
+
+  const vegetationCriterion: PlausibilityCriterion = {
+    label: "Vegetação compatível",
+    rating: ratingFrom(dominantPct, 60, 35),
+    detail: `Cobertura dominante de ${dominantPct}% (${vegetation.dominantBiomes[0]?.biome ?? "—"}).`,
+  };
+
+  const faunaCriterion: PlausibilityCriterion = {
+    label: "Fauna compatível",
+    rating: ratingFrom(fauna.totalSpecies, 6, 3),
+    detail: `${fauna.totalSpecies} espécie(s) em ${fauna.byCategory.length} categoria(s) trófica(s).`,
+  };
+
+  const abioticCriterion: PlausibilityCriterion = {
+    label: "Fatores abióticos suficientes",
+    rating: abioticCount >= 5 ? "alto" : abioticCount >= 3 ? "medio" : "baixo",
+    detail: `${abioticCount} fatores derivados do grid (temperatura, precipitação, umidade, água, elevação, salinidade).`,
+  };
+
+  const groundingRating: PlausibilityRating =
+    scientific.coverage === "sufficient" ? "alto" : scientific.facts.length > 0 ? "medio" : "baixo";
+  const groundingCriterion: PlausibilityCriterion = {
+    label: "Grounding científico",
+    rating: groundingRating,
+    detail: `${scientific.facts.length} fato(s) usado(s); cobertura ${
+      scientific.coverage === "sufficient" ? "suficiente" : "limitada"
+    }.`,
+  };
+
+  const criteria = [climate, vegetationCriterion, faunaCriterion, abioticCriterion, groundingCriterion];
+  const avg = criteria.reduce((sum, c) => sum + RATING_SCORE[c.rating], 0) / criteria.length;
+  const overall: PlausibilityRating = avg >= 1.5 ? "alto" : avg >= 0.8 ? "medio" : "baixo";
+
+  return {
+    overall,
+    criteria,
+    caveat:
+      "Avaliação heurística e qualitativa: combina coerência interna da simulação com a cobertura " +
+      "de fatos científicos do banco. Não é uma validação ecológica formal.",
+  };
+}
+
 export class EcosystemReportService {
   async generate(input: EcosystemReportInput): Promise<EcosystemReportResult> {
     // 1. Texto → bioma + terreno (reaproveita o serviço existente)
@@ -301,6 +383,13 @@ export class EcosystemReportService {
     };
 
     const limitations = buildLimitations(terrainResult, context.facts.length, context.coverage.sufficient, species.length);
+    const plausibility = buildPlausibility(
+      terrainResult.source,
+      vegetation,
+      fauna,
+      abioticFactors.length,
+      scientificExplanation
+    );
 
     return {
       ...terrainResult,
@@ -312,6 +401,7 @@ export class EcosystemReportService {
         fauna,
         abioticFactors,
         scientificExplanation,
+        plausibility,
         limitations,
       },
     };

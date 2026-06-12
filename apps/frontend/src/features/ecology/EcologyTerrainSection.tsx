@@ -1082,6 +1082,12 @@ function TerrainView({
   );
 }
 
+const RATING_LABEL: Record<string, string> = {
+  alto: "Alto",
+  medio: "Médio",
+  baixo: "Baixo",
+};
+
 const FAUNA_CATEGORY_LABELS: Record<string, string> = {
   "herbivore-small": "Herbívoros pequenos",
   "herbivore-large": "Herbívoros grandes",
@@ -1090,6 +1096,9 @@ const FAUNA_CATEGORY_LABELS: Record<string, string> = {
   bird: "Aves",
   fish: "Peixes",
 };
+
+const DEMO_PROMPT =
+  "Gere um ecossistema de floresta tropical úmida, com rios, alta biodiversidade, vegetação densa e risco de desmatamento.";
 
 const INITIAL_FORM = {
   width: "48",
@@ -1649,6 +1658,17 @@ function EcologyTerrainSection({
               <Sparkle weight="duotone" />
               {isAiLoading ? "Interpretando..." : "Gerar via IA"}
             </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setAiPrompt(DEMO_PROMPT);
+                void promptAndGenerate(DEMO_PROMPT);
+              }}
+              disabled={isAiLoading}
+              title="Prompt fixo de demonstração"
+            >
+              Exemplo
+            </Button>
           </div>
 
           {aiResult && !isAiLoading ? (
@@ -1938,6 +1958,49 @@ function EcologyTerrainSection({
             }
             .ecosystem-report__tag--ok { background: rgba(34, 197, 94, 0.18); }
             .ecosystem-report__tag--warn { background: rgba(234, 179, 8, 0.18); }
+
+            .plausibility {
+              border: 1px solid rgba(56, 189, 248, 0.3);
+              border-radius: 0.6rem;
+              padding: 0.85rem 0.95rem;
+              margin: 0.5rem 0 0.25rem;
+              background: rgba(56, 189, 248, 0.05);
+            }
+            .plausibility__head {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 0.75rem;
+              margin-bottom: 0.5rem;
+            }
+            .plausibility__head h4 { margin: 0; font-size: 0.95rem; }
+            .plausibility__overall {
+              font-size: 0.78rem;
+              font-weight: 700;
+              padding: 0.18rem 0.7rem;
+              border-radius: 999px;
+            }
+            .plausibility__table { width: 100%; border-collapse: collapse; }
+            .plausibility__table td {
+              padding: 0.35rem 0.5rem;
+              border-top: 1px solid rgba(148, 163, 184, 0.18);
+              font-size: 0.88rem;
+              vertical-align: top;
+            }
+            .plausibility__table td:first-child { font-weight: 600; white-space: nowrap; }
+            .plausibility__detail { opacity: 0.8; }
+            .plausibility__pill {
+              display: inline-block;
+              font-size: 0.74rem;
+              font-weight: 700;
+              padding: 0.1rem 0.6rem;
+              border-radius: 999px;
+              white-space: nowrap;
+            }
+            .plausibility__pill--alto, .plausibility__overall--alto { background: rgba(34, 197, 94, 0.22); color: #bbf7d0; }
+            .plausibility__pill--medio, .plausibility__overall--medio { background: rgba(234, 179, 8, 0.22); color: #fde68a; }
+            .plausibility__pill--baixo, .plausibility__overall--baixo { background: rgba(239, 68, 68, 0.22); color: #fecaca; }
+            .plausibility__caveat { font-size: 0.78rem; opacity: 0.7; margin: 0.6rem 0 0; }
           `}</style>
 
           <div className="signal-panel__header">
@@ -1948,6 +2011,31 @@ function EcologyTerrainSection({
                 clima, relevo, vegetacao, fauna, fatores abioticos e base cientifica.
               </p>
             </div>
+          </div>
+
+          <div className="plausibility" data-testid="plausibility-panel">
+            <div className="plausibility__head">
+              <h4>Plausibilidade ecologica</h4>
+              <span className={`plausibility__overall plausibility__overall--${report.plausibility.overall}`}>
+                {RATING_LABEL[report.plausibility.overall] ?? report.plausibility.overall}
+              </span>
+            </div>
+            <table className="plausibility__table">
+              <tbody>
+                {report.plausibility.criteria.map((c) => (
+                  <tr key={c.label}>
+                    <td>{c.label}</td>
+                    <td>
+                      <span className={`plausibility__pill plausibility__pill--${c.rating}`}>
+                        {RATING_LABEL[c.rating] ?? c.rating}
+                      </span>
+                    </td>
+                    <td className="plausibility__detail">{c.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="plausibility__caveat">{report.plausibility.caveat}</p>
           </div>
 
           <div className="ecosystem-report__grid">

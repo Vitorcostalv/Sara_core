@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/http/async-handler";
 import { validateBody, validateQuery } from "../../core/middleware/validate";
+import { createMemoryRateLimiter } from "../../core/middleware/rate-limit";
 import { ecologyController } from "./ecology.controller";
 import {
   ecologyGroundedQuerySchema,
@@ -17,6 +18,20 @@ import {
 } from "./ecology.schemas";
 
 export const ecologyRoutes = Router();
+
+// Rate limit nas rotas de IA/simulação (POST). Catálogo (GET) fica livre.
+const aiRateLimit = createMemoryRateLimiter({
+  keyPrefix: "ecology",
+  windowMs: 60_000,
+  maxRequests: 30,
+});
+ecologyRoutes.use((req, res, next) => {
+  if (req.method === "POST") {
+    aiRateLimit(req, res, next);
+    return;
+  }
+  next();
+});
 
 // ─── Grounded LLM ─────────────────────────────────────────────────────────────
 ecologyRoutes.post(

@@ -160,6 +160,20 @@ export interface ScientificExplanation {
   sources: string[];
 }
 
+export type PlausibilityRating = "alto" | "medio" | "baixo";
+
+export interface PlausibilityCriterion {
+  label: string;
+  rating: PlausibilityRating;
+  detail: string;
+}
+
+export interface PlausibilityAssessment {
+  overall: PlausibilityRating;
+  criteria: PlausibilityCriterion[];
+  caveat: string;
+}
+
 export interface EcosystemReport {
   climate: ClimateSummary;
   relief: ReliefSummary;
@@ -167,6 +181,7 @@ export interface EcosystemReport {
   fauna: FaunaSummary;
   abioticFactors: AbioticFactor[];
   scientificExplanation: ScientificExplanation;
+  plausibility: PlausibilityAssessment;
   limitations: string[];
 }
 
@@ -281,22 +296,26 @@ export interface ArtificialEnvResult {
 
 // ─── Succession ───────────────────────────────────────────────────────────────
 
-export interface SuccessionStageInfo {
-  stageIndex: number;
-  stageName: string;
-  description: string;
-  dominantFunctionalGroups: string[];
-  typicalDurationYears: string;
+export interface SuccessionStage {
+  stage: number;
+  label: string;
+  characteristicFunctionalTypes: string[];
+  exampleSpeciesNotes: string;
+  estimatedDurationYearsMin: number;
+  estimatedDurationYearsMax: number;
+  dominantProcess: string;
+  disturbanceVulnerability: "high" | "moderate" | "low";
 }
 
 export interface SuccessionResult {
-  type: string;
+  type: "primary" | "secondary";
+  ecosystemReference: string | null;
   startingStage: number;
-  projectedStage: number;
-  startingInfo: SuccessionStageInfo;
-  projectedInfo: SuccessionStageInfo;
-  disturbanceNote: string | null;
+  stages: SuccessionStage[];
+  estimatedYearsToClimax: number;
+  isDisturbanceReset: boolean;
   simulationNote: string;
+  warnings: string[];
 }
 
 // ─── Fauna ────────────────────────────────────────────────────────────────────

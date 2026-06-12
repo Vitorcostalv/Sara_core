@@ -20,39 +20,7 @@ import { getApiErrorMessage } from "../../services/api/client";
 import { ecologyApi } from "../../services/api/ecology";
 import type { EcologicalLlmResult } from "../../services/api/ecology";
 
-// ─── Suggestions ──────────────────────────────────────────────────────────────
-
-const SUGGESTED_ECOSYSTEMS = [
-  "cerrado",
-  "manguezal",
-  "caatinga",
-  "pantanal",
-  "mata-atlantica",
-  "floresta-tropical-umida",
-  "recife-de-coral",
-  "tundra",
-];
-
-const GROUNDING_CATEGORIES = [
-  "ecosystem",
-  "concept",
-  "formation-process",
-  "abiotic-factor",
-  "species",
-  "artificial-project",
-  "modeling-approach",
-  "reference",
-] as const;
-
-type GroundingCategory = (typeof GROUNDING_CATEGORIES)[number];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function toggleItem(current: string[], item: string): string[] {
-  return current.includes(item)
-    ? current.filter((x) => x !== item)
-    : [...current, item];
-}
+// ─── Labels ───────────────────────────────────────────────────────────────────
 
 const RISK_LABEL: Record<string, string> = {
   sufficient: "Cobertura suficiente",
@@ -80,8 +48,6 @@ export function EcologyQuerySection({ onGenerateEcosystem }: EcologyQuerySection
   const [prompt, setPrompt] = useState(
     "Quais são as principais características do cerrado e como ele se diferencia da caatinga em termos de biodiversidade?"
   );
-  const [ecosystems, setEcosystems] = useState<string[]>(["cerrado", "caatinga"]);
-  const [categories, setCategories] = useState<GroundingCategory[]>([]);
   const [maxFacts, setMaxFacts] = useState("16");
   const [includeInspection, setIncludeInspection] = useState(false);
 
@@ -104,8 +70,6 @@ export function EcologyQuerySection({ onGenerateEcosystem }: EcologyQuerySection
       const parsedMaxFacts = Number.parseInt(maxFacts, 10);
       const response = await ecologyApi.generate({
         prompt: prompt.trim(),
-        ecosystems,
-        categories: categories.length > 0 ? categories : undefined,
         maxFacts: Number.isFinite(parsedMaxFacts) ? parsedMaxFacts : 16,
         dryRun: runAsDryRun,
         includeInspection,
@@ -156,44 +120,6 @@ export function EcologyQuerySection({ onGenerateEcosystem }: EcologyQuerySection
           onChange={(e) => setPrompt(e.target.value)}
           data-testid="ecology-prompt-input"
         />
-
-        {/* Ecosystem chips */}
-        <div>
-          <p className="ecology-field-label">Ecossistemas (sugestões)</p>
-          <div className="llm-chip-row">
-            {SUGGESTED_ECOSYSTEMS.map((eco) => (
-              <button
-                key={eco}
-                type="button"
-                className={`llm-chip${ecosystems.includes(eco) ? " is-active" : ""}`}
-                onClick={() => setEcosystems((cur) => toggleItem(cur, eco))}
-              >
-                {eco}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Category chips */}
-        <div>
-          <p className="ecology-field-label">Categorias (opcional — padrão: todas)</p>
-          <div className="category-chip-row">
-            {GROUNDING_CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                className={`category-chip${categories.includes(cat) ? " is-active" : ""}`}
-                onClick={() =>
-                  setCategories((cur) =>
-                    toggleItem(cur as string[], cat) as GroundingCategory[]
-                  )
-                }
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* Max facts + toggles */}
         <div className="ecology-form-grid">

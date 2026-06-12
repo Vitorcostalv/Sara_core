@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Leaf, Mountains, Stack, Thermometer } from "@phosphor-icons/react";
+import { Leaf, Mountains, Plant, Stack, Thermometer } from "@phosphor-icons/react";
 import { PageHeader } from "../components/ui";
 import { EcologyCatalogSection } from "../features/ecology/EcologyCatalogSection";
 import { EcologyQuerySection } from "../features/ecology/EcologyQuerySection";
 import { EcologyScenarioSection } from "../features/ecology/EcologyScenarioSection";
+import { EcologySuccessionSection } from "../features/ecology/EcologySuccessionSection";
 import { EcologyTerrainSection } from "../features/ecology/EcologyTerrainSection";
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
-type EcologyTab = "consulta" | "catalogo" | "terreno" | "cenario";
+type EcologyTab = "consulta" | "catalogo" | "terreno" | "cenario" | "evolucao";
 
 interface TabDef {
   id: EcologyTab;
@@ -41,6 +42,12 @@ const TABS: TabDef[] = [
     label: "Cenário",
     subtitle: "Risco climático",
     icon: <Thermometer weight="duotone" />,
+  },
+  {
+    id: "evolucao",
+    label: "Evolução",
+    subtitle: "Sucessão ecológica",
+    icon: <Plant weight="duotone" />,
   },
 ];
 
@@ -93,6 +100,7 @@ export function EcologyPage() {
         />
       )}
       {activeTab === "cenario" && <EcologyScenarioSection />}
+      {activeTab === "evolucao" && <EcologySuccessionSection />}
     </div>
   );
 }
