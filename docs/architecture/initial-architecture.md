@@ -15,7 +15,6 @@
 - `packages/shared-types`: tipos de dominio comuns para backend/frontend.
 - `packages/shared-config`: base de configuracao TypeScript.
 - `database`: schema versionado e rastreavel.
-- `services`: fronteira reservada para componentes de voz e LLM no futuro.
 
 ## 3. Backend (orquestrador)
 
@@ -50,23 +49,23 @@ Separar layout, pagina, estado e API desde o inicio evita refactor grande quando
 
 ## 5. Banco persistido (PostgreSQL / Neon)
 
-Modelo inicial com tabelas:
+O schema é centrado no domínio ecológico (grounding científico):
 
-- `user_profile`: perfil principal local do usuario.
-- `facts`: memoria persistente de fatos.
-- `tasks`: tarefas do cotidiano.
-- `conversation_turns`: historico de turnos conversacionais.
-- `tool_calls`: rastreabilidade de chamadas de ferramenta por turno.
+- `ecosystems`, `ecosystem_classifications`, `biomes`, `climates_koppen`, `biogeographic_realms`: ecossistemas e sua classificação.
+- `species`, `taxa`, `trophic_roles`, `ecosystem_species`: fauna/flora e papéis tróficos.
+- `abiotic_factors`, `ecosystem_factors`, `formation_processes`, `ecosystem_processes`: fatores e processos abióticos.
+- `artificial_projects`, `project_target_ecosystems`, `modeling_approaches`, `restoration_methods`: projetos artificiais e abordagens.
+- `grounding_facts`, `sources`, `fact_links`: fatos científicos rastreáveis e suas fontes.
 
 ### Decisao
 
-O runtime atual usa PostgreSQL/Neon para persistencia principal. Isso preserva a arquitetura modular existente, mas remove a divergencia entre runtime real e documentacao historica.
+O runtime usa PostgreSQL/Neon. O schema vive em `database/postgres/migrations` e é populado por seeds idempotentes em `database/seeds`.
 
-## 6. Escalabilidade para proximas fases
+## 6. Escopo atual
 
-Sem implementar STT/TTS/wake word/LLM agora, a base ja prepara:
+A base entrega:
 
-- contratos de dados consistentes
-- backend pronto para novos modulos
-- dashboard pronto para integrar APIs
-- pasta `services/` reservada para motores locais futuros
+- consulta grounded sobre os fatos do banco;
+- catálogo navegável do domínio ecológico;
+- geração de terreno 3D a partir de descrição textual (texto → bioma → terreno + fauna);
+- simulações de sucessão, cenário climático e ambiente artificial.

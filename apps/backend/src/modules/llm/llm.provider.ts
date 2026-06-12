@@ -1,7 +1,8 @@
 import { AppError } from "../../core/errors/app-error";
-import type { LlmProviderName } from "./llm.schemas";
 import { GeminiLlmProvider } from "./providers/gemini.provider";
 import { GrokLlmProvider } from "./providers/grok.provider";
+
+export type LlmProviderName = "disabled" | "gemini" | "grok";
 
 export interface LlmGenerateTextInput {
   systemPrompt: string;

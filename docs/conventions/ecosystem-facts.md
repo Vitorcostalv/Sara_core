@@ -74,7 +74,6 @@ Regra de formato:
 - Cada `ecosystem:<slug>` deve ter pelo menos `definicao`
 - Priorizar fatos sobre composicao, importancia, ameacas, conservacao e localizacao
 - Fatos tecnicos do projeto nao devem usar `ecosystem:*`
-- `tasks` e `conversation_turns` continuam fora do grounding principal nesta fase
 
 ## Camada canônica nova
 

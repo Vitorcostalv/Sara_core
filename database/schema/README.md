@@ -1,20 +1,8 @@
 # Sara Core Data Model
 
-## Camadas atuais
+## Environmental ecology foundation
 
-### Core app tables
-
-- `user_profile`
-- `facts`
-- `tasks`
-- `conversation_turns`
-- `tool_calls`
-
-Essas tabelas sustentam o MVP atual do produto.
-
-### Environmental ecology foundation
-
-A partir da migration `004_environmental_ecology_foundation.sql`, o repositorio passa a ter uma camada relacional canônica para ecologia ambiental real.
+A migration `004_environmental_ecology_foundation.sql` define a camada relacional canônica para ecologia ambiental, e `005_grounding_facts_entity_table_whitelist_fix.sql` ajusta a whitelist de entidades de `grounding_facts`.
 
 Resumo:
 - `domains`, `sources`, `source_topics`
@@ -30,13 +18,11 @@ Resumo:
 Documento detalhado:
 - `database/schema/environmental-ecology-foundation.md`
 
-## Compatibilidade
+## Grounding
 
-- `grounding_facts` e a base canônica nova para o dominio `environmental_ecology`
-- `facts` continua sendo a camada de compatibilidade do grounding operacional atual
-- `internal:project-context` e `reference:environmental-practices` ficam fora do grounding ecologico principal
+- `grounding_facts` é a base canônica de fatos do domínio `environmental_ecology`, com proveniência via `sources` e `fact_links`.
 
 ## Convencoes
 
-- grounding legacy em `facts`: `docs/conventions/ecosystem-facts.md`
-- dominio cientifico novo: `database/schema/environmental-ecology-foundation.md`
+- convenções de fatos/grounding: `docs/conventions/ecosystem-facts.md`
+- domínio científico detalhado: `database/schema/environmental-ecology-foundation.md`

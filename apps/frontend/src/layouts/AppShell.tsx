@@ -1,15 +1,9 @@
 import type { PropsWithChildren } from "react";
-import { Broadcast, Leaf, Waveform } from "@phosphor-icons/react";
+import { Leaf, Waveform } from "@phosphor-icons/react";
 import { useLocation } from "react-router-dom";
 import { SidebarNavItem } from "../components/layout/SidebarNavItem";
 
 const navItems = [
-  {
-    to: "/voice",
-    label: "Voice",
-    subtitle: "Audio e conversa",
-    icon: Broadcast
-  },
   {
     to: "/ecology",
     label: "Ecologia",
@@ -26,12 +20,8 @@ const routeMeta: Record<
   }
 > = {
   "/": {
-    title: "Voice",
-    description: "Teste audio, revise a resposta e acompanhe o resultado."
-  },
-  "/voice": {
-    title: "Voice",
-    description: "Teste audio, revise a resposta e acompanhe o resultado."
+    title: "Ecologia",
+    description: "Consulte dados ecologicos grounded, explore simulacoes e navegue pelo catalogo ambiental."
   },
   "/ecology": {
     title: "Ecologia",

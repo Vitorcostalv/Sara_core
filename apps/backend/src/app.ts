@@ -17,11 +17,7 @@ function normalizeRequestOrigin(origin: string) {
 }
 
 function shouldBypassApiKeyAuth(pathname: string) {
-  return (
-    pathname === "/health" ||
-    pathname.startsWith("/health/") ||
-    pathname.startsWith("/voice/audio/")
-  );
+  return pathname === "/health" || pathname.startsWith("/health/");
 }
 
 export function createApp() {

@@ -1,4 +1,3 @@
-import type { LlmGenerateResult } from "@sara/shared-types";
 import { env } from "../../../config/env";
 import { AppError } from "../../../core/errors/app-error";
 import { logger } from "../../../logging/logger";

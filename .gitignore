@@ -3,7 +3,6 @@ dist/
 coverage/
 .env
 .env.*
-!.env.example
 *.db
 *.db-shm
 *.db-wal
@@ -17,3 +16,7 @@ coverage/
 *.pdf
 apps/frontend/public/models/
 apps/frontend/test-results/
+apps/frontend/artifacts/
+
+# Logs temporários
+tmp-*.log

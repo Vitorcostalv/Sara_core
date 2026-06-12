@@ -103,6 +103,78 @@ export interface TerrainPromptResult {
   source: "llm" | "keyword" | "default";
 }
 
+// ─── Ecosystem report ─────────────────────────────────────────────────────────
+
+export interface ClimateSummary {
+  baseTemperatureC: number;
+  basePrecipitationMm: number;
+  baseHumidityPct: number;
+  temperatureRangeC: [number, number];
+  precipitationRangeMm: [number, number];
+  humidityRangePct: [number, number];
+  dominantClimateCode: string;
+  climateCodes: Array<{ code: string; pct: number }>;
+}
+
+export interface ReliefSummary {
+  elevationMin: number;
+  elevationMax: number;
+  elevationMean: number;
+  ruggedness: number;
+  waterCoveragePct: number;
+  cellCount: number;
+  width: number;
+  height: number;
+}
+
+export interface VegetationSummary {
+  dominantBiomes: Array<{ biome: string; pct: number }>;
+  description: string;
+}
+
+export interface FaunaSummary {
+  totalSpecies: number;
+  totalPopulation: number;
+  byCategory: Array<{ category: string; count: number }>;
+  species: Array<{ commonName: string; scientificName: string; category: string }>;
+}
+
+export interface AbioticFactor {
+  label: string;
+  value: number;
+  unit: string;
+}
+
+export interface ScientificFact {
+  title: string;
+  text: string;
+  category: string;
+  citationKey: string | null;
+  year: number | null;
+}
+
+export interface ScientificExplanation {
+  grounded: boolean;
+  coverage: "sufficient" | "insufficient";
+  facts: ScientificFact[];
+  sources: string[];
+}
+
+export interface EcosystemReport {
+  climate: ClimateSummary;
+  relief: ReliefSummary;
+  vegetation: VegetationSummary;
+  fauna: FaunaSummary;
+  abioticFactors: AbioticFactor[];
+  scientificExplanation: ScientificExplanation;
+  limitations: string[];
+}
+
+export interface EcosystemReportResult extends TerrainPromptResult {
+  species: SpeciesDefinition[];
+  report: EcosystemReport;
+}
+
 // ─── Ecology LLM result ───────────────────────────────────────────────────────
 
 export interface EcologicalLlmResult {
@@ -425,6 +497,12 @@ export const ecologyApi = {
 
   promptTerrain: (payload: { prompt: string; width?: number; height?: number; seed?: number }) =>
     ecologyRequest<ApiSingle<TerrainPromptResult>>("/ecology/prompt-terrain", {
+      method: "POST",
+      body: payload,
+    }),
+
+  ecosystemReport: (payload: { prompt: string; width?: number; height?: number; seed?: number }) =>
+    ecologyRequest<ApiSingle<EcosystemReportResult>>("/ecology/ecosystem-report", {
       method: "POST",
       body: payload,
     }),
