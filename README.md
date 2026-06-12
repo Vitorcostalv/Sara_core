@@ -34,7 +34,7 @@ Isso significa:
 - Python disponível no PATH
 - FFmpeg disponível no PATH
 - modelo Vosk extraído em `services/stt/models/pt-br`
-- arquivo `.env` baseado em `.env.example`
+- arquivo `.env` na raiz do projeto com as variáveis de banco, CORS, STT e LLM
 
 ## Como instalar
 ```bash
@@ -42,8 +42,8 @@ npm install
 ```
 
 Depois:
-1. copie `.env.example` para `.env`;
-2. revise as variáveis de banco, CORS, STT e LLM;
+1. crie um `.env` na raiz com `DATABASE_URL` e `DIRECT_DATABASE_URL` (Neon) e o que mais precisar sobrescrever;
+2. as variáveis disponíveis e seus defaults estão em `apps/backend/src/config/env.ts`;
 3. confirme que Python, FFmpeg e o modelo Vosk estão acessíveis.
 
 ## Como rodar
