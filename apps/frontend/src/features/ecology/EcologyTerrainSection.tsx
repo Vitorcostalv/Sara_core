@@ -19,7 +19,13 @@ import { Mountains, Sparkle, WarningCircle } from "@phosphor-icons/react";
 import { Button, EmptyState, ErrorState, LoadingBlock } from "../../components/ui";
 import { getApiErrorMessage } from "../../services/api/client";
 import { ecologyApi } from "../../services/api/ecology";
-import type { SpeciesDefinition, TerrainCell, TerrainGrid, TerrainPromptResult } from "../../services/api/ecology";
+import type {
+  EcosystemReport,
+  SpeciesDefinition,
+  TerrainCell,
+  TerrainGrid,
+  TerrainPromptResult,
+} from "../../services/api/ecology";
 import { DayNightCycle, formatSimulatedTime } from "./DayNightCycle";
 import { FaunaLayer } from "./FaunaLayer";
 import { RainSystem } from "./RainSystem";
@@ -1076,6 +1082,15 @@ function TerrainView({
   );
 }
 
+const FAUNA_CATEGORY_LABELS: Record<string, string> = {
+  "herbivore-small": "Herbívoros pequenos",
+  "herbivore-large": "Herbívoros grandes",
+  "predator-medium": "Predadores médios",
+  "predator-large": "Predadores grandes",
+  bird: "Aves",
+  fish: "Peixes",
+};
+
 const INITIAL_FORM = {
   width: "48",
   height: "36",
@@ -1113,6 +1128,7 @@ function EcologyTerrainSection({
   const [aiPrompt, setAiPrompt] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<TerrainPromptResult | null>(null);
+  const [report, setReport] = useState<EcosystemReport | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const simulatedTimeRef = useRef(12);
 
@@ -1133,6 +1149,7 @@ function EcologyTerrainSection({
   async function generate() {
     setIsLoading(true);
     setError(null);
+    setReport(null);
     setFaunaSpecies([]);
     setFaunaLiveCount(0);
     setFaunaError(null);
@@ -1174,11 +1191,14 @@ function EcologyTerrainSection({
     setIsAiLoading(true);
     setAiError(null);
     setAiResult(null);
+    setReport(null);
 
     try {
-      const response = await ecologyApi.promptTerrain({ prompt: effectivePrompt });
+      // Uma única chamada: bioma + terreno + fauna + relatório estruturado.
+      const response = await ecologyApi.ecosystemReport({ prompt: effectivePrompt });
       const result = response.data;
       setAiResult(result);
+      setReport(result.report);
       setForm({
         width: String(result.terrainParams.width),
         height: String(result.terrainParams.height),
@@ -1188,32 +1208,17 @@ function EcologyTerrainSection({
         baseHumidityPct: String(result.terrainParams.baseHumidityPct),
       });
 
-      // Auto-apply the terrain returned by the server
-      setIsLoading(true);
+      // Aplica o terreno e a fauna já resolvidos pelo servidor
       setError(null);
-      setFaunaSpecies([]);
       setFaunaLiveCount(0);
       setFaunaError(null);
       setIsFaunaLoading(false);
       setGrid(result.terrain);
-
-      setIsFaunaLoading(true);
-      try {
-        const faunaResponse = await ecologyApi.fauna({
-          biomes: collectBiomes(result.terrain),
-          grid: buildCompactFaunaGrid(result.terrain),
-        });
-        setFaunaSpecies(faunaResponse.data.species);
-      } catch (faunaRequestError) {
-        setFaunaError(getApiErrorMessage(faunaRequestError));
-      } finally {
-        setIsFaunaLoading(false);
-      }
+      setFaunaSpecies(result.species);
     } catch (requestError) {
       setAiError(getApiErrorMessage(requestError));
     } finally {
       setIsAiLoading(false);
-      setIsLoading(false);
     }
   }
 
@@ -1887,6 +1892,182 @@ function EcologyTerrainSection({
               <span>{grid.simulationNote}</span>
             </div>
           </div>
+        </section>
+      ) : null}
+
+      {report && !isLoading ? (
+        <section className="signal-panel ecosystem-report" data-testid="ecosystem-report-panel">
+          <style>{`
+            .ecosystem-report__grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+              gap: 0.75rem;
+              margin-top: 0.5rem;
+            }
+            .ecosystem-report__card {
+              border: 1px solid rgba(148, 163, 184, 0.25);
+              border-radius: 0.6rem;
+              padding: 0.8rem 0.9rem;
+              background: rgba(148, 163, 184, 0.06);
+            }
+            .ecosystem-report__card h4 {
+              margin: 0 0 0.5rem;
+              font-size: 0.82rem;
+              text-transform: uppercase;
+              letter-spacing: 0.04em;
+              opacity: 0.75;
+            }
+            .ecosystem-report__card ul { margin: 0; padding-left: 1rem; }
+            .ecosystem-report__card li { margin: 0.15rem 0; font-size: 0.9rem; }
+            .ecosystem-report__facts { margin-top: 1rem; }
+            .ecosystem-report__fact {
+              border-left: 3px solid rgba(56, 189, 248, 0.6);
+              padding: 0.2rem 0 0.2rem 0.7rem;
+              margin: 0.5rem 0;
+            }
+            .ecosystem-report__fact strong { display: block; font-size: 0.9rem; }
+            .ecosystem-report__fact span { font-size: 0.85rem; opacity: 0.85; }
+            .ecosystem-report__fact small { opacity: 0.6; }
+            .ecosystem-report__limitations li { margin: 0.2rem 0; font-size: 0.88rem; }
+            .ecosystem-report__tag {
+              display: inline-block;
+              font-size: 0.72rem;
+              padding: 0.1rem 0.5rem;
+              border-radius: 999px;
+              margin-left: 0.5rem;
+            }
+            .ecosystem-report__tag--ok { background: rgba(34, 197, 94, 0.18); }
+            .ecosystem-report__tag--warn { background: rgba(234, 179, 8, 0.18); }
+          `}</style>
+
+          <div className="signal-panel__header">
+            <div>
+              <h3>Relatorio do ecossistema{aiResult ? `: ${aiResult.biomeName}` : ""}</h3>
+              <p>
+                Sintese estruturada do ambiente gerado a partir da descricao textual:
+                clima, relevo, vegetacao, fauna, fatores abioticos e base cientifica.
+              </p>
+            </div>
+          </div>
+
+          <div className="ecosystem-report__grid">
+            <div className="ecosystem-report__card">
+              <h4>Clima</h4>
+              <ul>
+                <li>
+                  Base: {report.climate.baseTemperatureC}°C · {report.climate.basePrecipitationMm} mm/ano ·{" "}
+                  {report.climate.baseHumidityPct}%
+                </li>
+                <li>
+                  Temperatura: {report.climate.temperatureRangeC[0]}–{report.climate.temperatureRangeC[1]} °C
+                </li>
+                <li>
+                  Precipitacao: {report.climate.precipitationRangeMm[0]}–{report.climate.precipitationRangeMm[1]} mm
+                </li>
+                <li>
+                  Umidade: {report.climate.humidityRangePct[0]}–{report.climate.humidityRangePct[1]} %
+                </li>
+                <li>Koppen dominante: {report.climate.dominantClimateCode}</li>
+              </ul>
+            </div>
+
+            <div className="ecosystem-report__card">
+              <h4>Relevo</h4>
+              <ul>
+                <li>Elevacao: {report.relief.elevationMin}–{report.relief.elevationMax} (media {report.relief.elevationMean})</li>
+                <li>Irregularidade: {report.relief.ruggedness}</li>
+                <li>Cobertura de agua: {report.relief.waterCoveragePct}%</li>
+                <li>Grid: {report.relief.width}×{report.relief.height} ({report.relief.cellCount} celulas)</li>
+              </ul>
+            </div>
+
+            <div className="ecosystem-report__card">
+              <h4>Vegetacao</h4>
+              <ul>
+                {report.vegetation.dominantBiomes.map((b) => (
+                  <li key={b.biome}>{b.biome}: {b.pct}%</li>
+                ))}
+              </ul>
+              <p style={{ fontSize: "0.85rem", opacity: 0.85, margin: "0.5rem 0 0" }}>
+                {report.vegetation.description}
+              </p>
+            </div>
+
+            <div className="ecosystem-report__card">
+              <h4>Fauna ({report.fauna.totalSpecies} especies)</h4>
+              <ul>
+                {report.fauna.byCategory.map((c) => (
+                  <li key={c.category}>{FAUNA_CATEGORY_LABELS[c.category] ?? c.category}: {c.count}</li>
+                ))}
+              </ul>
+              <p style={{ fontSize: "0.82rem", opacity: 0.75, margin: "0.5rem 0 0" }}>
+                {report.fauna.species.map((s) => s.commonName).join(", ") || "—"}
+              </p>
+            </div>
+
+            <div className="ecosystem-report__card">
+              <h4>Fatores abioticos</h4>
+              <ul>
+                {report.abioticFactors.map((f) => (
+                  <li key={f.label}>{f.label}: {f.value} {f.unit}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="ecosystem-report__facts">
+            <h4 style={{ margin: "0 0 0.25rem" }}>
+              Explicacao cientifica
+              <span
+                className={`ecosystem-report__tag ${
+                  report.scientificExplanation.coverage === "sufficient"
+                    ? "ecosystem-report__tag--ok"
+                    : "ecosystem-report__tag--warn"
+                }`}
+              >
+                {report.scientificExplanation.coverage === "sufficient"
+                  ? "grounding suficiente"
+                  : "grounding limitado"}
+              </span>
+            </h4>
+            {report.scientificExplanation.facts.length > 0 ? (
+              <>
+                {report.scientificExplanation.facts.map((f, i) => (
+                  <div key={`${f.title}-${i}`} className="ecosystem-report__fact">
+                    <strong>{f.title}</strong>
+                    <span>{f.text}</span>
+                    {f.citationKey ? (
+                      <small>
+                        {" "}
+                        ({f.citationKey}
+                        {f.year ? `, ${f.year}` : ""})
+                      </small>
+                    ) : null}
+                  </div>
+                ))}
+                {report.scientificExplanation.sources.length > 0 ? (
+                  <p style={{ fontSize: "0.8rem", opacity: 0.7, marginTop: "0.5rem" }}>
+                    Fontes: {report.scientificExplanation.sources.join(", ")}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p style={{ fontSize: "0.88rem", opacity: 0.8 }}>
+                Nenhum fato cientifico do banco cobre este bioma.
+              </p>
+            )}
+          </div>
+
+          {report.limitations.length > 0 ? (
+            <div className="ecosystem-report__facts">
+              <h4 style={{ margin: "0 0 0.25rem" }}>Limitacoes</h4>
+              <ul className="ecosystem-report__limitations">
+                {report.limitations.map((l, i) => (
+                  <li key={i}>{l}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
       ) : null}
     </div>

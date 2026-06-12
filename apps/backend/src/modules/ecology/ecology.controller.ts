@@ -3,6 +3,7 @@ import { sendOk, sendPaginated } from "../../core/http/response";
 import { AppError } from "../../core/errors/app-error";
 import { ecologicalLlmService } from "./llm/ecological-llm.service";
 import { ecologicalTerrainPromptService } from "./llm/ecological-terrain-prompt.service";
+import { ecosystemReportService } from "./ecosystem-report.service";
 import { ecologicalGroundingRepository } from "./grounding/ecological-grounding.repository";
 import { ecologicalContextBuilderService } from "./grounding/ecological-context-builder.service";
 import { terrainGeneratorService } from "./simulation/terrain-generator.service";
@@ -21,6 +22,7 @@ import type {
   EcologyInspectInput,
   EcologyFaunaInput,
   EcologyPromptTerrainInput,
+  EcologyEcosystemReportInput,
 } from "./ecology.schemas";
 
 export class EcologyController {
@@ -122,6 +124,18 @@ export class EcologyController {
   async promptTerrain(req: Request, res: Response): Promise<void> {
     const payload = req.body as EcologyPromptTerrainInput;
     const result = await ecologicalTerrainPromptService.generate({
+      prompt: payload.prompt,
+      width: payload.width,
+      height: payload.height,
+      seed: payload.seed,
+    });
+    sendOk(res, result);
+  }
+
+  // POST /ecology/ecosystem-report
+  async ecosystemReport(req: Request, res: Response): Promise<void> {
+    const payload = req.body as EcologyEcosystemReportInput;
+    const result = await ecosystemReportService.generate({
       prompt: payload.prompt,
       width: payload.width,
       height: payload.height,

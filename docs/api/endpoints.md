@@ -64,6 +64,11 @@ Interpreta uma descrição em linguagem natural e gera o terreno do bioma corres
 - Request: `{ "prompt": string, "width"?: number, "height"?: number, "seed"?: number }`
 - Response: `TerrainPromptResult` — `{ biomeName, biomeSlug, interpretation, terrainParams, terrain, source }`. `source` é `"llm" | "keyword" | "default"` (com fallback por palavra-chave quando o provider está desabilitado).
 
+### POST `/ecology/ecosystem-report`
+Pipeline completo: interpreta a descrição, gera o terreno + fauna e devolve um **relatório estruturado** do ecossistema.
+- Request: `{ "prompt": string, "width"?: number, "height"?: number, "seed"?: number }`
+- Response: `TerrainPromptResult` + `{ species, report }`, onde `report` traz `climate`, `relief`, `vegetation`, `fauna`, `abioticFactors`, `scientificExplanation` (grounded, com cobertura e fontes) e `limitations`.
+
 ### POST `/ecology/fauna`
 Resolve a fauna compatível para um conjunto de biomas ou para um grid de terreno.
 - Request: `{ "biomes"?: string[], "grid"?: TerrainGrid }`
