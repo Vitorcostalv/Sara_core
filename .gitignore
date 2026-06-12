@@ -9,7 +9,8 @@ coverage/
 .DS_Store
 .vscode/
 .claude/
-.agents/skills/
+.agents/
+skills-lock.json
 
 # Large binaries — never commit
 *.exe
