@@ -8,11 +8,7 @@
     "build": "tsc -p tsconfig.json && vite build",
     "lint": "eslint src vite.config.ts --ext .ts,.tsx",
     "preview": "vite preview",
-    "preview:e2e": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:e2e": "npm run build && playwright test",
-    "test:e2e:headed": "npm run build && playwright test --headed",
-    "test:e2e:install": "playwright install chromium"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -26,7 +22,6 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@types/three": "^0.184.1",

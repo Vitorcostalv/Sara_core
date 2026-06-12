@@ -2,7 +2,7 @@
   "name": "sara-core",
   "version": "0.1.0",
   "private": true,
-  "description": "Sara Core monorepo foundation for a local/offline personal assistant.",
+  "description": "Sara Core monorepo — generation and simulation of plausible digital ecosystems.",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -15,7 +15,6 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test -w @sara/backend",
-    "test:e2e": "npm run test:e2e -w @sara/frontend",
     "db:check": "npm run db:check -w @sara/backend",
     "db:migrate": "npm run db:migrate -w @sara/backend",
     "db:reset": "npm run db:reset -w @sara/backend",

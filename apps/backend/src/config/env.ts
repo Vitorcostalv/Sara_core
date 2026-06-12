@@ -45,23 +45,10 @@ const EnvSchema = z.object({
   LLM_MODEL: z.string().default(""),
   LLM_BASE_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(45_000),
-  STT_PROVIDER: z.string().default("vosk"),
-  STT_MODEL_PATH: z.string().default(
-    path.resolve(repositoryRoot, "services", "stt", "models", "pt-br")
-  ),
-  STT_AUDIO_MAX_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
-  STT_FFMPEG_PATH: z.string().default("ffmpeg"),
-  STT_PYTHON_PATH: z.string().default("python"),
   API_JSON_MAX_BYTES: z.coerce.number().int().positive().default(256 * 1024),
   AUTH_MODE: z.enum(["disabled", "api-key"]).optional(),
   API_AUTH_KEY: z.string().optional(),
   TRUST_PROXY: z.preprocess(parseTrustProxy, z.union([z.boolean(), z.number().int().nonnegative(), z.string()]).default(false)),
-  VOICE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
-  VOICE_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
-  LLM_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
-  LLM_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
-  TTS_PROVIDER: z.enum(["disabled", "python-gtts"]).default("disabled"),
-  TTS_AUDIO_MAX_CHARS: z.coerce.number().int().positive().default(500),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
@@ -95,11 +82,6 @@ const apiAuthKey = parsed.data.API_AUTH_KEY?.trim() || null;
 if (authMode === "api-key" && !apiAuthKey) {
   throw new Error("API_AUTH_KEY is required when AUTH_MODE=api-key.");
 }
-
-// STT model path
-const resolvedSttModelPath = path.isAbsolute(parsed.data.STT_MODEL_PATH)
-  ? parsed.data.STT_MODEL_PATH
-  : path.resolve(repositoryRoot, parsed.data.STT_MODEL_PATH);
 
 // CORS origins — aceita singular ou plural, normaliza e deduplica
 const DEFAULT_CORS_ORIGINS = "http://localhost:5180,http://127.0.0.1:5180";
@@ -139,22 +121,11 @@ export const env = {
   authMode,
   apiAuthKey,
   trustProxy: parsed.data.TRUST_PROXY,
-  voiceRateLimitWindowMs: parsed.data.VOICE_RATE_LIMIT_WINDOW_MS,
-  voiceRateLimitMax: parsed.data.VOICE_RATE_LIMIT_MAX,
-  llmRateLimitWindowMs: parsed.data.LLM_RATE_LIMIT_WINDOW_MS,
-  llmRateLimitMax: parsed.data.LLM_RATE_LIMIT_MAX,
   llmProvider: parsed.data.LLM_PROVIDER,
   llmApiKey: parsed.data.LLM_API_KEY?.trim() || null,
   llmModel: parsed.data.LLM_MODEL.trim(),
   llmBaseUrl: parsed.data.LLM_BASE_URL?.trim() || null,
   llmTimeoutMs: parsed.data.LLM_TIMEOUT_MS,
-  sttProvider: parsed.data.STT_PROVIDER,
-  sttModelPath: resolvedSttModelPath,
-  sttAudioMaxBytes: parsed.data.STT_AUDIO_MAX_BYTES,
-  sttFfmpegPath: parsed.data.STT_FFMPEG_PATH,
-  sttPythonPath: parsed.data.STT_PYTHON_PATH,
-  ttsProvider: parsed.data.TTS_PROVIDER,
-  ttsAudioMaxChars: parsed.data.TTS_AUDIO_MAX_CHARS,
   logLevel: parsed.data.LOG_LEVEL,
   databaseUrl: databaseUrl as string,
   directDatabaseUrl,

@@ -5,9 +5,10 @@
 Pacote: `@sara/shared-types`
 
 Arquivos base:
-- `src/domain.ts`: entidades de dominio
-- `src/api.ts`: DTOs request/response, paginacao e erro
-- `src/client.ts`: helpers de query params e paginacao
+- `src/api.ts`: envelope genérico de API (item, lista paginada, erro, health)
+- `src/index.ts`: re-exports
+
+Os tipos específicos do domínio ecológico (terreno, fauna, cenário, etc.) ficam em `apps/frontend/src/services/api/ecology.ts`, espelhando as respostas do backend.
 
 ## Error contract
 
@@ -26,8 +27,8 @@ interface ApiErrorResponse {
 ## Authentication contract
 
 - Header opcional nesta fase: `x-sara-api-key: <valor>`
-- Necessario para endpoints de `/api/v1` quando `AUTH_MODE=api-key`
-- `GET /api/v1/health` permanece publico
+- Necessário para endpoints de `/api/v1` quando `AUTH_MODE=api-key`
+- `GET /api/v1/health` permanece público
 
 ## Pagination contract
 
@@ -47,44 +48,22 @@ interface PaginatedResponse<T> {
 }
 ```
 
-## Voice interaction payload
+## Consulta grounded
 
-`POST /api/v1/voice/interactions`
-
-Request:
-- `multipart/form-data`
-- `audio`: arquivo de audio obrigatorio
-- `language`: string opcional (`pt-BR` por padrao)
-
-Response:
-
-```json
-{
-  "transcription": "texto transcrito",
-  "assistantText": "Entendi: texto transcrito",
-  "audioReplyUrl": null,
-  "wakeWordDetected": null
-}
-```
-
-## LLM generation payload
-
-`POST /api/v1/llm/generate`
+`POST /api/v1/ecology/generate`
 
 Request:
 
 ```json
 {
-  "prompt": "Quais sao as principais caracteristicas do manguezal?",
-  "userId": "local-user",
+  "prompt": "Quais são as principais características do manguezal?",
   "ecosystems": ["manguezal"],
   "maxFacts": 12,
-  "includeProfile": true,
   "dryRun": true
 }
 ```
 
-Response:
+Response (`{ "data": EcologicalLlmResult }`):
 
 ```json
 {
@@ -93,47 +72,30 @@ Response:
     "model": "not-configured",
     "answer": null,
     "dryRun": true,
-    "contextPreview": "Grounding policy...\nConcepts...\nEcosystems...",
-    "factsPreview": [
-      {
-        "id": "fact-eco-manguezal-definicao",
-        "key": "definicao",
-        "category": "ecosystem:manguezal",
-        "isImportant": true,
-        "valuePreview": "Manguezal e um ecossistema costeiro..."
-      }
-    ],
-    "ecosystems": [
-      {
-        "slug": "manguezal",
-        "factCount": 1,
-        "facts": [
-          {
-            "id": "fact-eco-manguezal-definicao",
-            "key": "definicao",
-            "category": "ecosystem:manguezal",
-            "isImportant": true,
-            "valuePreview": "Manguezal e um ecossistema costeiro..."
-          }
-        ]
-      }
-    ],
-    "grounding": {
-      "userId": "local-user",
-      "profileIncluded": true,
-      "factCount": 1,
-      "ecosystemsUsed": ["manguezal"],
-      "warnings": []
-    }
+    "queryType": "factual",
+    "contextPreview": "Grounded ecological context...",
+    "factsUsed": 1,
+    "ecosystemsFound": ["manguezal"],
+    "warnings": [],
+    "inspection": null,
+    "groundingCoverage": "sufficient"
   }
 }
 ```
 
-Observacoes:
-- `dryRun=true` nao chama provider externo; serve para auditar a montagem de contexto
-- nesta fase o grounding usa `user_profile` e `facts`
-- `tasks` e `conversation_turns` ficam fora do contexto principal
-- `category = "ecosystem:<slug>"` ficou reservada para ecossistemas ecologicos reais
-- fatos tecnicos do projeto nao entram mais como `ecosystem:*`
-- quando o contexto grounded for insuficiente, a resposta deve ser:
-  `Nao encontrei informacao suficiente no banco para responder com seguranca.`
+Observações:
+- `dryRun=true` não chama provider externo; serve para auditar a montagem de contexto.
+- A resposta usa exclusivamente os fatos do banco (tabelas `grounding_facts`, `ecosystems`, `species`, etc.).
+- Quando o grounding for insuficiente, `groundingCoverage="insufficient"` e `answer` traz a mensagem de insuficiência.
+
+## Texto → terreno
+
+`POST /api/v1/ecology/prompt-terrain`
+
+Request:
+
+```json
+{ "prompt": "um cerrado com relevo irregular e rios", "seed": 42 }
+```
+
+Response (`{ "data": TerrainPromptResult }`): `{ biomeName, biomeSlug, interpretation, terrainParams, terrain, source }`, onde `source` é `"llm" | "keyword" | "default"` (fallback por palavra-chave quando não há provider configurado).

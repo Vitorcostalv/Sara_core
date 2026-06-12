@@ -4,6 +4,7 @@ import {
   CaretDown,
   Flask,
   Leaf,
+  Mountains,
   Sparkle,
   WarningCircle,
 } from "@phosphor-icons/react";
@@ -47,17 +48,6 @@ type GroundingCategory = (typeof GROUNDING_CATEGORIES)[number];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function parseList(value: string): string[] {
-  return Array.from(
-    new Set(
-      value
-        .split(",")
-        .map((s) => s.trim().toLowerCase())
-        .filter((s) => s.length > 0)
-    )
-  );
-}
-
 function toggleItem(current: string[], item: string): string[] {
   return current.includes(item)
     ? current.filter((x) => x !== item)
@@ -81,14 +71,18 @@ const QUERY_TYPE_LABEL: Record<string, string> = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function EcologyQuerySection() {
+interface EcologyQuerySectionProps {
+  /** Dispara a geração de um ecossistema 3D na aba Terreno a partir do prompt atual. */
+  onGenerateEcosystem?: (prompt: string) => void;
+}
+
+export function EcologyQuerySection({ onGenerateEcosystem }: EcologyQuerySectionProps = {}) {
   const [prompt, setPrompt] = useState(
     "Quais são as principais características do cerrado e como ele se diferencia da caatinga em termos de biodiversidade?"
   );
   const [ecosystems, setEcosystems] = useState<string[]>(["cerrado", "caatinga"]);
   const [categories, setCategories] = useState<GroundingCategory[]>([]);
   const [maxFacts, setMaxFacts] = useState("16");
-  const [dryRun, setDryRun] = useState(false);
   const [includeInspection, setIncludeInspection] = useState(false);
 
   const [result, setResult] = useState<EcologicalLlmResult | null>(null);
@@ -124,6 +118,15 @@ export function EcologyQuerySection() {
     }
   };
 
+  const generateEcosystem = () => {
+    if (!prompt.trim()) {
+      setError("Descreva o ecossistema antes de gerar (ex: \"cerrado\").");
+      return;
+    }
+    setError(null);
+    onGenerateEcosystem?.(prompt.trim());
+  };
+
   const coverageTone =
     result?.groundingCoverage === "sufficient" ? "success" : "warning";
 
@@ -135,8 +138,9 @@ export function EcologyQuerySection() {
           <div>
             <h3>Consulta ecológica</h3>
             <p>
-              Faça uma pergunta sobre ecologia ambiental. A resposta é grounded nos
-              dados científicos do banco.
+              Faça uma pergunta sobre ecologia ambiental (resposta grounded nos dados
+              do banco) ou descreva um bioma e use "Gerar ecossistema" para montá-lo em
+              3D na aba Terreno.
             </p>
           </div>
           {result ? (
@@ -239,6 +243,17 @@ export function EcologyQuerySection() {
             <Sparkle weight="duotone" />
             {isLoading && !lastDryRun ? "Gerando..." : "Gerar resposta"}
           </Button>
+          {onGenerateEcosystem ? (
+            <Button
+              variant="primary"
+              onClick={generateEcosystem}
+              disabled={isLoading || !prompt.trim()}
+              data-testid="ecology-generate-ecosystem-btn"
+            >
+              <Mountains weight="duotone" />
+              Gerar ecossistema
+            </Button>
+          ) : null}
         </div>
       </section>
 

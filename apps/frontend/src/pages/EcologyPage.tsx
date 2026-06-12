@@ -48,6 +48,13 @@ const TABS: TabDef[] = [
 
 export function EcologyPage() {
   const [activeTab, setActiveTab] = useState<EcologyTab>("consulta");
+  // Prompt encaminhado da Consulta para a aba Terreno gerar o ecossistema em 3D.
+  const [terrainPromptRequest, setTerrainPromptRequest] = useState<string | null>(null);
+
+  const handleGenerateEcosystem = (prompt: string) => {
+    setTerrainPromptRequest(prompt);
+    setActiveTab("terreno");
+  };
 
   return (
     <div className="page-stack">
@@ -75,9 +82,16 @@ export function EcologyPage() {
       </nav>
 
       {/* Tab content — unmount inactive tabs to keep state clean */}
-      {activeTab === "consulta" && <EcologyQuerySection />}
+      {activeTab === "consulta" && (
+        <EcologyQuerySection onGenerateEcosystem={handleGenerateEcosystem} />
+      )}
       {activeTab === "catalogo" && <EcologyCatalogSection />}
-      {activeTab === "terreno" && <EcologyTerrainSection />}
+      {activeTab === "terreno" && (
+        <EcologyTerrainSection
+          initialPrompt={terrainPromptRequest}
+          onInitialPromptConsumed={() => setTerrainPromptRequest(null)}
+        />
+      )}
       {activeTab === "cenario" && <EcologyScenarioSection />}
     </div>
   );

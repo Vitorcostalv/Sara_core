@@ -1085,7 +1085,17 @@ const INITIAL_FORM = {
   baseHumidityPct: "65",
 } satisfies TerrainForm;
 
-function EcologyTerrainSection() {
+interface EcologyTerrainSectionProps {
+  /** Prompt vindo de outra aba (ex: chat da Consulta) para gerar um ecossistema ao montar. */
+  initialPrompt?: string | null;
+  /** Chamado após o prompt inicial ser consumido, para o pai limpar o estado compartilhado. */
+  onInitialPromptConsumed?: () => void;
+}
+
+function EcologyTerrainSection({
+  initialPrompt,
+  onInitialPromptConsumed,
+}: EcologyTerrainSectionProps = {}) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [grid, setGrid] = useState<TerrainGrid | null>(null);
   const [faunaSpecies, setFaunaSpecies] = useState<SpeciesDefinition[]>([]);
@@ -1158,14 +1168,15 @@ function EcologyTerrainSection() {
     }
   }
 
-  async function promptAndGenerate() {
-    if (!aiPrompt.trim()) return;
+  async function promptAndGenerate(overridePrompt?: string) {
+    const effectivePrompt = (overridePrompt ?? aiPrompt).trim();
+    if (!effectivePrompt) return;
     setIsAiLoading(true);
     setAiError(null);
     setAiResult(null);
 
     try {
-      const response = await ecologyApi.promptTerrain({ prompt: aiPrompt.trim() });
+      const response = await ecologyApi.promptTerrain({ prompt: effectivePrompt });
       const result = response.data;
       setAiResult(result);
       setForm({
@@ -1205,6 +1216,18 @@ function EcologyTerrainSection() {
       setIsLoading(false);
     }
   }
+
+  // Gera automaticamente quando um prompt chega de outra aba (ex: chat da Consulta).
+  // O ref evita disparo duplicado para o mesmo prompt (StrictMode / re-render).
+  const consumedPromptRef = useRef<string | null>(null);
+  useEffect(() => {
+    const incoming = initialPrompt?.trim();
+    if (!incoming || consumedPromptRef.current === incoming) return;
+    consumedPromptRef.current = incoming;
+    setAiPrompt(incoming);
+    void promptAndGenerate(incoming);
+    onInitialPromptConsumed?.();
+  }, [initialPrompt]);
 
   useEffect(() => {
     const syncDisplayTime = () => {
