@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import type { SpeciesDefinition, TerrainCell, TerrainGrid } from "../../services/api/ecology";
 import { AnimalEntity, type AgentState, type FaunaAgent, type AnimalKind } from "./AnimalEntity";
+import { DeathPuffLayer, type DeathPuffController } from "./DeathPuffLayer";
 import { FAUNA_MODELS, CATEGORY_TO_MODELS } from "./faunaModels";
 
 // Preload all models at module load time to avoid pop-in
@@ -15,7 +16,6 @@ const LAND_MIN_HEIGHT = 0.72;
 const HEIGHT_SCALE = 6.9;
 const WATER_LEVEL_Y = WATER_HEIGHT + 0.06;
 const WATER_SWIM_Y = WATER_LEVEL_Y - 0.15;
-const DEATH_DURATION_SECONDS = 1.5;
 const RESPAWN_INTERVAL_SECONDS = 5;
 const RESPAWN_THRESHOLD = 0.6;
 const SEPARATION_WEIGHT = 1.5;
@@ -66,6 +66,7 @@ interface FaunaSpeciesLayerProps {
   registryRef: React.MutableRefObject<Map<string, FaunaAgent[]>>;
   allSpeciesMap: Map<string, SpeciesDefinition>;
   onCountChange: (speciesId: string, count: number) => void;
+  emitPuff: (x: number, y: number, z: number) => void;
 }
 
 function hashUnit(x: number, z: number, seed: number) {
@@ -289,6 +290,7 @@ function FaunaSpeciesLayer({
   registryRef,
   allSpeciesMap,
   onCountChange,
+  emitPuff,
 }: FaunaSpeciesLayerProps) {
   const initialAgents = useMemo(() => spawnAgents(species, terrain, grid.seed), [grid.seed, species, terrain]);
   const agentsRef = useRef<FaunaAgent[]>(initialAgents);
@@ -322,23 +324,16 @@ function FaunaSpeciesLayer({
     const isHunter = species.preySpeciesIds.length > 0;
     let liveCount = 0;
 
+    // Death: hide the model immediately and emit a black smoke puff in its place.
+    const killAgent = (victim: FaunaAgent) => {
+      emitPuff(victim.position.x, victim.position.y, victim.position.z);
+      victim.active = false;
+      victim.state = "dying";
+      victim.scale = 0.0001;
+    };
+
     for (const agent of agents) {
       agent.timer += dt;
-
-      if (agent.state === "dying") {
-        agent.deathTimer += dt;
-        agent.scale = Math.max(0, 1 - agent.deathTimer / DEATH_DURATION_SECONDS);
-        agent.position.y = Math.max(0.04, agent.position.y - dt * 0.12);
-
-        if (agent.deathTimer >= DEATH_DURATION_SECONDS) {
-          agent.active = false;
-          agent.scale = 0.0001;
-        } else {
-          liveCount += 1;
-        }
-
-        continue;
-      }
 
       if (!agent.active) continue;
       liveCount += 1;
@@ -347,8 +342,8 @@ function FaunaSpeciesLayer({
       if (isHunter) {
         agent.hunger = Math.min(HUNGER_MAX, agent.hunger + dt * HUNGER_RATE);
         if (agent.hunger >= STARVATION_THRESHOLD) {
-          agent.state = "dying";
-          agent.deathTimer = 0;
+          killAgent(agent);
+          liveCount -= 1;
           continue;
         }
       }
@@ -434,8 +429,7 @@ function FaunaSpeciesLayer({
             if (distance < (isPredator(species.category) ? 0.95 : 0.7)) {
               otherAgent.health -= dt * 0.72;
               if (otherAgent.health <= 0) {
-                otherAgent.state = "dying";
-                otherAgent.deathTimer = 0;
+                killAgent(otherAgent);
                 agent.hunger = 0; // a successful kill sates the hunter
               } else {
                 otherAgent.state = "fleeing";
@@ -584,7 +578,13 @@ export function FaunaLayer({
   const terrain = useMemo(() => buildTerrainContext(grid), [grid]);
   const registryRef = useRef<Map<string, FaunaAgent[]>>(new Map());
   const countsRef = useRef<Map<string, number>>(new Map());
+  const puffControllerRef = useRef<DeathPuffController | null>(null);
   const speciesMap = useMemo(() => new Map(species.map((entry) => [entry.id, entry])), [species]);
+
+  const emitPuff = useMemo(
+    () => (x: number, y: number, z: number) => puffControllerRef.current?.emit(x, y, z),
+    [],
+  );
 
   useEffect(() => {
     countsRef.current.clear();
@@ -612,8 +612,10 @@ export function FaunaLayer({
           registryRef={registryRef}
           allSpeciesMap={speciesMap}
           onCountChange={handleCountChange}
+          emitPuff={emitPuff}
         />
       ))}
+      <DeathPuffLayer controllerRef={puffControllerRef} visible={visible} />
     </group>
   );
 }
