@@ -28,6 +28,8 @@ export interface TerrainGrid {
   simulationNote: string;
 }
 
+export type ReliefStyle = "default" | "ocean" | "mountain" | "polar";
+
 export interface TerrainInput {
   width: number;
   height: number;
@@ -35,6 +37,13 @@ export interface TerrainInput {
   baseTemperatureC: number;
   basePrecipitationMm: number;
   baseHumidityPct: number;
+  /**
+   * Shapes the macro relief. "default" preserves the original generation byte-for-byte;
+   * the other styles enrich the terrain with oceans, mountain ridges or polar ice.
+   */
+  reliefStyle?: ReliefStyle;
+  /** Elevation threshold below which a cell is water. Defaults to 0.25 (original behaviour). */
+  seaLevel?: number;
 }
 
 // ─── Hash-based value noise (pure TS, deterministic) ─────────────────────────
@@ -85,6 +94,7 @@ function octaveNoise(x: number, y: number, seed: number, octaves = 4): number {
 
 function toKoppenCode(tempC: number, precipMm: number, humidity: number): string {
   if (tempC < -3) {
+    if (tempC < -25) return "EF"; // ice cap (calota polar / Antártida)
     if (precipMm < 300) return "ET";
     return "Dfc";
   }
@@ -114,11 +124,46 @@ function toBiomeSuggestion(tempC: number, precipMm: number, elevation: number): 
   return "pradaria-estepe";
 }
 
+// Water classification. The "default"/"mountain" path is identical to the original
+// inline logic; ocean/polar styles surface dedicated marine biomes.
+function classifyWaterBiome(style: ReliefStyle, tempC: number, precipMm: number): string {
+  if (style === "polar") return "oceano-polar";
+  if (style === "ocean") return tempC < 1 ? "oceano-polar" : "oceano-pelagico";
+  return precipMm > 1500 ? "oceano-pelagico" : "lago";
+}
+
+// Land classification. The "default" path defers fully to toBiomeSuggestion (no behaviour
+// change); the enriched styles add mountains and polar ice on top of the climate heuristic.
+function classifyLandBiome(
+  style: ReliefStyle,
+  tempC: number,
+  precipMm: number,
+  elevation: number
+): string {
+  if (style === "mountain") {
+    if (elevation > 0.78) return tempC < 1 ? "montanha-nevada" : "montanha";
+    return toBiomeSuggestion(tempC, precipMm, elevation);
+  }
+  if (style === "polar") {
+    if (elevation > 0.8) return "montanha-nevada";
+    if (tempC < -12) return "antartida";
+    return toBiomeSuggestion(tempC, precipMm, elevation);
+  }
+  return toBiomeSuggestion(tempC, precipMm, elevation);
+}
+
+// Ridged noise (sharp crests) for mountain chains: folds the smooth noise around its midpoint.
+function ridgedNoise(x: number, y: number, seed: number): number {
+  return 1 - Math.abs(octaveNoise(x, y, seed) * 2 - 1);
+}
+
 // ─── Generator ────────────────────────────────────────────────────────────────
 
 export class TerrainGeneratorService {
   generate(input: TerrainInput): TerrainGrid {
     const { width, height, seed, baseTemperatureC, basePrecipitationMm, baseHumidityPct } = input;
+    const style: ReliefStyle = input.reliefStyle ?? "default";
+    const seaLevel = input.seaLevel ?? 0.25;
     const LAPSE_RATE = 6.5; // °C per km (simplified)
     const cells: TerrainCell[][] = [];
 
@@ -128,7 +173,17 @@ export class TerrainGeneratorService {
         const nx = col / width;
         const ny = row / height;
 
-        const elevation = octaveNoise(nx * 3, ny * 3, seed);
+        let elevation = octaveNoise(nx * 3, ny * 3, seed);
+        if (style === "mountain") {
+          // Fold in a ridged layer so the relief grows sharp peaks instead of rolling hills.
+          const ridge = ridgedNoise(nx * 3.2 + 19, ny * 3.2 + 23, seed + 808);
+          elevation = Math.min(1, elevation * 0.4 + ridge * 0.7);
+        } else if (style === "ocean") {
+          // A low-frequency basin layer carves contiguous water with scattered islands.
+          const basin = octaveNoise(nx * 1.2 + 5, ny * 1.2 + 9, seed + 404, 2);
+          elevation = Math.min(1, elevation * 0.72 + basin * 0.2);
+        }
+
         const humidityNoise = octaveNoise(nx * 2 + 11, ny * 2 + 7, seed + 500, 3);
         const precipNoise = octaveNoise(nx * 2.5 + 3, ny * 2.5 + 13, seed + 300, 3);
 
@@ -144,13 +199,13 @@ export class TerrainGeneratorService {
         );
 
         // Water if elevation below threshold
-        const isWater = elevation < 0.25;
-        const salinityPsu = isWater ? lerp(0, 35, 1 - elevation / 0.25) : 0;
+        const isWater = elevation < seaLevel;
+        const salinityPsu = isWater ? lerp(0, 35, 1 - elevation / seaLevel) : 0;
 
         const climateCode = toKoppenCode(temperatureC, precipitationMmYear, humidityPct);
         const biomeSuggestion = isWater
-          ? precipitationMmYear > 1500 ? "oceano-pelagico" : "lago"
-          : toBiomeSuggestion(temperatureC, precipitationMmYear, elevation);
+          ? classifyWaterBiome(style, temperatureC, precipitationMmYear)
+          : classifyLandBiome(style, temperatureC, precipitationMmYear, elevation);
 
         rowCells.push({
           x: col,

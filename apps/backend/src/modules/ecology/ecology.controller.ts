@@ -154,6 +154,8 @@ export class EcologyController {
       baseTemperatureC: payload.baseTemperatureC,
       basePrecipitationMm: payload.basePrecipitationMm,
       baseHumidityPct: payload.baseHumidityPct,
+      reliefStyle: payload.reliefStyle,
+      seaLevel: payload.seaLevel,
     });
     sendOk(res, grid);
   }

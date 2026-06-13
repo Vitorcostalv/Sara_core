@@ -1,9 +1,15 @@
+import type { ReliefStyle } from "./terrain-generator.service";
+
 export interface BiomePreset {
   displayName: string;
   baseTemperatureC: number;
   basePrecipitationMm: number;
   baseHumidityPct: number;
   keywords: string[];
+  /** Macro relief shaping passed to the terrain generator. Omitted → "default". */
+  reliefStyle?: ReliefStyle;
+  /** Water threshold override (e.g. high for ocean-dominant worlds). */
+  seaLevel?: number;
 }
 
 // Maps biome slugs → climate parameters that produce that biome in the terrain generator.
@@ -109,6 +115,63 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     basePrecipitationMm: 550,
     baseHumidityPct: 52,
     keywords: ["mediterrâneo", "mediterraneo", "mediterranean", "chaparral", "maquis"],
+  },
+  oceano: {
+    displayName: "Oceano",
+    baseTemperatureC: 19,
+    basePrecipitationMm: 1600,
+    baseHumidityPct: 85,
+    reliefStyle: "ocean",
+    seaLevel: 0.5,
+    keywords: [
+      "oceano", "ocean", "mar aberto", "alto mar", "arquipélago", "arquipelago",
+      "archipelago", "ilha", "ilhas", "island", "marinho", "marítimo", "maritimo",
+    ],
+  },
+  montanha: {
+    displayName: "Montanha",
+    baseTemperatureC: 9,
+    basePrecipitationMm: 950,
+    baseHumidityPct: 58,
+    reliefStyle: "mountain",
+    keywords: [
+      "montanha", "montanhas", "mountain", "cordilheira", "serra", "serrania",
+      "andes", "alpes", "alps", "pico", "picos", "highlands", "planalto elevado",
+    ],
+  },
+  "montanha-nevada": {
+    displayName: "Montanha Nevada",
+    baseTemperatureC: -2,
+    basePrecipitationMm: 720,
+    baseHumidityPct: 62,
+    reliefStyle: "mountain",
+    keywords: [
+      "montanha nevada", "montanhas nevadas", "snowy mountain", "pico nevado",
+      "alpino", "alpine", "geleira de montanha", "neve eterna", "nival",
+    ],
+  },
+  antartida: {
+    displayName: "Antártida",
+    baseTemperatureC: -28,
+    basePrecipitationMm: 200,
+    baseHumidityPct: 70,
+    reliefStyle: "polar",
+    seaLevel: 0.3,
+    keywords: [
+      "antártida", "antartida", "antarctica", "antártica", "antartica",
+      "banquisa", "calota polar", "calota de gelo", "polo sul", "polo norte",
+      "ártico", "artico", "geleira", "icebergue", "iceberg", "manto de gelo",
+    ],
+  },
+  "deserto-frio": {
+    displayName: "Deserto Frio",
+    baseTemperatureC: 12,
+    basePrecipitationMm: 150,
+    baseHumidityPct: 25,
+    keywords: [
+      "deserto frio", "deserto gelado", "cold desert", "gobi", "estepe fria",
+      "deserto temperado", "patagônia", "patagonia",
+    ],
   },
 };
 

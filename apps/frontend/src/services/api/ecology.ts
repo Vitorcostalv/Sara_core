@@ -87,6 +87,8 @@ export interface DomainCoverageStats {
 
 // ─── Prompt terrain result ────────────────────────────────────────────────────
 
+export type ReliefStyle = "default" | "ocean" | "mountain" | "polar";
+
 export interface TerrainPromptResult {
   biomeName: string;
   biomeSlug: string;
@@ -98,6 +100,8 @@ export interface TerrainPromptResult {
     width: number;
     height: number;
     seed: number;
+    reliefStyle?: ReliefStyle;
+    seaLevel?: number;
   };
   terrain: TerrainGrid;
   source: "llm" | "keyword" | "default";
@@ -466,6 +470,8 @@ export const ecologyApi = {
     baseTemperatureC?: number;
     basePrecipitationMm?: number;
     baseHumidityPct?: number;
+    reliefStyle?: ReliefStyle;
+    seaLevel?: number;
   }) =>
     ecologyRequest<ApiSingle<TerrainGrid>>("/ecology/simulate/terrain", {
       method: "POST",

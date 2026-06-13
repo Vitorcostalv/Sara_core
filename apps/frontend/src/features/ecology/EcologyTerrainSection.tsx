@@ -21,6 +21,7 @@ import { getApiErrorMessage } from "../../services/api/client";
 import { ecologyApi } from "../../services/api/ecology";
 import type {
   EcosystemReport,
+  ReliefStyle,
   SpeciesDefinition,
   TerrainCell,
   TerrainGrid,
@@ -45,9 +46,13 @@ const BIOME_COLORS: Record<string, number> = {
   "deserto-frio": 0x9aa4ad,
   "pradaria-estepe": 0x9eb563,
   "oceano-pelagico": 0x4e93bf,
+  "oceano-polar": 0x6f9fc4,
   lago: 0x6cb6d7,
   "recife-de-coral": 0xdb9b7b,
   chaparral: 0x9d7a4d,
+  montanha: 0x8b8579,
+  "montanha-nevada": 0xdde8ee,
+  antartida: 0xe6eef2,
 };
 
 const BIOME_LABELS: Record<string, string> = {
@@ -65,9 +70,13 @@ const BIOME_LABELS: Record<string, string> = {
   "deserto-frio": "deserto frio",
   "pradaria-estepe": "pradaria estepe",
   "oceano-pelagico": "oceano",
+  "oceano-polar": "oceano polar",
   lago: "lago",
   "recife-de-coral": "recife de coral",
   chaparral: "chaparral",
+  montanha: "montanha",
+  "montanha-nevada": "montanha nevada",
+  antartida: "antartida",
 };
 
 const CELL_SIZE = 1;
@@ -356,9 +365,14 @@ function buildSceneData(grid: TerrainGrid): SceneData {
         cell.biomeSuggestion === "chaparral";
       const desertBiome =
         cell.biomeSuggestion === "deserto-quente" || cell.biomeSuggestion === "caatinga";
+      const iceBiome =
+        cell.biomeSuggestion === "antartida" ||
+        cell.biomeSuggestion === "montanha-nevada";
       const mountainBiome =
         cell.biomeSuggestion === "tundra" ||
         cell.biomeSuggestion === "deserto-frio" ||
+        cell.biomeSuggestion === "montanha" ||
+        iceBiome ||
         cell.elevation > 0.84;
 
       if (cell.biomeSuggestion === "taiga") {
@@ -486,20 +500,28 @@ function buildSceneData(grid: TerrainGrid): SceneData {
         }
       }
 
-      if (mountainBiome && hashUnit(cell.x, cell.y, grid.seed + 181) < 0.42) {
+      // Ice biomes get denser, taller white-blue formations; rocky biomes keep sparse stones.
+      const rockChance = iceBiome ? 0.62 : 0.42;
+      if (mountainBiome && hashUnit(cell.x, cell.y, grid.seed + 181) < rockChance) {
         const count = hashUnit(cell.x, cell.y, grid.seed + 191) < 0.24 ? 2 : 1;
 
         for (let slot = 0; slot < count; slot += 1) {
           const placement = scatter(cell, grid.seed + 197, slot);
+          const formationSize = (iceBiome ? 0.22 : 0.18) * placement.scale;
+          const rockColor = iceBiome
+            ? variedFoliageColor(0xd6e6f0, cell, grid.seed + 251 + slot)
+            : cell.biomeSuggestion === "tundra"
+            ? 0xaeb8bc
+            : 0x8f867d;
           rocks.push({
             x: x + placement.x,
-            y: height + 0.16 * placement.scale,
+            y: height + formationSize * 0.9,
             z: z + placement.z,
-            sx: 0.18 * placement.scale,
-            sy: 0.18 * placement.scale,
-            sz: 0.18 * placement.scale,
+            sx: formationSize,
+            sy: formationSize,
+            sz: formationSize,
             ry: placement.rotation,
-            color: cell.biomeSuggestion === "tundra" ? 0xaeb8bc : 0x8f867d,
+            color: rockColor,
           });
         }
       }
@@ -1139,6 +1161,11 @@ function EcologyTerrainSection({
   const [aiResult, setAiResult] = useState<TerrainPromptResult | null>(null);
   const [report, setReport] = useState<EcosystemReport | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  // Macro relief shaping (oceano/montanha/polar) preservado entre regenerações manuais.
+  const [terrainShape, setTerrainShape] = useState<{
+    reliefStyle?: ReliefStyle;
+    seaLevel?: number;
+  }>({});
   const simulatedTimeRef = useRef(12);
 
   function field(key: keyof TerrainForm) {
@@ -1172,6 +1199,8 @@ function EcologyTerrainSection({
         baseTemperatureC: numberOr(form.baseTemperatureC, 18),
         basePrecipitationMm: numberOr(form.basePrecipitationMm, 1200),
         baseHumidityPct: numberOr(form.baseHumidityPct, 60),
+        reliefStyle: terrainShape.reliefStyle,
+        seaLevel: terrainShape.seaLevel,
       });
       setGrid(response.data);
 
@@ -1215,6 +1244,10 @@ function EcologyTerrainSection({
         baseTemperatureC: String(result.terrainParams.baseTemperatureC),
         basePrecipitationMm: String(result.terrainParams.basePrecipitationMm),
         baseHumidityPct: String(result.terrainParams.baseHumidityPct),
+      });
+      setTerrainShape({
+        reliefStyle: result.terrainParams.reliefStyle,
+        seaLevel: result.terrainParams.seaLevel,
       });
 
       // Aplica o terreno e a fauna já resolvidos pelo servidor

@@ -3,7 +3,7 @@ import { logger } from "../../../logging/logger";
 import { createLlmProvider } from "../../llm/llm.provider";
 import { biomePresetService } from "../simulation/biome-preset.service";
 import { terrainGeneratorService } from "../simulation/terrain-generator.service";
-import type { TerrainGrid } from "../simulation/terrain-generator.service";
+import type { ReliefStyle, TerrainGrid } from "../simulation/terrain-generator.service";
 
 const terrainPromptLogger = logger.child({ module: "ecological-terrain-prompt" });
 
@@ -25,6 +25,8 @@ export interface TerrainPromptResult {
     width: number;
     height: number;
     seed: number;
+    reliefStyle?: ReliefStyle;
+    seaLevel?: number;
   };
   terrain: TerrainGrid;
   source: "llm" | "keyword" | "default";
@@ -44,7 +46,8 @@ Return ONLY a raw JSON object (no markdown, no code blocks), with this exact sha
 
 Available biome slugs (pick the closest match):
 cerrado, pantanal, amazonia, caatinga, mata-atlantica, pampa, mangue,
-deserto, tundra, taiga, floresta-temperada, pradaria, floresta-tropical, mediterraneo
+deserto, tundra, taiga, floresta-temperada, pradaria, floresta-tropical, mediterraneo,
+oceano, montanha, montanha-nevada, antartida, deserto-frio
 
 Rules:
 - biomeSlug must be one of the slugs listed above
@@ -54,6 +57,15 @@ Rules:
 
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, "");
+}
+
+// Deterministic seed derived from the prompt: same description → same terrain (no Math.random).
+function seedFromPrompt(text: string): number {
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (Math.imul(hash, 31) + text.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash) % 99999;
 }
 
 function tryParseLlmJson(text: string): LlmBiomeExtraction | null {
@@ -85,7 +97,7 @@ export class EcologicalTerrainPromptService {
   async generate(input: TerrainPromptInput): Promise<TerrainPromptResult> {
     const width = input.width ?? 48;
     const height = input.height ?? 36;
-    const seed = input.seed ?? Math.floor(Math.random() * 99999);
+    const seed = input.seed ?? seedFromPrompt(input.prompt);
 
     let source: TerrainPromptResult["source"] = "default";
     let biomeName = "Ecossistema Genérico";
@@ -94,6 +106,8 @@ export class EcologicalTerrainPromptService {
     let baseTemperatureC = 22;
     let basePrecipitationMm = 1400;
     let baseHumidityPct = 65;
+    let reliefStyle: ReliefStyle | undefined;
+    let seaLevel: number | undefined;
 
     // 1. Try LLM extraction
     const provider = createLlmProvider(env.llmProvider);
@@ -119,6 +133,8 @@ export class EcologicalTerrainPromptService {
             baseTemperatureC = preset.baseTemperatureC;
             basePrecipitationMm = preset.basePrecipitationMm;
             baseHumidityPct = preset.baseHumidityPct;
+            reliefStyle = preset.reliefStyle;
+            seaLevel = preset.seaLevel;
             terrainPromptLogger.info({ biomeSlug, source: "llm" }, "Biome extracted via LLM");
           }
         }
@@ -138,6 +154,8 @@ export class EcologicalTerrainPromptService {
         baseTemperatureC = match.preset.baseTemperatureC;
         basePrecipitationMm = match.preset.basePrecipitationMm;
         baseHumidityPct = match.preset.baseHumidityPct;
+        reliefStyle = match.preset.reliefStyle;
+        seaLevel = match.preset.seaLevel;
         terrainPromptLogger.info({ biomeSlug, source: "keyword" }, "Biome matched via keyword");
       } else {
         terrainPromptLogger.info({ prompt: input.prompt }, "No biome matched, using defaults");
@@ -152,6 +170,8 @@ export class EcologicalTerrainPromptService {
       width,
       height,
       seed,
+      reliefStyle,
+      seaLevel,
     };
 
     const terrain = terrainGeneratorService.generate(terrainParams);
