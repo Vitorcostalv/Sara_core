@@ -109,6 +109,15 @@ export const ecologyEcosystemReportSchema = z.object({
   seed: z.coerce.number().int().optional(),
 });
 
+// POST /ecology/invasive
+export const ecologyInvasiveSchema = z.object({
+  speciesText: z.string().trim().min(1).max(200),
+  locationText: z.string().trim().min(1).max(200),
+  width: z.coerce.number().int().min(4).max(64).default(48),
+  height: z.coerce.number().int().min(4).max(64).default(36),
+  seed: z.coerce.number().int().optional(),
+});
+
 // GET /ecology/inspect (dry-run context inspection)
 export const ecologyInspectSchema = z.object({
   ecosystems: z.array(ecosystemSlugSchema).max(8).default([]),
@@ -161,4 +170,5 @@ export type EcologyArtificialEnvInput = z.infer<typeof ecologyArtificialEnvSchem
 export type EcologyInspectInput = z.infer<typeof ecologyInspectSchema>;
 export type EcologyPromptTerrainInput = z.infer<typeof ecologyPromptTerrainSchema>;
 export type EcologyEcosystemReportInput = z.infer<typeof ecologyEcosystemReportSchema>;
+export type EcologyInvasiveInput = z.infer<typeof ecologyInvasiveSchema>;
 export type EcologyFaunaInput = z.infer<typeof ecologyFaunaSchema>;

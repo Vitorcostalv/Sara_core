@@ -15,6 +15,7 @@ import {
   ecologyFaunaSchema,
   ecologyPromptTerrainSchema,
   ecologyEcosystemReportSchema,
+  ecologyInvasiveSchema,
 } from "./ecology.schemas";
 
 export const ecologyRoutes = Router();
@@ -94,6 +95,12 @@ ecologyRoutes.post(
   "/ecosystem-report",
   validateBody(ecologyEcosystemReportSchema),
   asyncHandler(ecologyController.ecosystemReport.bind(ecologyController))
+);
+
+ecologyRoutes.post(
+  "/invasive",
+  validateBody(ecologyInvasiveSchema),
+  asyncHandler(ecologyController.invasive.bind(ecologyController))
 );
 
 // ─── Fauna ────────────────────────────────────────────────────────────────────
