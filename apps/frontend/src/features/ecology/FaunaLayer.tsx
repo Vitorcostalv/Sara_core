@@ -562,6 +562,7 @@ function FaunaSpeciesLayer({
               agent={agent}
               model={model}
               kind={kind}
+              category={species.category}
               speedMultiplier={speedMultiplier}
             />
           </Suspense>
