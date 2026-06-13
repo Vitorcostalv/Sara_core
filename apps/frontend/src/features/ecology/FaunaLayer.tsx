@@ -25,6 +25,11 @@ const FLEE_WEIGHT = 3.0;
 const HUNT_WEIGHT = 2.2;
 const HOME_WEIGHT = 1.6;
 const WANDER_WEIGHT = 0.45;
+// Hunger drives the trophic chain: predators grow hungrier, hunt harder, and starve if they
+// never feed. Tuned slow so the balance reads over tens of seconds, not instantly.
+const HUNGER_RATE = 0.018; // per simulated second
+const STARVATION_THRESHOLD = 1; // hunger ≥ 1 → death by starvation
+const HUNGER_MAX = 1.4;
 
 interface TerrainPoint {
   cell: TerrainCell;
@@ -237,6 +242,8 @@ function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: 
       scale: 1,
       homeRadius: 2.6 + hashUnit(slot * 89, speciesSeed & 524287, seed + 173) * 2.4,
       flapOffset: hashUnit(slot * 97, speciesSeed & 1048575, seed + 191) * Math.PI * 2,
+      // Stagger initial hunger deterministically so predators don't all starve in lockstep.
+      hunger: hashUnit(slot * 103, speciesSeed & 2097151, seed + 211) * 0.4,
     });
   }
 
@@ -260,6 +267,7 @@ function resetAgent(agent: FaunaAgent, species: SpeciesDefinition, terrain: Terr
   agent.deathTimer = 0;
   agent.active = true;
   agent.scale = 1;
+  agent.hunger = 0;
 }
 
 function selectModel(speciesId: string, slot: number, category: SpeciesDefinition["category"]) {
@@ -311,6 +319,7 @@ function FaunaSpeciesLayer({
 
     const dt = Math.min(delta, 0.05) * speedMultiplier;
     const agents = agentsRef.current;
+    const isHunter = species.preySpeciesIds.length > 0;
     let liveCount = 0;
 
     for (const agent of agents) {
@@ -333,6 +342,16 @@ function FaunaSpeciesLayer({
 
       if (!agent.active) continue;
       liveCount += 1;
+
+      // Hunting species grow hungrier each frame; if they never feed, they starve.
+      if (isHunter) {
+        agent.hunger = Math.min(HUNGER_MAX, agent.hunger + dt * HUNGER_RATE);
+        if (agent.hunger >= STARVATION_THRESHOLD) {
+          agent.state = "dying";
+          agent.deathTimer = 0;
+          continue;
+        }
+      }
 
       const steering = new THREE.Vector3();
       const separation = new THREE.Vector3();
@@ -383,6 +402,9 @@ function FaunaSpeciesLayer({
         }
       }
 
+      // Hungrier hunters chase more aggressively (the chain self-balances without hardcoding).
+      const huntWeight = HUNT_WEIGHT * (0.6 + agent.hunger);
+
       for (const [otherSpeciesId, otherAgents] of registryRef.current.entries()) {
         if (otherSpeciesId === species.id) continue;
         const otherSpecies = allSpeciesMap.get(otherSpeciesId);
@@ -406,7 +428,7 @@ function FaunaSpeciesLayer({
 
           if (currentSpeciesCanHunt && distance < 6 && distance < nearestHuntDistance) {
             nearestHuntDistance = distance;
-            steering.addScaledVector(offset.normalize(), HUNT_WEIGHT);
+            steering.addScaledVector(offset.normalize(), huntWeight);
             state = "hunting";
 
             if (distance < (isPredator(species.category) ? 0.95 : 0.7)) {
@@ -414,6 +436,7 @@ function FaunaSpeciesLayer({
               if (otherAgent.health <= 0) {
                 otherAgent.state = "dying";
                 otherAgent.deathTimer = 0;
+                agent.hunger = 0; // a successful kill sates the hunter
               } else {
                 otherAgent.state = "fleeing";
               }

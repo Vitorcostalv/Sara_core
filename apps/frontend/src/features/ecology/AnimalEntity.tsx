@@ -21,6 +21,8 @@ export interface FaunaAgent {
   scale: number;
   homeRadius: number;
   flapOffset: number;
+  /** Rises over time for hunting species; capture resets it, overflow → starvation. */
+  hunger: number;
 }
 
 export type AnimalKind = "ground" | "bird" | "fish";

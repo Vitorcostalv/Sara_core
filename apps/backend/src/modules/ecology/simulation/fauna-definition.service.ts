@@ -8,6 +8,8 @@ export type FaunaCategory =
   | "bird"
   | "fish";
 
+export type TrophicLevel = "producer" | "herbivore" | "mesopredator" | "apex";
+
 export interface MovementProfile {
   maxSpeed: number;
   turnRate: number;
@@ -26,7 +28,11 @@ export interface SpeciesDefinition {
   scientificName: string;
   category: FaunaCategory;
   habitableBiomes: string[];
+  /** Generalised diet: ids of species this one consumes (drives the trophic chain). */
+  diet: string[];
+  /** Alias of `diet`, kept for the boids simulation and existing consumers. */
   preySpeciesIds: string[];
+  trophicLevel: TrophicLevel;
   populationTarget: number;
   movementProfile: MovementProfile;
   flockProfile: FlockProfile;
@@ -36,9 +42,13 @@ export interface FaunaResult {
   species: SpeciesDefinition[];
 }
 
+// The raw catalog omits the derived fields (trophicLevel/diet); they are filled by
+// normalizeCatalog() so each entry only declares its prey once via preySpeciesIds.
+type RawSpecies = Omit<SpeciesDefinition, "trophicLevel" | "diet">;
+
 // ─── Static species catalog ───────────────────────────────────────────────────
 
-const SPECIES_CATALOG: SpeciesDefinition[] = [
+const RAW_CATALOG: RawSpecies[] = [
   // ── Herbívoros grandes ──────────────────────────────────────────────────────
   {
     id: "capivara",
@@ -328,7 +338,8 @@ const SPECIES_CATALOG: SpeciesDefinition[] = [
       "savana-tropical",
       "floresta-tropical-seca",
     ],
-    preySpeciesIds: ["capivara", "anta", "paca", "veado-mateiro"],
+    // Apex: também predа o mesopredador gato-do-mato, fechando a cadeia trófica.
+    preySpeciesIds: ["capivara", "anta", "paca", "veado-mateiro", "gato-do-mato"],
     populationTarget: 3,
     movementProfile: { maxSpeed: 3.5, turnRate: 2.0, fleeMultiplier: 1.2 },
     flockProfile: { formsFlocks: false, flockRadius: 6.0, separationDistance: 3.0 },
@@ -379,7 +390,8 @@ const SPECIES_CATALOG: SpeciesDefinition[] = [
     scientificName: "Canis lupus",
     category: "predator-large",
     habitableBiomes: ["tundra", "taiga", "pradaria-estepe"],
-    preySpeciesIds: ["alce", "rena", "lemingue"],
+    // Apex boreal: caça herbívoros e também o mesopredador lince-boreal.
+    preySpeciesIds: ["alce", "rena", "lemingue", "lince-boreal"],
     populationTarget: 3,
     movementProfile: { maxSpeed: 4.0, turnRate: 2.0, fleeMultiplier: 1.2 },
     flockProfile: { formsFlocks: true, flockRadius: 6.0, separationDistance: 1.5 },
@@ -407,6 +419,21 @@ const SPECIES_CATALOG: SpeciesDefinition[] = [
     flockProfile: { formsFlocks: true, flockRadius: 4.0, separationDistance: 0.8 },
   },
 ];
+
+// ─── Normalisation ──────────────────────────────────────────────────────────
+
+function trophicLevelFor(category: FaunaCategory): TrophicLevel {
+  if (category === "predator-large") return "apex";
+  if (category === "predator-medium") return "mesopredator";
+  return "herbivore"; // herbívoros, aves e peixes do catálogo entram como consumidores primários
+}
+
+// Derives diet (= preySpeciesIds) and trophicLevel so each raw entry declares prey only once.
+const SPECIES_CATALOG: SpeciesDefinition[] = RAW_CATALOG.map((raw) => ({
+  ...raw,
+  diet: [...raw.preySpeciesIds],
+  trophicLevel: trophicLevelFor(raw.category),
+}));
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -440,13 +467,13 @@ export class FaunaDefinitionService {
       (s) => s.preySpeciesIds.length === 0 || s.preySpeciesIds.some((pid) => pass1Ids.has(pid))
     );
 
-    // Strip prey references that didn't survive (prey filtered by biome)
+    // Strip prey references that didn't survive (prey filtered by biome); keep diet in sync.
     const finalIds = new Set(filtered.map((s) => s.id));
-    filtered = filtered.map((s) =>
-      s.preySpeciesIds.length === 0
-        ? s
-        : { ...s, preySpeciesIds: s.preySpeciesIds.filter((pid) => finalIds.has(pid)) }
-    );
+    filtered = filtered.map((s) => {
+      if (s.preySpeciesIds.length === 0) return s;
+      const prunedPrey = s.preySpeciesIds.filter((pid) => finalIds.has(pid));
+      return { ...s, preySpeciesIds: prunedPrey, diet: [...prunedPrey] };
+    });
 
     // Scale populations proportionally if total exceeds the cap
     const totalPop = filtered.reduce((sum, s) => sum + s.populationTarget, 0);

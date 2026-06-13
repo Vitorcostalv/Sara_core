@@ -332,13 +332,17 @@ export type FaunaCategory =
   | "bird"
   | "fish";
 
+export type TrophicLevel = "producer" | "herbivore" | "mesopredator" | "apex";
+
 export interface SpeciesDefinition {
   id: string;
   commonName: string;
   scientificName: string;
   category: FaunaCategory;
   habitableBiomes: string[];
+  diet: string[];
   preySpeciesIds: string[];
+  trophicLevel: TrophicLevel;
   populationTarget: number;
   movementProfile: {
     maxSpeed: number;
