@@ -194,6 +194,41 @@ export interface EcosystemReportResult extends TerrainPromptResult {
   report: EcosystemReport;
 }
 
+// ─── Invasive species scenario ─────────────────────────────────────────────────
+
+export type InvasionEffect = "predation" | "competition" | "none";
+
+export interface NativeImpact {
+  speciesId: string;
+  commonName: string;
+  effect: InvasionEffect;
+  populationDelta: number;
+}
+
+export interface InvasionPhase {
+  label: string;
+  tSeconds: number;
+  invaderPop: number;
+  nativeDeltas: Record<string, number>;
+}
+
+export interface InvasiveScenarioResult {
+  terrain: TerrainGrid;
+  resolvedBiomes: string[];
+  invader: SpeciesDefinition;
+  invaderProfile: {
+    displayName: string;
+    scientificName: string;
+    nativeBiomes: string[];
+    survives: boolean;
+  };
+  nativeImpacts: NativeImpact[];
+  phases: InvasionPhase[];
+  plausibility: PlausibilityAssessment;
+  explanation: ScientificExplanation & { text: string };
+  limitations: string[];
+}
+
 // ─── Ecology LLM result ───────────────────────────────────────────────────────
 
 export interface EcologicalLlmResult {
@@ -532,6 +567,18 @@ export const ecologyApi = {
 
   ecosystemReport: (payload: { prompt: string; width?: number; height?: number; seed?: number }) =>
     ecologyRequest<ApiSingle<EcosystemReportResult>>("/ecology/ecosystem-report", {
+      method: "POST",
+      body: payload,
+    }),
+
+  invasive: (payload: {
+    speciesText: string;
+    locationText: string;
+    width?: number;
+    height?: number;
+    seed?: number;
+  }) =>
+    ecologyRequest<ApiSingle<InvasiveScenarioResult>>("/ecology/invasive", {
       method: "POST",
       body: payload,
     }),

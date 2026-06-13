@@ -1012,7 +1012,7 @@ class CanvasErrorBoundary extends React.Component<
   }
 }
 
-function TerrainView({
+export function TerrainView({
   grid,
   faunaSpecies,
   faunaPaused,
