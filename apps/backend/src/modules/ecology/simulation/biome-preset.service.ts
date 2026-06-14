@@ -6,6 +6,8 @@ export interface BiomePreset {
   basePrecipitationMm: number;
   baseHumidityPct: number;
   keywords: string[];
+  /** One-line description shown to the LLM so it disambiguates between similar biomes. */
+  description?: string;
   /** Macro relief shaping passed to the terrain generator. Omitted → "default". */
   reliefStyle?: ReliefStyle;
   /** Water threshold override (e.g. high for ocean-dominant worlds). */
@@ -72,14 +74,16 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     baseTemperatureC: 33,
     basePrecipitationMm: 90,
     baseHumidityPct: 12,
-    keywords: ["deserto", "desert", "árido", "arid", "sahara", "árida", "semi-deserto"],
+    description: "deserto quente e árido, dunas, muito calor; NÃO use para regiões frias ou polares",
+    keywords: ["deserto", "desert", "árido", "arid", "sahara", "árida", "semi-deserto", "duna", "dunas"],
   },
   tundra: {
     displayName: "Tundra",
     baseTemperatureC: -7,
     basePrecipitationMm: 240,
     baseHumidityPct: 54,
-    keywords: ["tundra", "ártico", "arctic", "permafrost", "polar", "gelado"],
+    description: "planície fria sem árvores, permafrost; NÃO use para montanhas nem para a Antártida/oceano gelado",
+    keywords: ["tundra", "permafrost", "campo ártico", "campo artico"],
   },
   taiga: {
     displayName: "Taiga",
@@ -123,6 +127,7 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     baseHumidityPct: 85,
     reliefStyle: "ocean",
     seaLevel: 0.5,
+    description: "mar aberto dominante com ilhas/arquipélagos; use sempre que o local for predominantemente água",
     keywords: [
       "oceano", "ocean", "mar aberto", "alto mar", "arquipélago", "arquipelago",
       "archipelago", "ilha", "ilhas", "island", "marinho", "marítimo", "maritimo",
@@ -134,6 +139,7 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     basePrecipitationMm: 950,
     baseHumidityPct: 58,
     reliefStyle: "mountain",
+    description: "relevo montanhoso de altitude SEM neve permanente (use montanha-nevada se houver picos nevados/neve)",
     keywords: [
       "montanha", "montanhas", "mountain", "cordilheira", "serra", "serrania",
       "andes", "alpes", "alps", "pico", "picos", "highlands", "planalto elevado",
@@ -145,9 +151,12 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     basePrecipitationMm: 720,
     baseHumidityPct: 62,
     reliefStyle: "mountain",
+    description: "alta montanha com picos nevados / neve / geleiras de altitude; temperatura negativa",
+    // Frases compostas (mais longas que as de "montanha") garantem precedência quando há neve.
     keywords: [
-      "montanha nevada", "montanhas nevadas", "snowy mountain", "pico nevado",
-      "alpino", "alpine", "geleira de montanha", "neve eterna", "nival",
+      "montanha nevada", "montanhas nevadas", "picos nevados", "pico nevado",
+      "picos com neve", "cordilheira nevada", "cume nevado", "alta montanha",
+      "snowy mountain", "alpino", "alpine", "geleira de montanha", "neve eterna", "nival",
     ],
   },
   antartida: {
@@ -157,10 +166,13 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     baseHumidityPct: 70,
     reliefStyle: "polar",
     seaLevel: 0.3,
+    description: "calota/costa polar, banquisa e mar gelado; temperatura fortemente negativa",
     keywords: [
       "antártida", "antartida", "antarctica", "antártica", "antartica",
       "banquisa", "calota polar", "calota de gelo", "polo sul", "polo norte",
-      "ártico", "artico", "geleira", "icebergue", "iceberg", "manto de gelo",
+      "ártico", "artico", "arctic", "polar", "região polar", "regiao polar",
+      "mar gelado", "mar congelado", "gelo marinho", "geleira", "icebergue",
+      "iceberg", "manto de gelo",
     ],
   },
   "deserto-frio": {
@@ -168,6 +180,7 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     baseTemperatureC: 12,
     basePrecipitationMm: 150,
     baseHumidityPct: 25,
+    description: "deserto/estepe fria e seca (ex.: Gobi, Patagônia); seco mas não polar",
     keywords: [
       "deserto frio", "deserto gelado", "cold desert", "gobi", "estepe fria",
       "deserto temperado", "patagônia", "patagonia",

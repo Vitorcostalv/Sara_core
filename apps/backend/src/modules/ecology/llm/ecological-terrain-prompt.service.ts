@@ -38,22 +38,62 @@ interface LlmBiomeExtraction {
   interpretation: string;
 }
 
-const SYSTEM_PROMPT = `You are an ecosystem classifier for a 3D terrain generator.
-Given a user description (in any language), identify which biome they want to generate.
+// Classification (independente de width/height/seed) — derivada do bioma canônico.
+interface BiomeClassification {
+  source: TerrainPromptResult["source"];
+  biomeSlug: string;
+  biomeName: string;
+  interpretation: string;
+  baseTemperatureC: number;
+  basePrecipitationMm: number;
+  baseHumidityPct: number;
+  reliefStyle?: ReliefStyle;
+  seaLevel?: number;
+}
+
+// Vocabulário FECHADO + descrições, construídos a partir dos presets (fonte única da verdade).
+// O LLM só pode escolher um slug desta lista; o clima nunca é inventado por ele.
+function buildSystemPrompt(): string {
+  const catalog = biomePresetService
+    .listAll()
+    .map((p) => `- ${p.slug}${p.description ? ` — ${p.description}` : ""}`)
+    .join("\n");
+
+  return `You are an ecosystem classifier for a 3D terrain generator.
+Given a user description (in any language), pick the single closest biome from the closed list below.
 
 Return ONLY a raw JSON object (no markdown, no code blocks), with this exact shape:
 {"biomeSlug":"<slug>","displayName":"<name>","interpretation":"<one sentence in the same language as the user>"}
 
-Available biome slugs (pick the closest match):
-cerrado, pantanal, amazonia, caatinga, mata-atlantica, pampa, mangue,
-deserto, tundra, taiga, floresta-temperada, pradaria, floresta-tropical, mediterraneo,
-oceano, montanha, montanha-nevada, antartida, deserto-frio
+Choose biomeSlug EXACTLY from this list (do NOT invent slugs, do NOT use any other vocabulary):
+${catalog}
 
 Rules:
-- biomeSlug must be one of the slugs listed above
-- displayName is the human-readable name (in the user's language)
-- interpretation is a single sentence describing your interpretation (in the user's language)
-- Never include anything outside the JSON object`;
+- biomeSlug MUST be exactly one of the slugs above.
+- Prefer the most specific match: snowy peaks → montanha-nevada (never tundra/montanha); polar coast or sea ice → antartida; open sea or archipelago → oceano.
+- displayName is the human-readable name in the user's language.
+- interpretation is a single sentence in the user's language.
+- Never include anything outside the JSON object.`;
+}
+
+const SYSTEM_PROMPT = buildSystemPrompt();
+
+// Cache por prompt normalizado: mesmo texto → mesma classificação, sem re-bater no LLM
+// (reduz consumo de quota e reforça o determinismo). Não depende de width/height/seed.
+const classificationCache = new Map<string, BiomeClassification>();
+const MAX_CACHE_ENTRIES = 200;
+
+function normalizePrompt(text: string): string {
+  return text.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function cacheClassification(key: string, value: BiomeClassification): void {
+  if (classificationCache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = classificationCache.keys().next().value;
+    if (oldest !== undefined) classificationCache.delete(oldest);
+  }
+  classificationCache.set(key, value);
+}
 
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, "");
@@ -120,23 +160,73 @@ export class EcologicalTerrainPromptService {
     const height = input.height ?? 36;
     const seed = input.seed ?? seedFromPrompt(input.prompt);
 
-    let source: TerrainPromptResult["source"] = "default";
-    let biomeName = "Ecossistema Genérico";
-    let biomeSlug = "floresta-tropical";
-    let interpretation = "Ecossistema genérico com parâmetros padrão.";
-    let baseTemperatureC = 22;
-    let basePrecipitationMm = 1400;
-    let baseHumidityPct = 65;
-    let reliefStyle: ReliefStyle | undefined;
-    let seaLevel: number | undefined;
+    const classification = await this.classify(input.prompt);
 
-    // 1. Try LLM extraction
+    // Defesa: temperatura sempre plausível para a classe de bioma antes de chegar ao gerador.
+    const baseTemperatureC = clampTemperatureForBiome(
+      classification.baseTemperatureC,
+      classification.reliefStyle,
+      classification.biomeSlug
+    );
+
+    const terrainParams = {
+      baseTemperatureC,
+      basePrecipitationMm: classification.basePrecipitationMm,
+      baseHumidityPct: classification.baseHumidityPct,
+      width,
+      height,
+      seed,
+      reliefStyle: classification.reliefStyle,
+      seaLevel: classification.seaLevel,
+    };
+
+    const terrain = terrainGeneratorService.generate(terrainParams);
+
+    return {
+      biomeName: classification.biomeName,
+      biomeSlug: classification.biomeSlug,
+      interpretation: classification.interpretation,
+      terrainParams,
+      terrain,
+      source: classification.source,
+    };
+  }
+
+  /**
+   * Classifica o bioma a partir do texto. Constrangido ao enum canônico (presets): o LLM só
+   * escolhe um slug e o clima/relevo vêm SEMPRE da definição canônica — nunca inventados.
+   * Caminho: cache → LLM (slug validado contra o enum) → keyword (mesmo enum) → default coerente.
+   */
+  private async classify(prompt: string): Promise<BiomeClassification> {
+    const cacheKey = normalizePrompt(prompt);
+    const cached = classificationCache.get(cacheKey);
+    if (cached) return cached;
+
+    const fromPreset = (
+      source: BiomeClassification["source"],
+      slug: string,
+      biomeName: string,
+      interpretation: string,
+      preset: { baseTemperatureC: number; basePrecipitationMm: number; baseHumidityPct: number; reliefStyle?: ReliefStyle; seaLevel?: number }
+    ): BiomeClassification => ({
+      source,
+      biomeSlug: slug,
+      biomeName,
+      interpretation,
+      baseTemperatureC: preset.baseTemperatureC,
+      basePrecipitationMm: preset.basePrecipitationMm,
+      baseHumidityPct: preset.baseHumidityPct,
+      reliefStyle: preset.reliefStyle,
+      seaLevel: preset.seaLevel,
+    });
+
+    // 1. LLM constrangido ao enum (slug rejeitado se não houver preset correspondente).
     const provider = createLlmProvider(env.llmProvider);
     if (provider && env.llmApiKey) {
       try {
         const generation = await provider.generateText({
           systemPrompt: SYSTEM_PROMPT,
-          userPrompt: input.prompt,
+          userPrompt: prompt,
           model: env.llmModel || provider.defaultModel,
           apiKey: env.llmApiKey,
           baseUrl: normalizeBaseUrl(env.llmBaseUrl ?? provider.defaultBaseUrl),
@@ -147,65 +237,55 @@ export class EcologicalTerrainPromptService {
         if (parsed) {
           const preset = biomePresetService.findBySlug(parsed.biomeSlug);
           if (preset) {
-            source = "llm";
-            biomeSlug = parsed.biomeSlug;
-            biomeName = parsed.displayName;
-            interpretation = parsed.interpretation;
-            baseTemperatureC = preset.baseTemperatureC;
-            basePrecipitationMm = preset.basePrecipitationMm;
-            baseHumidityPct = preset.baseHumidityPct;
-            reliefStyle = preset.reliefStyle;
-            seaLevel = preset.seaLevel;
-            terrainPromptLogger.info({ biomeSlug, source: "llm" }, "Biome extracted via LLM");
+            terrainPromptLogger.info({ biomeSlug: parsed.biomeSlug, source: "llm" }, "Biome extracted via LLM");
+            const result = fromPreset("llm", parsed.biomeSlug, parsed.displayName, parsed.interpretation, preset);
+            cacheClassification(cacheKey, result);
+            return result;
           }
+          terrainPromptLogger.warn({ biomeSlug: parsed.biomeSlug }, "LLM returned an unknown biome slug — rejected, falling back to keyword");
         }
       } catch (err) {
         terrainPromptLogger.warn({ err }, "LLM biome extraction failed, falling back to keyword match");
       }
     }
 
-    // 2. Fall back to keyword matching if LLM didn't work
-    if (source === "default") {
-      const match = biomePresetService.findByKeyword(input.prompt);
-      if (match) {
-        source = "keyword";
-        biomeSlug = match.slug;
-        biomeName = match.preset.displayName;
-        interpretation = `Ecossistema identificado como "${match.preset.displayName}" por correspondência de palavras-chave.`;
-        baseTemperatureC = match.preset.baseTemperatureC;
-        basePrecipitationMm = match.preset.basePrecipitationMm;
-        baseHumidityPct = match.preset.baseHumidityPct;
-        reliefStyle = match.preset.reliefStyle;
-        seaLevel = match.preset.seaLevel;
-        terrainPromptLogger.info({ biomeSlug, source: "keyword" }, "Biome matched via keyword");
-      } else {
-        terrainPromptLogger.info({ prompt: input.prompt }, "No biome matched, using defaults");
-      }
+    // 2. Keyword no MESMO enum canônico.
+    const match = biomePresetService.findByKeyword(prompt);
+    if (match) {
+      terrainPromptLogger.info({ biomeSlug: match.slug, source: "keyword" }, "Biome matched via keyword");
+      const result = fromPreset(
+        "keyword",
+        match.slug,
+        match.preset.displayName,
+        `Ecossistema identificado como "${match.preset.displayName}" por correspondência de palavras-chave.`,
+        match.preset
+      );
+      cacheClassification(cacheKey, result);
+      return result;
     }
 
-    // 3. Generate terrain with resolved params
-    baseTemperatureC = clampTemperatureForBiome(baseTemperatureC, reliefStyle, biomeSlug);
-    const terrainParams = {
-      baseTemperatureC,
-      basePrecipitationMm,
-      baseHumidityPct,
-      width,
-      height,
-      seed,
-      reliefStyle,
-      seaLevel,
-    };
-
-    const terrain = terrainGeneratorService.generate(terrainParams);
-
-    return {
-      biomeName,
-      biomeSlug,
-      interpretation,
-      terrainParams,
-      terrain,
-      source,
-    };
+    // 3. Default coerente (floresta tropical genérica), nunca uma "salada".
+    terrainPromptLogger.info({ prompt }, "No biome matched, using coherent default (floresta-tropical)");
+    const fallbackPreset = biomePresetService.findBySlug("floresta-tropical");
+    const result: BiomeClassification = fallbackPreset
+      ? fromPreset(
+          "default",
+          "floresta-tropical",
+          "Ecossistema Genérico",
+          "Ecossistema genérico com parâmetros padrão.",
+          fallbackPreset
+        )
+      : {
+          source: "default",
+          biomeSlug: "floresta-tropical",
+          biomeName: "Ecossistema Genérico",
+          interpretation: "Ecossistema genérico com parâmetros padrão.",
+          baseTemperatureC: 22,
+          basePrecipitationMm: 1400,
+          baseHumidityPct: 65,
+        };
+    cacheClassification(cacheKey, result);
+    return result;
   }
 }
 

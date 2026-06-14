@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { terrainGeneratorService } from "./simulation/terrain-generator.service";
+import type { TerrainCell, TerrainGrid } from "./simulation/terrain-generator.service";
 import { faunaDefinitionService } from "./simulation/fauna-definition.service";
+import { biomePresetService } from "./simulation/biome-preset.service";
 import { biomeMappingService } from "./simulation/biome-mapping.service";
 import { successionSimulatorService } from "./simulation/succession-simulator.service";
 import { scenarioEngineService } from "./simulation/scenario-engine.service";
@@ -432,4 +434,76 @@ test("Terrain: default style is unchanged (no regression)", () => {
     a.cells.flat().map((c) => c.biomeSuggestion),
     b.cells.flat().map((c) => c.biomeSuggestion),
   );
+});
+
+// ─── Classifier keyword path (FIX 2): runs when the LLM is unavailable/quota'd ──
+// This is the guard the live bug needed: assert the canonical slug WITHOUT the LLM.
+
+test("Classifier(keyword): the 4 headline prompts resolve to the new canonical enum", () => {
+  const cases: Array<[string, string, string | undefined]> = [
+    ["Costa antártica com banquisa e mar gelado", "antartida", "polar"],
+    ["Cadeia de montanhas altas com picos nevados e vales", "montanha-nevada", "mountain"],
+    ["Oceano aberto com um arquipélago de ilhas tropicais", "oceano", "ocean"],
+    ["Floresta amazônica densa com rios", "amazonia", undefined],
+  ];
+  for (const [prompt, slug, relief] of cases) {
+    const match = biomePresetService.findByKeyword(prompt);
+    assert.ok(match, `no keyword match for "${prompt}"`);
+    assert.equal(match!.slug, slug, `"${prompt}" → expected ${slug}, got ${match!.slug}`);
+    assert.equal(match!.preset.reliefStyle, relief);
+  }
+});
+
+test("Classifier(keyword): polar/snowy prompts never fall back to deserto/tundra", () => {
+  for (const prompt of ["antártida", "banquisa polar", "mar gelado", "picos nevados", "cordilheira nevada"]) {
+    const match = biomePresetService.findByKeyword(prompt);
+    assert.ok(match);
+    assert.ok(["antartida", "montanha-nevada"].includes(match!.slug), `"${prompt}" → ${match!.slug}`);
+    assert.ok(match!.preset.baseTemperatureC < 0, `"${prompt}" should be cold`);
+  }
+});
+
+// ─── Fauna coherence (FIX 2 / Correção 5): no off-biome species from stray cells ──
+
+function makeCell(biome: string, isWater: boolean, x: number, y: number): TerrainCell {
+  return {
+    x, y, elevation: 0.5, temperatureC: 20, humidityPct: 60,
+    precipitationMmYear: 1200, salinityPsu: isWater ? 30 : 0,
+    climateCode: "Af", biomeSuggestion: biome, isWater,
+  };
+}
+
+function gridOf(dominant: string, strays: string[] = []): TerrainGrid {
+  const width = 10, height = 10;
+  const cells: TerrainCell[][] = [];
+  let placed = 0;
+  for (let y = 0; y < height; y += 1) {
+    const row: TerrainCell[] = [];
+    for (let x = 0; x < width; x += 1) {
+      const biome = placed < strays.length ? strays[placed]! : dominant;
+      const isWater = biome === "oceano-polar" || biome === "oceano-pelagico" || biome === "lago";
+      row.push(makeCell(biome, isWater, x, y));
+      placed += 1;
+    }
+    cells.push(row);
+  }
+  return { width, height, seed: 1, baseTemperatureC: 24, basePrecipitationMm: 1200, cells, simulationNote: "test" };
+}
+
+test("Fauna: a single stray deserto-frio cell does not inject montane apex into a tropical forest", () => {
+  const grid = gridOf("floresta-tropical-umida", ["deserto-frio"]); // 1 stray of 100 cells (1%)
+  const { species } = faunaDefinitionService.resolve(grid);
+  assert.ok(species.length > 0);
+  assert.ok(!species.some((s) => s.id === "puma-andino"), "puma-andino leaked from a 1% stray cell");
+  assert.ok(!species.some((s) => s.id === "lhama"), "lhama leaked from a 1% stray cell");
+});
+
+test("Fauna: pure antarctic grid resolves only polar marine species (no bear/pig)", () => {
+  const grid = gridOf("antartida", Array(20).fill("oceano-polar")); // 80% antartida + 20% polar sea
+  const { species } = faunaDefinitionService.resolve(grid);
+  assert.ok(species.length >= 3);
+  const ids = new Set(species.map((s) => s.id));
+  for (const offBiome of ["capivara", "anta", "onca-pintada", "lobo-cinzento", "lemingue"]) {
+    assert.ok(!ids.has(offBiome), `${offBiome} should not appear in Antarctica`);
+  }
 });

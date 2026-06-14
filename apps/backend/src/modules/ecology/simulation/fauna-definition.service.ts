@@ -578,14 +578,29 @@ const MAX_TOTAL_POPULATION = 30;
 
 export class FaunaDefinitionService {
   resolve(grid: TerrainGrid): FaunaResult {
-    const presentBiomes = new Set<string>();
+    // Conta as células por bioma e descarta biomas residuais (poucas células espalhadas) antes de
+    // resolver a fauna — assim uma célula isolada de outro bioma não injeta espécies fora de faixa
+    // (ex.: um puma andino numa floresta tropical por causa de 1 célula de deserto-frio).
+    const counts = new Map<string, number>();
+    let total = 0;
     for (const row of grid.cells) {
       for (const cell of row) {
-        presentBiomes.add(cell.biomeSuggestion);
+        total += 1;
+        counts.set(cell.biomeSuggestion, (counts.get(cell.biomeSuggestion) ?? 0) + 1);
       }
     }
 
-    return this.resolveBiomes(Array.from(presentBiomes));
+    const threshold = Math.max(1, Math.floor(total * 0.05)); // ≥5% das células para "contar"
+    let meaningful = Array.from(counts.entries())
+      .filter(([, c]) => c >= threshold)
+      .map(([biome]) => biome);
+    if (meaningful.length === 0) {
+      // Grid muito fragmentado: cai para o bioma dominante.
+      const dominant = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0];
+      meaningful = dominant ? [dominant[0]] : Array.from(counts.keys());
+    }
+
+    return this.resolveBiomes(meaningful);
   }
 
   resolveBiomes(biomes: string[]): FaunaResult {

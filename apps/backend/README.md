@@ -45,6 +45,10 @@ O módulo `ecology` concentra o produto:
 
 A interpretação por IA usa Gemini ou Grok (`LLM_PROVIDER` + `LLM_API_KEY`). Sem provider configurado, a geração de terreno cai num **fallback determinístico por palavra-chave**, e a consulta grounded só responde em `dryRun`/insuficiência.
 
+O classificador de bioma é **constrangido a um vocabulário fechado** (os slugs dos presets em `biome-preset.service.ts`): o LLM só escolhe um slug — clima e relevo vêm sempre da definição canônica, nunca inventados. A classificação é **cacheada por prompt normalizado**, então o mesmo texto não re-consome quota.
+
+> **Quota do Gemini:** o free tier do `gemini-2.5-flash` é ~20 req/min — fácil de estourar (HTTP 429) em demos. O provider faz **retry com backoff** (respeitando `Retry-After`) e, se ainda assim falhar, a geração **degrada graciosamente** para o caminho palavra-chave + canônico (que resolve os biomas corretamente, incluindo `antartida`/`montanha-nevada`/`oceano`). Para evitar 429 sob carga, use uma chave de tier pago ou troque o `LLM_PROVIDER` para `grok`.
+
 ## Banco
 
 Fluxo de rebootstrap (local/dev):
