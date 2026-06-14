@@ -59,6 +59,27 @@ function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
+// Defesa: garante que a temperatura base seja plausível para a classe de bioma classificada.
+// Os presets já são corretos; este guard impede que qualquer valor absurdo (ex.: +33 °C para
+// um bioma polar) chegue ao gerador, qualquer que seja a origem da classificação.
+function clampTemperatureForBiome(
+  tempC: number,
+  reliefStyle: ReliefStyle | undefined,
+  biomeSlug: string
+): number {
+  const isPolar = reliefStyle === "polar" || biomeSlug === "antartida";
+  const isSnowyMountain = reliefStyle === "mountain" && biomeSlug === "montanha-nevada";
+  if (isPolar && tempC > -5) {
+    terrainPromptLogger.warn({ tempC, biomeSlug }, "Temperatura implausível para bioma polar — corrigida");
+    return -22;
+  }
+  if (isSnowyMountain && tempC > 0) {
+    terrainPromptLogger.warn({ tempC, biomeSlug }, "Temperatura implausível para montanha nevada — corrigida");
+    return -8;
+  }
+  return tempC;
+}
+
 // Deterministic seed derived from the prompt: same description → same terrain (no Math.random).
 function seedFromPrompt(text: string): number {
   let hash = 0;
@@ -163,6 +184,7 @@ export class EcologicalTerrainPromptService {
     }
 
     // 3. Generate terrain with resolved params
+    baseTemperatureC = clampTemperatureForBiome(baseTemperatureC, reliefStyle, biomeSlug);
     const terrainParams = {
       baseTemperatureC,
       basePrecipitationMm,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { terrainGeneratorService } from "./simulation/terrain-generator.service";
+import { faunaDefinitionService } from "./simulation/fauna-definition.service";
 import { biomeMappingService } from "./simulation/biome-mapping.service";
 import { successionSimulatorService } from "./simulation/succession-simulator.service";
 import { scenarioEngineService } from "./simulation/scenario-engine.service";
@@ -338,4 +339,97 @@ test("Simulation: coral restoration project has suitable components", () => {
   });
   const result = artificialEnvironmentService.generate(project, "local");
   assert.ok(result.designComponents.some((c) => c.name.toLowerCase().includes("coral") || c.name.toLowerCase().includes("viveiro")));
+});
+
+// ─── Fauna contract: biome codes ↔ catalog, with trophic chains in new biomes ──
+
+function trophicLevels(biomes: string[]): Set<string> {
+  const { species } = faunaDefinitionService.resolveBiomes(biomes);
+  return new Set(species.map((s) => s.trophicLevel));
+}
+
+test("Fauna: polar biomes resolve a full marine chain (herbivore + meso + apex)", () => {
+  const { species } = faunaDefinitionService.resolveBiomes(["antartida", "oceano-polar"]);
+  assert.ok(species.length >= 3, `expected >=3 polar species, got ${species.length}`);
+  const levels = new Set(species.map((s) => s.trophicLevel));
+  assert.ok(levels.has("herbivore"), "missing herbivore (krill/peixe)");
+  assert.ok(levels.has("mesopredator"), "missing mesopredator (pinguim/foca)");
+  assert.ok(levels.has("apex"), "missing apex (orca)");
+  // Orca preys on a mesopredator → cadeia de 3 níveis co-presente.
+  const orca = species.find((s) => s.id === "orca");
+  assert.ok(orca && orca.diet.some((id) => id === "pinguim" || id === "foca"));
+});
+
+test("Fauna: mountain biomes resolve a montane chain (herbivore + meso + apex)", () => {
+  const { species } = faunaDefinitionService.resolveBiomes(["montanha-nevada", "montanha", "tundra"]);
+  assert.ok(species.length >= 3, `expected >=3 montane species, got ${species.length}`);
+  const levels = new Set(species.map((s) => s.trophicLevel));
+  assert.ok(levels.has("herbivore"));
+  assert.ok(levels.has("mesopredator"));
+  assert.ok(levels.has("apex"));
+});
+
+test("Fauna: tropical forest stays richly populated (regression)", () => {
+  const { species } = faunaDefinitionService.resolveBiomes([
+    "floresta-tropical-umida",
+    "mata-atlantica",
+    "savana-tropical",
+  ]);
+  assert.ok(species.length >= 3);
+  const levels = new Set(species.map((s) => s.trophicLevel));
+  assert.ok(levels.has("herbivore") && levels.has("apex"));
+});
+
+test("Fauna: no level set is empty for the four headline biome groups", () => {
+  assert.ok(trophicLevels(["antartida", "oceano-polar"]).size > 0);
+  assert.ok(trophicLevels(["montanha-nevada", "tundra"]).size > 0);
+  assert.ok(trophicLevels(["oceano-pelagico"]).size > 0);
+  assert.ok(trophicLevels(["floresta-tropical-umida"]).size > 0);
+});
+
+// ─── Terrain styles (Fase 1) keep producing the right biomes/temperature ──────
+
+test("Terrain: polar style yields antartida/oceano-polar and stays cold", () => {
+  const grid = terrainGeneratorService.generate({
+    width: 16, height: 12, seed: 7,
+    baseTemperatureC: -28, basePrecipitationMm: 200, baseHumidityPct: 70,
+    reliefStyle: "polar", seaLevel: 0.3,
+  });
+  const biomes = new Set(grid.cells.flat().map((c) => c.biomeSuggestion));
+  assert.ok(biomes.has("antartida") || biomes.has("oceano-polar"));
+  assert.ok(grid.cells.flat().every((c) => c.temperatureC < 0));
+});
+
+test("Terrain: ocean style is water-dominant with islands", () => {
+  const grid = terrainGeneratorService.generate({
+    width: 24, height: 18, seed: 7,
+    baseTemperatureC: 19, basePrecipitationMm: 1600, baseHumidityPct: 85,
+    reliefStyle: "ocean", seaLevel: 0.5,
+  });
+  const cells = grid.cells.flat();
+  const waterPct = cells.filter((c) => c.isWater).length / cells.length;
+  assert.ok(waterPct > 0.4 && waterPct < 0.95, `water fraction ${waterPct}`);
+});
+
+test("Terrain: mountain style produces snowy peaks", () => {
+  const grid = terrainGeneratorService.generate({
+    width: 16, height: 12, seed: 7,
+    baseTemperatureC: -2, basePrecipitationMm: 720, baseHumidityPct: 62,
+    reliefStyle: "mountain",
+  });
+  const biomes = new Set(grid.cells.flat().map((c) => c.biomeSuggestion));
+  assert.ok(biomes.has("montanha-nevada"));
+});
+
+test("Terrain: default style is unchanged (no regression)", () => {
+  const params = {
+    width: 8, height: 6, seed: 42,
+    baseTemperatureC: 24, basePrecipitationMm: 1050, baseHumidityPct: 52,
+  };
+  const a = terrainGeneratorService.generate(params);
+  const b = terrainGeneratorService.generate({ ...params, reliefStyle: "default" as const });
+  assert.deepEqual(
+    a.cells.flat().map((c) => c.biomeSuggestion),
+    b.cells.flat().map((c) => c.biomeSuggestion),
+  );
 });

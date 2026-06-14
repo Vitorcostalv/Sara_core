@@ -1,4 +1,7 @@
+import { logger } from "../../../logging/logger";
 import type { TerrainGrid } from "./terrain-generator.service";
+
+const faunaLogger = logger.child({ module: "fauna-definition" });
 
 export type FaunaCategory =
   | "herbivore-small"
@@ -42,9 +45,12 @@ export interface FaunaResult {
   species: SpeciesDefinition[];
 }
 
-// The raw catalog omits the derived fields (trophicLevel/diet); they are filled by
-// normalizeCatalog() so each entry only declares its prey once via preySpeciesIds.
-type RawSpecies = Omit<SpeciesDefinition, "trophicLevel" | "diet">;
+// The raw catalog omits the derived fields (diet, and usually trophicLevel — derived from
+// category). trophicLevel can be overridden when category doesn't imply it (e.g. a "fish"-category
+// marine apex like the orca), so each entry still declares its prey once via preySpeciesIds.
+type RawSpecies = Omit<SpeciesDefinition, "trophicLevel" | "diet"> & {
+  trophicLevel?: TrophicLevel;
+};
 
 // ─── Static species catalog ───────────────────────────────────────────────────
 
@@ -418,6 +424,136 @@ const RAW_CATALOG: RawSpecies[] = [
     movementProfile: { maxSpeed: 3.0, turnRate: 3.0, fleeMultiplier: 1.2 },
     flockProfile: { formsFlocks: true, flockRadius: 4.0, separationDistance: 0.8 },
   },
+
+  // ── Cadeia marinha polar (todos "fish" para co-ocorrerem na água e a predação ser visível) ──
+  // krill/peixe → pinguim/foca → orca
+  {
+    id: "krill",
+    commonName: "Krill-antártico",
+    scientificName: "Euphausia superba",
+    category: "fish",
+    habitableBiomes: ["oceano-polar", "oceano-pelagico"],
+    preySpeciesIds: [],
+    populationTarget: 14,
+    movementProfile: { maxSpeed: 1.8, turnRate: 4.0, fleeMultiplier: 2.6 },
+    flockProfile: { formsFlocks: true, flockRadius: 2.0, separationDistance: 0.3 },
+  },
+  {
+    id: "peixe-glacial",
+    commonName: "Peixe-glacial",
+    scientificName: "Notothenia coriiceps",
+    category: "fish",
+    habitableBiomes: ["oceano-polar", "oceano-pelagico"],
+    preySpeciesIds: [],
+    populationTarget: 10,
+    movementProfile: { maxSpeed: 2.4, turnRate: 3.4, fleeMultiplier: 2.5 },
+    flockProfile: { formsFlocks: true, flockRadius: 2.8, separationDistance: 0.45 },
+  },
+  {
+    id: "pinguim",
+    commonName: "Pinguim",
+    scientificName: "Pygoscelis adeliae",
+    category: "fish",
+    trophicLevel: "mesopredator",
+    habitableBiomes: ["oceano-polar", "oceano-pelagico"],
+    preySpeciesIds: ["krill", "peixe-glacial"],
+    populationTarget: 8,
+    movementProfile: { maxSpeed: 3.0, turnRate: 3.0, fleeMultiplier: 2.2 },
+    flockProfile: { formsFlocks: true, flockRadius: 3.5, separationDistance: 0.6 },
+  },
+  {
+    id: "foca",
+    commonName: "Foca-leopardo",
+    scientificName: "Hydrurga leptonyx",
+    category: "fish",
+    trophicLevel: "mesopredator",
+    habitableBiomes: ["oceano-polar", "oceano-pelagico"],
+    preySpeciesIds: ["krill", "peixe-glacial", "pinguim"],
+    populationTarget: 5,
+    movementProfile: { maxSpeed: 3.2, turnRate: 2.6, fleeMultiplier: 1.4 },
+    flockProfile: { formsFlocks: false, flockRadius: 4.0, separationDistance: 1.2 },
+  },
+  {
+    id: "orca",
+    commonName: "Orca",
+    scientificName: "Orcinus orca",
+    category: "fish",
+    trophicLevel: "apex",
+    habitableBiomes: ["oceano-polar", "oceano-pelagico"],
+    preySpeciesIds: ["pinguim", "foca", "peixe-glacial"],
+    populationTarget: 3,
+    movementProfile: { maxSpeed: 3.6, turnRate: 2.2, fleeMultiplier: 1.2 },
+    flockProfile: { formsFlocks: true, flockRadius: 5.0, separationDistance: 1.6 },
+  },
+
+  // ── Cadeia montana (todos terrestres, co-ocorrem em montanha/neve/tundra) ──
+  // cabra/lhama/marmota → raposa → puma
+  {
+    id: "cabra-montes",
+    commonName: "Cabra-montês",
+    scientificName: "Capra ibex",
+    category: "herbivore-large",
+    habitableBiomes: ["montanha", "montanha-nevada", "tundra", "deserto-frio"],
+    preySpeciesIds: [],
+    populationTarget: 7,
+    movementProfile: { maxSpeed: 2.6, turnRate: 2.2, fleeMultiplier: 2.3 },
+    flockProfile: { formsFlocks: true, flockRadius: 4.0, separationDistance: 1.0 },
+  },
+  {
+    id: "lhama",
+    commonName: "Lhama",
+    scientificName: "Lama glama",
+    category: "herbivore-large",
+    habitableBiomes: ["montanha", "montanha-nevada", "deserto-frio", "pradaria-estepe"],
+    preySpeciesIds: [],
+    populationTarget: 6,
+    movementProfile: { maxSpeed: 2.4, turnRate: 2.0, fleeMultiplier: 2.1 },
+    flockProfile: { formsFlocks: true, flockRadius: 4.5, separationDistance: 1.1 },
+  },
+  {
+    id: "marmota",
+    commonName: "Marmota",
+    scientificName: "Marmota marmota",
+    category: "herbivore-small",
+    habitableBiomes: ["montanha", "montanha-nevada", "tundra"],
+    preySpeciesIds: [],
+    populationTarget: 10,
+    movementProfile: { maxSpeed: 2.4, turnRate: 3.4, fleeMultiplier: 3.0 },
+    flockProfile: { formsFlocks: true, flockRadius: 2.5, separationDistance: 0.5 },
+  },
+  {
+    id: "raposa-montesa",
+    commonName: "Raposa-montesa",
+    scientificName: "Vulpes vulpes",
+    category: "predator-medium",
+    habitableBiomes: ["montanha", "montanha-nevada", "tundra", "deserto-frio"],
+    preySpeciesIds: ["marmota"],
+    populationTarget: 5,
+    movementProfile: { maxSpeed: 3.6, turnRate: 2.8, fleeMultiplier: 1.3 },
+    flockProfile: { formsFlocks: false, flockRadius: 4.0, separationDistance: 2.0 },
+  },
+  {
+    id: "puma-andino",
+    commonName: "Puma-andino",
+    scientificName: "Puma concolor",
+    category: "predator-large",
+    habitableBiomes: ["montanha", "montanha-nevada", "deserto-frio", "pradaria-estepe"],
+    preySpeciesIds: ["cabra-montes", "lhama", "marmota", "raposa-montesa"],
+    populationTarget: 3,
+    movementProfile: { maxSpeed: 3.8, turnRate: 2.4, fleeMultiplier: 1.2 },
+    flockProfile: { formsFlocks: false, flockRadius: 5.5, separationDistance: 2.6 },
+  },
+  {
+    id: "aguia-real",
+    commonName: "Águia-real",
+    scientificName: "Aquila chrysaetos",
+    category: "bird",
+    habitableBiomes: ["montanha", "montanha-nevada", "tundra", "deserto-frio"],
+    preySpeciesIds: [],
+    populationTarget: 4,
+    movementProfile: { maxSpeed: 5.5, turnRate: 3.0, fleeMultiplier: 2.2 },
+    flockProfile: { formsFlocks: false, flockRadius: 5.0, separationDistance: 1.4 },
+  },
 ];
 
 // ─── Normalisation ──────────────────────────────────────────────────────────
@@ -429,10 +565,11 @@ function trophicLevelFor(category: FaunaCategory): TrophicLevel {
 }
 
 // Derives diet (= preySpeciesIds) and trophicLevel so each raw entry declares prey only once.
+// An explicit raw.trophicLevel wins over the category-based default.
 const SPECIES_CATALOG: SpeciesDefinition[] = RAW_CATALOG.map((raw) => ({
   ...raw,
   diet: [...raw.preySpeciesIds],
-  trophicLevel: trophicLevelFor(raw.category),
+  trophicLevel: raw.trophicLevel ?? trophicLevelFor(raw.category),
 }));
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -483,6 +620,22 @@ export class FaunaDefinitionService {
         ...s,
         populationTarget: Math.max(1, Math.round(s.populationTarget * scale)),
       }));
+    }
+
+    // Diagnóstico: torna visível um mismatch entre os códigos de bioma do grid e os
+    // habitableBiomes do catálogo (ex.: bioma novo sem fauna cadastrada), em vez de falhar mudo.
+    const levels = new Set(filtered.map((s) => s.trophicLevel));
+    const hasHerbivore = levels.has("herbivore");
+    const hasPredator = levels.has("mesopredator") || levels.has("apex");
+    if (filtered.length < 3 || (hasHerbivore && !hasPredator)) {
+      faunaLogger.warn(
+        {
+          biomes,
+          resolvedSpecies: filtered.length,
+          trophicLevels: Array.from(levels),
+        },
+        "Fauna escassa ou cadeia incompleta para estes biomas — verifique habitableBiomes do catálogo."
+      );
     }
 
     return { species: filtered };
