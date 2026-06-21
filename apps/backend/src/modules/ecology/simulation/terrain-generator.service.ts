@@ -5,6 +5,16 @@
  * pseudo-random hash values. Suitable for synthetic scenario exploration only.
  */
 
+import {
+  carveChannels,
+  carveWaterBasins,
+  enrichTerrain,
+  type AltitudeBand,
+  type CaveInfo,
+  type TerrainFeatureHints,
+  type TerrainObjectType,
+} from "./terrain-features.service";
+
 export interface TerrainCell {
   x: number;
   y: number;
@@ -16,6 +26,22 @@ export interface TerrainCell {
   climateCode: string;     // simplified Köppen code
   biomeSuggestion: string; // ecosystem slug hint
   isWater: boolean;
+
+  // ─── Structural layer (added by enrichTerrain, optional for backward compat) ──
+  /** 0–1 local steepness derived from the elevation gradient. */
+  slope?: number;
+  /** 0–1 exposed-rock factor (slope + elevation + noise). */
+  rockiness?: number;
+  /** Relief band derived from elevation + slope. */
+  altitudeBand?: AltitudeBand;
+  /** 0–1 normalised river flow accumulation (0 = no river on this cell). */
+  waterFlow?: number;
+  /** Integer cell distance to the nearest water/river cell (0 on water/river). */
+  riverDistance?: number;
+  /** Subterranean habitat descriptor; absent when the cell has no cave. */
+  cave?: CaveInfo;
+  /** Procedural props placed on this cell (rocks, logs, bones, cave-entrance…). */
+  objects?: TerrainObjectType[];
 }
 
 export interface TerrainGrid {
@@ -44,6 +70,12 @@ export interface TerrainInput {
   reliefStyle?: ReliefStyle;
   /** Elevation threshold below which a cell is water. Defaults to 0.25 (original behaviour). */
   seaLevel?: number;
+  /** Carve river valleys into the heightmap before classification. Defaults to true. */
+  carveChannels?: boolean;
+  /** 0 = off (default). 0–1 eases elevation down toward the grid borders (island look). */
+  edgeFalloff?: number;
+  /** Optional prompt-derived structural hints, e.g. visible cave systems. */
+  featureHints?: TerrainFeatureHints;
 }
 
 // ─── Hash-based value noise (pure TS, deterministic) ─────────────────────────
@@ -157,6 +189,16 @@ function ridgedNoise(x: number, y: number, seed: number): number {
   return 1 - Math.abs(octaveNoise(x, y, seed) * 2 - 1);
 }
 
+// Deterministic radial/edge falloff (A4): 1 in the interior, easing to 0 at the borders.
+// `strength` (0–1) is the fraction of the half-extent over which the easing happens.
+function edgeFalloffFactor(nx: number, ny: number, strength: number): number {
+  const d = Math.max(Math.abs(nx - 0.5), Math.abs(ny - 0.5)) * 2; // 0 center → 1 border (square)
+  const start = 1 - strength;
+  if (d <= start) return 1;
+  const t = (d - start) / Math.max(1e-6, 1 - start);
+  return 1 - smoothstep(t < 0 ? 0 : t > 1 ? 1 : t);
+}
+
 // ─── Generator ────────────────────────────────────────────────────────────────
 
 export class TerrainGeneratorService {
@@ -164,31 +206,55 @@ export class TerrainGeneratorService {
     const { width, height, seed, baseTemperatureC, basePrecipitationMm, baseHumidityPct } = input;
     const style: ReliefStyle = input.reliefStyle ?? "default";
     const seaLevel = input.seaLevel ?? 0.25;
+    const shouldCarve = input.carveChannels ?? true;
+    const edgeFalloff = input.edgeFalloff ?? 0;
     const LAPSE_RATE = 6.5; // °C per km (simplified)
-    const cells: TerrainCell[][] = [];
 
+    // ── Pass 1: raw, seed-derived heightmap. Carving and (later) every
+    // elevation-dependent field run on THIS array, in this order. ──
+    const elevation: number[][] = Array.from({ length: height }, () => new Array<number>(width).fill(0));
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width; col++) {
+        const nx = col / width;
+        const ny = row / height;
+
+        let e = octaveNoise(nx * 3, ny * 3, seed);
+        if (style === "mountain") {
+          // Fold in a ridged layer so the relief grows sharp peaks instead of rolling hills.
+          const ridge = ridgedNoise(nx * 3.2 + 19, ny * 3.2 + 23, seed + 808);
+          e = Math.min(1, e * 0.4 + ridge * 0.7);
+        } else if (style === "ocean") {
+          // A low-frequency basin layer carves contiguous water with scattered islands.
+          const basin = octaveNoise(nx * 1.2 + 5, ny * 1.2 + 9, seed + 404, 2);
+          e = Math.min(1, e * 0.72 + basin * 0.2);
+        }
+        // A4 (optional): ease elevation toward the borders so the map reads as a landmass.
+        if (edgeFalloff > 0) e *= edgeFalloffFactor(nx, ny, edgeFalloff);
+
+        elevation[row]![col] = e;
+      }
+    }
+
+    // ── A1: carve river valleys and still-water basins BEFORE classification. ──
+    if (shouldCarve) {
+      carveChannels(elevation, width, height);
+      carveWaterBasins(elevation, width, height, seaLevel);
+    }
+
+    // ── Pass 2: derive temperature/water/biome/etc. on the (carved) heightmap. ──
+    const cells: TerrainCell[][] = [];
     for (let row = 0; row < height; row++) {
       const rowCells: TerrainCell[] = [];
       for (let col = 0; col < width; col++) {
         const nx = col / width;
         const ny = row / height;
-
-        let elevation = octaveNoise(nx * 3, ny * 3, seed);
-        if (style === "mountain") {
-          // Fold in a ridged layer so the relief grows sharp peaks instead of rolling hills.
-          const ridge = ridgedNoise(nx * 3.2 + 19, ny * 3.2 + 23, seed + 808);
-          elevation = Math.min(1, elevation * 0.4 + ridge * 0.7);
-        } else if (style === "ocean") {
-          // A low-frequency basin layer carves contiguous water with scattered islands.
-          const basin = octaveNoise(nx * 1.2 + 5, ny * 1.2 + 9, seed + 404, 2);
-          elevation = Math.min(1, elevation * 0.72 + basin * 0.2);
-        }
+        const elev = elevation[row]![col]!;
 
         const humidityNoise = octaveNoise(nx * 2 + 11, ny * 2 + 7, seed + 500, 3);
         const precipNoise = octaveNoise(nx * 2.5 + 3, ny * 2.5 + 13, seed + 300, 3);
 
         // Temperature decreases with elevation (simplified lapse rate)
-        const altitudeKm = elevation * 4;
+        const altitudeKm = elev * 4;
         const temperatureC = baseTemperatureC - altitudeKm * LAPSE_RATE + (humidityNoise - 0.5) * 4;
 
         // Humidity and precipitation modulated by noise
@@ -198,19 +264,19 @@ export class TerrainGeneratorService {
           basePrecipitationMm * (0.4 + precipNoise * 1.2)
         );
 
-        // Water if elevation below threshold
-        const isWater = elevation < seaLevel;
-        const salinityPsu = isWater ? lerp(0, 35, 1 - elevation / seaLevel) : 0;
+        // Water if (carved) elevation below threshold
+        const isWater = elev < seaLevel;
+        const salinityPsu = isWater ? lerp(0, 35, 1 - elev / seaLevel) : 0;
 
         const climateCode = toKoppenCode(temperatureC, precipitationMmYear, humidityPct);
         const biomeSuggestion = isWater
           ? classifyWaterBiome(style, temperatureC, precipitationMmYear)
-          : classifyLandBiome(style, temperatureC, precipitationMmYear, elevation);
+          : classifyLandBiome(style, temperatureC, precipitationMmYear, elev);
 
         rowCells.push({
           x: col,
           y: row,
-          elevation: Math.round(elevation * 1000) / 1000,
+          elevation: Math.round(elev * 1000) / 1000,
           temperatureC: Math.round(temperatureC * 10) / 10,
           humidityPct: Math.round(humidityPct * 10) / 10,
           precipitationMmYear: Math.round(precipitationMmYear),
@@ -223,7 +289,7 @@ export class TerrainGeneratorService {
       cells.push(rowCells);
     }
 
-    return {
+    const grid: TerrainGrid = {
       width,
       height,
       seed,
@@ -234,6 +300,12 @@ export class TerrainGeneratorService {
         "MVP procedural terrain. Uses value noise (not real Perlin/Simplex). " +
         "Climate and biome assignment are heuristic approximations, not validated ecological models.",
     };
+
+    // Second logical layer: rivers (carved by gradient), caves and procedural
+    // objects. Purely additive — never rewrites elevation/isWater/biomeSuggestion.
+    enrichTerrain(grid, input.featureHints);
+
+    return grid;
   }
 }
 

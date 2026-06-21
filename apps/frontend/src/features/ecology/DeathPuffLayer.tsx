@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
@@ -8,8 +8,8 @@ export interface DeathPuffController {
 }
 
 const MAX_PUFFS = 96;
-const PUFF_DURATION = 0.6; // seconds: quick expand-then-dissipate
-const GROW_FRACTION = 0.35; // fraction of the lifetime spent expanding
+const PUFF_DURATION = 0.38; // seconds: quick expand-then-dissipate
+const GROW_FRACTION = 0.28; // fraction of the lifetime spent expanding
 
 interface Puff {
   active: boolean;
@@ -31,7 +31,7 @@ function puffHash(n: number): number {
 }
 
 interface DeathPuffLayerProps {
-  controllerRef: React.MutableRefObject<DeathPuffController | null>;
+  controllerRef: MutableRefObject<DeathPuffController | null>;
   visible: boolean;
 }
 
@@ -64,7 +64,7 @@ export function DeathPuffLayer({ controllerRef, visible }: DeathPuffLayerProps) 
         slot.x = x + (puffHash(n * 3) - 0.5) * 0.18;
         slot.y = y + 0.1;
         slot.z = z + (puffHash(n * 7) - 0.5) * 0.18;
-        slot.peak = 1.1 + puffHash(n * 11) * 0.5;
+        slot.peak = 0.48 + puffHash(n * 11) * 0.22;
         slot.rot = puffHash(n * 13) * Math.PI * 2;
       },
     };
@@ -107,8 +107,8 @@ export function DeathPuffLayer({ controllerRef, visible }: DeathPuffLayerProps) 
 
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_PUFFS]} visible={visible} frustumCulled={false}>
-      <icosahedronGeometry args={[0.32, 0]} />
-      <meshBasicMaterial color={0x12151a} transparent opacity={0.62} depthWrite={false} />
+      <icosahedronGeometry args={[0.24, 0]} />
+      <meshBasicMaterial color={0x12151a} transparent opacity={0.32} depthWrite={false} />
     </instancedMesh>
   );
 }

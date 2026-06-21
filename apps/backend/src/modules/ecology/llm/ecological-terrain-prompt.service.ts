@@ -4,6 +4,7 @@ import { createLlmProvider } from "../../llm/llm.provider";
 import { biomePresetService } from "../simulation/biome-preset.service";
 import { terrainGeneratorService } from "../simulation/terrain-generator.service";
 import type { ReliefStyle, TerrainGrid } from "../simulation/terrain-generator.service";
+import type { TerrainFeatureHints } from "../simulation/terrain-features.service";
 
 const terrainPromptLogger = logger.child({ module: "ecological-terrain-prompt" });
 
@@ -49,6 +50,7 @@ interface BiomeClassification {
   baseHumidityPct: number;
   reliefStyle?: ReliefStyle;
   seaLevel?: number;
+  featureHints?: TerrainFeatureHints;
 }
 
 // Vocabulário FECHADO + descrições, construídos a partir dos presets (fonte única da verdade).
@@ -85,6 +87,33 @@ const MAX_CACHE_ENTRIES = 200;
 
 function normalizePrompt(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normalizePromptAscii(text: string): string {
+  return normalizePrompt(text)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function featureHintsFromPrompt(prompt: string): TerrainFeatureHints | undefined {
+  const text = normalizePromptAscii(prompt);
+  const mentionsCave = /\b(caverna|cavernas|gruta|grutas|cave|caves)\b/.test(text);
+  const mentionsMany = /\b(muitas|muitos|varias|varios|bastantes|many|several)\b/.test(text);
+  const mentionsFew = /\b(algumas|alguns|poucas|poucos|few|some)\b/.test(text);
+  const mentionsDeep = /\b(profunda|profundas|profundo|profundos|subterranea|subterraneas|deep)\b/.test(text);
+  const mentionsRockyRelief =
+    /\b(rocha|rochas|rochosa|rochoso|penhasco|penhascos|escarpa|escarpas|falésia|falesia|montanha|montanhas|serra|serras|ledge|cliff|mountain)\b/.test(
+      text
+    );
+
+  if (!mentionsCave && !mentionsRockyRelief) return undefined;
+
+  return {
+    caveQuantity: mentionsCave ? (mentionsMany ? "many" : mentionsFew ? "few" : "few") : undefined,
+    requireVisibleCaves: mentionsCave || undefined,
+    preferDeepCave: mentionsDeep || undefined,
+    rockyOutcrops: mentionsCave || mentionsRockyRelief || undefined,
+  };
 }
 
 function cacheClassification(key: string, value: BiomeClassification): void {
@@ -180,7 +209,10 @@ export class EcologicalTerrainPromptService {
       seaLevel: classification.seaLevel,
     };
 
-    const terrain = terrainGeneratorService.generate(terrainParams);
+    const terrain = terrainGeneratorService.generate({
+      ...terrainParams,
+      featureHints: classification.featureHints,
+    });
 
     return {
       biomeName: classification.biomeName,
@@ -218,6 +250,7 @@ export class EcologicalTerrainPromptService {
       baseHumidityPct: preset.baseHumidityPct,
       reliefStyle: preset.reliefStyle,
       seaLevel: preset.seaLevel,
+      featureHints: featureHintsFromPrompt(prompt),
     });
 
     // 1. LLM constrangido ao enum (slug rejeitado se não houver preset correspondente).

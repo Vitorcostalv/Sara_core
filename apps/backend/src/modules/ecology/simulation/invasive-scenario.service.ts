@@ -6,6 +6,8 @@ import {
 import { faunaDefinitionService } from "./fauna-definition.service";
 import type {
   FaunaCategory,
+  FeedingStrategy,
+  PredationProfile,
   SpeciesDefinition,
   TrophicLevel,
 } from "./fauna-definition.service";
@@ -67,6 +69,7 @@ interface InvaderProfile {
   scientificName: string;
   category: FaunaCategory;
   trophicLevel: TrophicLevel;
+  feedingStrategy: FeedingStrategy;
   /**
    * Location presets (terrain biomeSlug vocabulary) where this species can establish.
    * Matched against the INTENDED biome of the location, not scattered grid cells — so a
@@ -84,6 +87,7 @@ const INVADER_PROFILES: InvaderProfile[] = [
     scientificName: "Panthera leo",
     category: "predator-large",
     trophicLevel: "apex",
+    feedingStrategy: "carnivore",
     // Savana e mosaicos de bosque seco/semiárido — não floresta úmida.
     compatiblePresets: ["cerrado", "caatinga", "deserto", "pradaria", "mediterraneo"],
     preyCategories: ["herbivore-large", "herbivore-small"],
@@ -95,6 +99,7 @@ const INVADER_PROFILES: InvaderProfile[] = [
     scientificName: "Canis lupus",
     category: "predator-large",
     trophicLevel: "apex",
+    feedingStrategy: "carnivore",
     compatiblePresets: ["tundra", "taiga", "pradaria", "floresta-temperada", "montanha", "montanha-nevada", "deserto-frio"],
     preyCategories: ["herbivore-large", "herbivore-small"],
     competesCategories: ["predator-medium"],
@@ -105,6 +110,7 @@ const INVADER_PROFILES: InvaderProfile[] = [
     scientificName: "Panthera tigris",
     category: "predator-large",
     trophicLevel: "apex",
+    feedingStrategy: "carnivore",
     compatiblePresets: ["amazonia", "floresta-tropical", "mata-atlantica", "floresta-temperada", "pantanal"],
     preyCategories: ["herbivore-large", "herbivore-small"],
     competesCategories: ["predator-large", "predator-medium"],
@@ -115,6 +121,7 @@ const INVADER_PROFILES: InvaderProfile[] = [
     scientificName: "Sus scrofa",
     category: "herbivore-large",
     trophicLevel: "herbivore",
+    feedingStrategy: "omnivore",
     compatiblePresets: [
       "cerrado",
       "mata-atlantica",
@@ -135,6 +142,7 @@ const INVADER_PROFILES: InvaderProfile[] = [
     scientificName: "Oryctolagus cuniculus",
     category: "herbivore-small",
     trophicLevel: "herbivore",
+    feedingStrategy: "herbivore",
     compatiblePresets: ["pradaria", "cerrado", "mediterraneo", "caatinga", "mata-atlantica", "pampa"],
     preyCategories: [],
     competesCategories: ["herbivore-small"],
@@ -145,6 +153,7 @@ const INVADER_PROFILES: InvaderProfile[] = [
     scientificName: "Oreochromis niloticus",
     category: "fish",
     trophicLevel: "herbivore",
+    feedingStrategy: "omnivore",
     compatiblePresets: ["pantanal", "mangue", "amazonia", "floresta-tropical"],
     preyCategories: [],
     competesCategories: ["fish"],
@@ -157,6 +166,7 @@ const GENERIC_PROFILE: InvaderProfile = {
   scientificName: "Espécie não catalogada",
   category: "herbivore-large",
   trophicLevel: "herbivore",
+  feedingStrategy: "herbivore",
   compatiblePresets: [],
   preyCategories: [],
   competesCategories: ["herbivore-large", "herbivore-small"],
@@ -217,6 +227,52 @@ function flockFor(category: FaunaCategory): SpeciesDefinition["flockProfile"] {
 }
 
 // ─── Plausibility ─────────────────────────────────────────────────────────────
+
+function massFor(category: FaunaCategory): number {
+  switch (category) {
+    case "predator-large":
+      return 1.05;
+    case "herbivore-large":
+      return 0.88;
+    case "predator-medium":
+      return 0.55;
+    case "bird":
+      return 0.28;
+    case "fish":
+      return 0.3;
+    default:
+      return 0.3;
+  }
+}
+
+function awarenessRangeFor(category: FaunaCategory): number {
+  switch (category) {
+    case "herbivore-large":
+      return 5.4;
+    case "herbivore-small":
+      return 5.0;
+    case "bird":
+      return 5.6;
+    case "fish":
+      return 3.9;
+    default:
+      return 4.2;
+  }
+}
+
+function predationFor(category: FaunaCategory, preyIds: string[]): PredationProfile | undefined {
+  if (preyIds.length === 0) return undefined;
+  const isLargeHunter = category === "predator-large";
+  return {
+    attackRange: isLargeHunter ? 1.0 : 0.82,
+    damageRate: isLargeHunter ? 0.84 : 0.66,
+    huntRange: isLargeHunter ? 6.8 : 5.8,
+    hungerRate: isLargeHunter ? 0.014 : 0.018,
+    starvationThreshold: isLargeHunter ? 1.15 : 1,
+    satiationCooldownMs: isLargeHunter ? 4200 : 2800,
+    preyPreference: Object.fromEntries(preyIds.map((id) => [id, 1])),
+  };
+}
 
 const RATING_SCORE: Record<PlausibilityRating, number> = { alto: 2, medio: 1, baixo: 0 };
 
@@ -280,9 +336,30 @@ export class InvasiveScenarioService {
       diet: [...predatedIds],
       preySpeciesIds: [...predatedIds],
       trophicLevel: profile.trophicLevel,
+      feedingStrategy: profile.feedingStrategy,
+      mass: massFor(profile.category),
+      awarenessRange: awarenessRangeFor(profile.category),
+      predation: predationFor(profile.category, predatedIds),
       populationTarget: survives ? 8 : 2,
       movementProfile: movementFor(profile.category),
       flockProfile: flockFor(profile.category),
+      habitatProfile: {
+        primary: [],
+        secondary: [],
+        avoids: [],
+        altitudePreference: "any",
+        waterDependency: profile.category === "fish" ? "high" : "low",
+        caveAffinity: "none",
+      },
+      behaviorProfile: {
+        activityPeriod: "diurnal",
+        socialBehavior: flockFor(profile.category).formsFlocks ? "herd" : "solitary",
+        aggression: profile.feedingStrategy === "carnivore" ? 0.7 : 0.3,
+        curiosity: 0.4,
+        fear: 0.3,
+        territoriality: 0.5,
+        migration: 0.5,
+      },
     };
 
     // 5. Linha do tempo determinística (introdução → dispersão → equilíbrio/colapso).

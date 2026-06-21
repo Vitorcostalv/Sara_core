@@ -1,14 +1,15 @@
-import React, { Suspense, useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
-import type { SpeciesDefinition, TerrainCell, TerrainGrid } from "../../services/api/ecology";
+import type {
+  PredationProfile,
+  SpeciesDefinition,
+  TerrainCell,
+  TerrainGrid,
+} from "../../services/api/ecology";
 import { AnimalEntity, type AgentState, type FaunaAgent, type AnimalKind } from "./AnimalEntity";
+import { CarcassLayer, type CarcassController, type CarcassRecordInput } from "./CarcassLayer";
 import { DeathPuffLayer, type DeathPuffController } from "./DeathPuffLayer";
-import { FAUNA_MODELS, CATEGORY_TO_MODELS } from "./faunaModels";
-
-// Preload all models at module load time to avoid pop-in
-Object.values(FAUNA_MODELS).forEach((m) => useGLTF.preload(`/models/fauna/${m.file}`));
 
 const CELL_SIZE = 1;
 const WATER_HEIGHT = 0.26;
@@ -25,11 +26,39 @@ const FLEE_WEIGHT = 3.0;
 const HUNT_WEIGHT = 2.2;
 const HOME_WEIGHT = 1.6;
 const WANDER_WEIGHT = 0.45;
-// Hunger drives the trophic chain: predators grow hungrier, hunt harder, and starve if they
-// never feed. Tuned slow so the balance reads over tens of seconds, not instantly.
-const HUNGER_RATE = 0.018; // per simulated second
-const STARVATION_THRESHOLD = 1; // hunger ≥ 1 → death by starvation
 const HUNGER_MAX = 1.4;
+const PREDATION_ENERGY_PER_MASS = 0.65;
+const HUNT_TARGET_MEMORY_SECONDS = 2.2;
+const ENABLE_DEV_PREDATION_NUDGE = false;
+
+export type FaunaEventKind = "predation" | "starvation" | "respawn" | "decomposition";
+
+export interface FaunaEvent {
+  id: string;
+  kind: FaunaEventKind;
+  message: string;
+  x: number;
+  y: number;
+  z: number;
+  createdAt: number;
+  speciesId?: string;
+  predatorSpeciesId?: string;
+  preySpeciesId?: string;
+}
+
+type ResolvedPredationProfile = Required<Omit<PredationProfile, "preyPreference">> & {
+  preyPreference: Record<string, number>;
+};
+
+const DEFAULT_PREDATION: ResolvedPredationProfile = {
+  attackRange: 0.85,
+  damageRate: 0.72,
+  huntRange: 6,
+  hungerRate: 0.018,
+  starvationThreshold: 1,
+  satiationCooldownMs: 2600,
+  preyPreference: {},
+};
 
 interface TerrainPoint {
   cell: TerrainCell;
@@ -53,7 +82,10 @@ interface FaunaLayerProps {
   paused: boolean;
   speedMultiplier: number;
   visible: boolean;
+  /** Carcasses can be toggled independently from live fauna (defaults to fauna visibility). */
+  carcassesVisible?: boolean;
   onCountUpdate?: (count: number) => void;
+  onFaunaEvent?: (event: FaunaEvent) => void;
 }
 
 interface FaunaSpeciesLayerProps {
@@ -67,6 +99,8 @@ interface FaunaSpeciesLayerProps {
   allSpeciesMap: Map<string, SpeciesDefinition>;
   onCountChange: (speciesId: string, count: number) => void;
   emitPuff: (x: number, y: number, z: number) => void;
+  emitCarcass: (input: CarcassRecordInput) => void;
+  emitFaunaEvent?: (event: Omit<FaunaEvent, "id" | "createdAt">) => void;
 }
 
 function hashUnit(x: number, z: number, seed: number) {
@@ -130,6 +164,21 @@ function sampleTerrainPoint(terrain: TerrainContext, x: number, z: number) {
   return terrain.cells[cellY]![cellX]!;
 }
 
+function nearestTerrainPoint(points: TerrainPoint[], x: number, z: number): TerrainPoint | null {
+  let nearest: TerrainPoint | null = null;
+  let nearestDistanceSq = Number.POSITIVE_INFINITY;
+  for (const point of points) {
+    const dx = point.x - x;
+    const dz = point.z - z;
+    const distanceSq = dx * dx + dz * dz;
+    if (distanceSq < nearestDistanceSq) {
+      nearest = point;
+      nearestDistanceSq = distanceSq;
+    }
+  }
+  return nearest;
+}
+
 function isPredator(category: SpeciesDefinition["category"]) {
   return category === "predator-medium" || category === "predator-large";
 }
@@ -152,7 +201,23 @@ function animalKind(category: SpeciesDefinition["category"]): AnimalKind {
   return "ground";
 }
 
+const CAVE_PSEUDO_BIOME = "caverna";
+
+function hasCave(point: TerrainPoint) {
+  return point.cell.cave !== undefined && point.cell.cave.type !== "none";
+}
+
 function isHabitablePoint(species: SpeciesDefinition, point: TerrainPoint) {
+  // Cave species use the "caverna" pseudo-biome: they spawn on cells that expose a
+  // cave, not on cells whose biomeSuggestion equals "caverna" (none ever do).
+  if (species.habitableBiomes.includes(CAVE_PSEUDO_BIOME)) {
+    if (!hasCave(point)) return false;
+    if (isFish(species.category)) {
+      return point.cell.cave?.type === "river-cave" || (point.cell.riverDistance ?? 99) <= 1 || point.cell.cave!.humidity >= 0.85;
+    }
+    if (isGroundAnimal(species.category) && point.cell.isWater) return false;
+    return true;
+  }
   if (isFish(species.category)) {
     return point.cell.isWater && species.habitableBiomes.includes(point.cell.biomeSuggestion);
   }
@@ -186,6 +251,44 @@ function speciesSize(category: SpeciesDefinition["category"]) {
     default:
       return 0.24;
   }
+}
+
+function speciesMass(species: SpeciesDefinition) {
+  if (Number.isFinite(species.mass) && species.mass > 0) return species.mass;
+  switch (species.category) {
+    case "predator-large":
+    case "herbivore-large":
+      return 0.85;
+    case "predator-medium":
+      return 0.52;
+    case "bird":
+    case "fish":
+      return 0.28;
+    default:
+      return 0.28;
+  }
+}
+
+function awarenessRangeFor(species: SpeciesDefinition) {
+  if (Number.isFinite(species.awarenessRange) && species.awarenessRange > 0) {
+    return species.awarenessRange;
+  }
+  if (species.category === "herbivore-large") return 5.4;
+  if (species.category === "herbivore-small") return 5.0;
+  if (species.category === "bird") return 5.6;
+  if (species.category === "fish") return 3.9;
+  return 4.2;
+}
+
+function resolvePredationParams(species: SpeciesDefinition): ResolvedPredationProfile {
+  return {
+    ...DEFAULT_PREDATION,
+    ...species.predation,
+    preyPreference: {
+      ...DEFAULT_PREDATION.preyPreference,
+      ...(species.predation?.preyPreference ?? {}),
+    },
+  };
 }
 
 function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: number): FaunaAgent[] {
@@ -245,6 +348,9 @@ function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: 
       flapOffset: hashUnit(slot * 97, speciesSeed & 1048575, seed + 191) * Math.PI * 2,
       // Stagger initial hunger deterministically so predators don't all starve in lockstep.
       hunger: hashUnit(slot * 103, speciesSeed & 2097151, seed + 211) * 0.4,
+      satedUntil: 0,
+      huntTargetKey: null,
+      huntTargetUntil: 0,
     });
   }
 
@@ -255,6 +361,11 @@ function terrainTopForAgent(species: SpeciesDefinition, point: TerrainPoint) {
   if (isFish(species.category)) return WATER_SWIM_Y;
   if (isBird(species.category)) return point.topY + 1;
   return point.topY + speciesSize(species.category) * (isPredator(species.category) ? 0.48 : 0.58);
+}
+
+function carcassYFor(species: SpeciesDefinition, point: TerrainPoint) {
+  if (isFish(species.category)) return WATER_SWIM_Y;
+  return point.topY + 0.06;
 }
 
 function resetAgent(agent: FaunaAgent, species: SpeciesDefinition, terrain: TerrainContext) {
@@ -269,15 +380,9 @@ function resetAgent(agent: FaunaAgent, species: SpeciesDefinition, terrain: Terr
   agent.active = true;
   agent.scale = 1;
   agent.hunger = 0;
-}
-
-function selectModel(speciesId: string, slot: number, category: SpeciesDefinition["category"]) {
-  const modelKeys = CATEGORY_TO_MODELS[category] ?? [];
-  if (modelKeys.length === 0) return null;
-  const speciesHash = stringHash(speciesId);
-  const index = Math.floor(hashUnit(speciesHash, slot, 42) * modelKeys.length) % modelKeys.length;
-  const key = modelKeys[index]!;
-  return FAUNA_MODELS[key] ?? null;
+  agent.satedUntil = 0;
+  agent.huntTargetKey = null;
+  agent.huntTargetUntil = 0;
 }
 
 function FaunaSpeciesLayer({
@@ -291,24 +396,35 @@ function FaunaSpeciesLayer({
   allSpeciesMap,
   onCountChange,
   emitPuff,
+  emitCarcass,
+  emitFaunaEvent,
 }: FaunaSpeciesLayerProps) {
   const initialAgents = useMemo(() => spawnAgents(species, terrain, grid.seed), [grid.seed, species, terrain]);
   const agentsRef = useRef<FaunaAgent[]>(initialAgents);
   const lastCountRef = useRef(species.populationTarget);
   const respawnClockRef = useRef(0);
+  const simClockRef = useRef(0);
   const flockIds = useMemo(() => new Set(species.preySpeciesIds), [species.preySpeciesIds]);
+  const predation = useMemo(() => resolvePredationParams(species), [species]);
+  const awarenessRange = useMemo(() => awarenessRangeFor(species), [species]);
   const kind = animalKind(species.category);
-
-  const perSlotModels = useMemo(
-    () => initialAgents.map((a) => selectModel(species.id, a.slot, species.category)),
-    [initialAgents, species.category, species.id],
-  );
 
   useEffect(() => {
     agentsRef.current = initialAgents;
     registryRef.current.set(species.id, agentsRef.current);
     lastCountRef.current = species.populationTarget;
     onCountChange(species.id, species.populationTarget);
+    if (import.meta.env.DEV) {
+      // Dev-only sanity checks for predation parameters and initial hunger/sated state.
+      const hasPrey = species.preySpeciesIds && species.preySpeciesIds.length > 0;
+      const pred = resolvePredationParams(species);
+      if (hasPrey && (!pred || !(pred.huntRange > 0) || !(pred.attackRange > 0))) {
+        console.debug("[fauna:diagnostic] species with prey missing predation params", species.id, pred);
+      }
+      if (agentsRef.current.some((a) => a.satedUntil > 0)) {
+        console.debug("[fauna:diagnostic] some agents start sated", species.id);
+      }
+    }
 
     return () => {
       registryRef.current.delete(species.id);
@@ -320,16 +436,40 @@ function FaunaSpeciesLayer({
     if (paused) return;
 
     const dt = Math.min(delta, 0.05) * speedMultiplier;
+    simClockRef.current += dt;
+    const now = simClockRef.current;
     const agents = agentsRef.current;
     const isHunter = species.preySpeciesIds.length > 0;
     let liveCount = 0;
 
-    // Death: hide the model immediately and emit a black smoke puff in its place.
-    const killAgent = (victim: FaunaAgent) => {
-      emitPuff(victim.position.x, victim.position.y, victim.position.z);
+    const killAgent = (
+      victim: FaunaAgent,
+      victimSpecies: SpeciesDefinition,
+      cause: "predation" | "starvation",
+      predatorSpecies?: SpeciesDefinition,
+    ) => {
+      const terrainPoint = sampleTerrainPoint(terrain, victim.position.x, victim.position.z);
+      const position = {
+        x: victim.position.x,
+        y: carcassYFor(victimSpecies, terrainPoint),
+        z: victim.position.z,
+      };
+      emitPuff(position.x, position.y + 0.08, position.z);
+      emitCarcass({
+        ...position,
+        category: victimSpecies.category,
+        feedingStrategy: victimSpecies.feedingStrategy,
+        cause,
+        speciesName: victimSpecies.commonName,
+        predatorName: predatorSpecies?.commonName,
+        kind: animalKind(victimSpecies.category),
+      });
       victim.active = false;
       victim.state = "dying";
       victim.scale = 0.0001;
+      victim.huntTargetKey = null;
+      victim.huntTargetUntil = 0;
+      return position;
     };
 
     for (const agent of agents) {
@@ -340,9 +480,15 @@ function FaunaSpeciesLayer({
 
       // Hunting species grow hungrier each frame; if they never feed, they starve.
       if (isHunter) {
-        agent.hunger = Math.min(HUNGER_MAX, agent.hunger + dt * HUNGER_RATE);
-        if (agent.hunger >= STARVATION_THRESHOLD) {
-          killAgent(agent);
+        agent.hunger = Math.min(HUNGER_MAX, agent.hunger + dt * predation.hungerRate);
+        if (agent.hunger >= predation.starvationThreshold) {
+          const position = killAgent(agent, species, "starvation");
+          emitFaunaEvent?.({
+            kind: "starvation",
+            message: `${species.commonName} morreu de fome`,
+            speciesId: species.id,
+            ...position,
+          });
           liveCount -= 1;
           continue;
         }
@@ -359,7 +505,7 @@ function FaunaSpeciesLayer({
       );
       let neighbors = 0;
       let nearestThreatDistance = Number.POSITIVE_INFINITY;
-      let nearestHuntDistance = Number.POSITIVE_INFINITY;
+      let nearestHuntScore = Number.POSITIVE_INFINITY;
       let state: AgentState = "wandering";
 
       for (const other of agents) {
@@ -397,8 +543,8 @@ function FaunaSpeciesLayer({
         }
       }
 
-      // Hungrier hunters chase more aggressively (the chain self-balances without hardcoding).
-      const huntWeight = HUNT_WEIGHT * (0.6 + agent.hunger);
+      const isSated = isHunter && now < agent.satedUntil;
+      const huntWeight = HUNT_WEIGHT * (0.55 + agent.hunger);
 
       for (const [otherSpeciesId, otherAgents] of registryRef.current.entries()) {
         if (otherSpeciesId === species.id) continue;
@@ -415,22 +561,45 @@ function FaunaSpeciesLayer({
           const distance = offset.length();
           if (distance <= 0.0001) continue;
 
-          if (currentSpeciesIsPrey && distance < 4.2 && distance < nearestThreatDistance) {
+          if (currentSpeciesIsPrey && distance < awarenessRange && distance < nearestThreatDistance) {
             nearestThreatDistance = distance;
             steering.addScaledVector(offset.normalize().multiplyScalar(-1), FLEE_WEIGHT);
             state = "fleeing";
           }
 
-          if (currentSpeciesCanHunt && distance < 6 && distance < nearestHuntDistance) {
-            nearestHuntDistance = distance;
-            steering.addScaledVector(offset.normalize(), huntWeight);
-            state = "hunting";
+          if (!isSated && currentSpeciesCanHunt && distance < predation.huntRange) {
+            const preference = Math.max(0.1, predation.preyPreference[otherSpeciesId] ?? 1);
+            const targetKey = `${otherSpeciesId}:${otherAgent.slot}`;
+            const targetMemory =
+              agent.huntTargetKey === targetKey && now < agent.huntTargetUntil ? 0.58 : 1;
+            const huntScore = (distance / preference) * targetMemory;
+            if (huntScore >= nearestHuntScore) continue;
 
-            if (distance < (isPredator(species.category) ? 0.95 : 0.7)) {
-              otherAgent.health -= dt * 0.72;
+            nearestHuntScore = huntScore;
+            steering.addScaledVector(offset.normalize(), huntWeight * preference);
+            state = "hunting";
+            agent.huntTargetKey = targetKey;
+            agent.huntTargetUntil = now + HUNT_TARGET_MEMORY_SECONDS;
+
+            if (distance < predation.attackRange) {
+              otherAgent.health -= dt * predation.damageRate;
               if (otherAgent.health <= 0) {
-                killAgent(otherAgent);
-                agent.hunger = 0; // a successful kill sates the hunter
+                const position = killAgent(otherAgent, otherSpecies, "predation", species);
+                emitFaunaEvent?.({
+                  kind: "predation",
+                  message: `${species.commonName} caçou ${otherSpecies.commonName}`,
+                  speciesId: species.id,
+                  predatorSpeciesId: species.id,
+                  preySpeciesId: otherSpecies.id,
+                  ...position,
+                });
+                agent.hunger = Math.max(
+                  0,
+                  agent.hunger - speciesMass(otherSpecies) * PREDATION_ENERGY_PER_MASS,
+                );
+                agent.satedUntil = now + predation.satiationCooldownMs / 1000;
+                agent.huntTargetKey = null;
+                agent.huntTargetUntil = 0;
               } else {
                 otherAgent.state = "fleeing";
               }
@@ -456,7 +625,7 @@ function FaunaSpeciesLayer({
         state === "fleeing"
           ? baseSpeed * species.movementProfile.fleeMultiplier
           : state === "hunting"
-            ? baseSpeed * 1.18
+            ? baseSpeed * 1.08
             : state === "flocking"
               ? baseSpeed * 0.94
               : baseSpeed * 0.72;
@@ -464,13 +633,13 @@ function FaunaSpeciesLayer({
       const desiredVelocity = desiredDirection.multiplyScalar(Math.max(0.08, desiredSpeed));
       if (isGroundAnimal(species.category)) desiredVelocity.y = 0;
 
-      agent.velocity.lerp(desiredVelocity, Math.min(1, species.movementProfile.turnRate * dt * 0.42));
+      agent.velocity.lerp(desiredVelocity, Math.min(1, species.movementProfile.turnRate * dt * 0.32));
 
       const maxSpeed =
         state === "fleeing"
           ? baseSpeed * species.movementProfile.fleeMultiplier
           : state === "hunting"
-            ? baseSpeed * 1.2
+            ? baseSpeed * 1.1
             : baseSpeed;
       const horizontalSpeed = Math.hypot(agent.velocity.x, agent.velocity.z);
 
@@ -501,7 +670,23 @@ function FaunaSpeciesLayer({
         agent.velocity.z *= -1;
       }
 
-      const resolvedPoint = sampleTerrainPoint(terrain, agent.position.x, agent.position.z);
+      let resolvedPoint = sampleTerrainPoint(terrain, agent.position.x, agent.position.z);
+
+      if (isFish(species.category) && !resolvedPoint.cell.isWater && terrain.waterCells.length > 0) {
+        const waterPoint = nearestTerrainPoint(terrain.waterCells, agent.position.x, agent.position.z);
+        if (waterPoint) {
+          agent.position.x = THREE.MathUtils.lerp(agent.position.x, waterPoint.x, 0.35);
+          agent.position.z = THREE.MathUtils.lerp(agent.position.z, waterPoint.z, 0.35);
+          resolvedPoint = sampleTerrainPoint(terrain, agent.position.x, agent.position.z);
+        }
+      } else if (isGroundAnimal(species.category) && resolvedPoint.cell.isWater && terrain.landCells.length > 0) {
+        const landPoint = nearestTerrainPoint(terrain.landCells, agent.position.x, agent.position.z);
+        if (landPoint) {
+          agent.position.x = THREE.MathUtils.lerp(agent.position.x, landPoint.x, 0.28);
+          agent.position.z = THREE.MathUtils.lerp(agent.position.z, landPoint.z, 0.28);
+          resolvedPoint = sampleTerrainPoint(terrain, agent.position.x, agent.position.z);
+        }
+      }
 
       if (isGroundAnimal(species.category)) {
         agent.position.y = THREE.MathUtils.lerp(
@@ -514,9 +699,8 @@ function FaunaSpeciesLayer({
           resolvedPoint.topY + 1 + Math.sin(agent.timer * 1.1 + agent.flapOffset) * 0.24;
         agent.position.y = THREE.MathUtils.lerp(agent.position.y, targetY, 0.08);
       } else {
-        const waterBias = resolvedPoint.cell.isWater ? 0 : 0.25;
         const targetY =
-          WATER_SWIM_Y + Math.sin(agent.timer * 1.8 + agent.flapOffset) * 0.05 - waterBias;
+          WATER_SWIM_Y + Math.sin(agent.timer * 1.8 + agent.flapOffset) * 0.05;
         agent.position.y = THREE.MathUtils.lerp(agent.position.y, targetY, 0.1);
       }
 
@@ -531,6 +715,14 @@ function FaunaSpeciesLayer({
         const deadAgent = agents.find((a) => !a.active);
         if (deadAgent) {
           resetAgent(deadAgent, species, terrain);
+          emitFaunaEvent?.({
+            kind: "respawn",
+            message: `${species.commonName} respawnou`,
+            speciesId: species.id,
+            x: deadAgent.position.x,
+            y: deadAgent.position.y,
+            z: deadAgent.position.z,
+          });
           liveCount += 1;
         }
         respawnClockRef.current = 0;
@@ -547,19 +739,16 @@ function FaunaSpeciesLayer({
 
   return (
     <group visible={visible}>
-      {initialAgents.map((agent, i) => {
-        const model = perSlotModels[i];
-        if (!model) return null;
+      {initialAgents.map((agent) => {
         return (
-          <Suspense key={agent.slot} fallback={null}>
-            <AnimalEntity
-              agent={agent}
-              model={model}
-              kind={kind}
-              category={species.category}
-              speedMultiplier={speedMultiplier}
-            />
-          </Suspense>
+          <AnimalEntity
+            key={agent.slot}
+            agent={agent}
+            kind={kind}
+            category={species.category}
+            feedingStrategy={species.feedingStrategy}
+            speedMultiplier={speedMultiplier}
+          />
         );
       })}
     </group>
@@ -573,16 +762,28 @@ export function FaunaLayer({
   paused,
   speedMultiplier,
   visible,
+  carcassesVisible,
   onCountUpdate,
+  onFaunaEvent,
 }: FaunaLayerProps) {
   const terrain = useMemo(() => buildTerrainContext(grid), [grid]);
   const registryRef = useRef<Map<string, FaunaAgent[]>>(new Map());
   const countsRef = useRef<Map<string, number>>(new Map());
+  const killEventsRef = useRef(0);
+  const starvationEventsRef = useRef(0);
+  const respawnEventsRef = useRef(0);
+  const eventIdRef = useRef(0);
   const puffControllerRef = useRef<DeathPuffController | null>(null);
+  const carcassControllerRef = useRef<CarcassController | null>(null);
   const speciesMap = useMemo(() => new Map(species.map((entry) => [entry.id, entry])), [species]);
 
   const emitPuff = useMemo(
     () => (x: number, y: number, z: number) => puffControllerRef.current?.emit(x, y, z),
+    [],
+  );
+
+  const emitCarcass = useMemo(
+    () => (input: CarcassRecordInput) => carcassControllerRef.current?.emit(input),
     [],
   );
 
@@ -598,24 +799,126 @@ export function FaunaLayer({
     onCountUpdate?.(total);
   }
 
+  // Centralized fauna event handler: count events (dev) and forward to parent.
+  function handleFaunaEvent(event: Omit<FaunaEvent, "id" | "createdAt">) {
+    const fullEvent: FaunaEvent = {
+      ...event,
+      id: `fauna-event-${eventIdRef.current + 1}`,
+      createdAt: Date.now(),
+    };
+    eventIdRef.current += 1;
+    // Increment counters by event kind for diagnostics.
+    if (import.meta.env.DEV) {
+      if (fullEvent.kind === "predation") killEventsRef.current += 1;
+      else if (fullEvent.kind === "starvation") starvationEventsRef.current += 1;
+      else if (fullEvent.kind === "respawn") respawnEventsRef.current += 1;
+    }
+    onFaunaEvent?.(fullEvent);
+  }
+
+  // Dev-only diagnostics: periodic summary (throttled) to avoid log spam.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const id = setInterval(() => {
+      try {
+        const totalSpecies = species.length;
+        const totalPredators = species.filter((s) => s.preySpeciesIds && s.preySpeciesIds.length > 0).length;
+        const predatorsNoPreyPresent = species.filter((s) => {
+          if (!s.preySpeciesIds || s.preySpeciesIds.length === 0) return false;
+          // check if any prey presence in registry
+          const anyPreyPresent = s.preySpeciesIds.some((preyId) => {
+            const arr = registryRef.current.get(preyId);
+            return !!arr && arr.filter((a) => a.active).length > 0;
+          });
+          return !anyPreyPresent;
+        }).map((s) => s.id);
+
+        const preyCounts: Record<string, number> = {};
+        for (const [id, arr] of registryRef.current.entries()) {
+          preyCounts[id] = arr.filter((a) => a.active).length;
+        }
+
+        console.debug("[fauna:diagnostic] summary", {
+          totalSpecies,
+          totalPredators,
+          predatorsNoPreyPresent,
+          preyCounts,
+          killEvents: killEventsRef.current,
+          starvationEvents: starvationEventsRef.current,
+          respawnEvents: respawnEventsRef.current,
+        });
+        // reset event counters for next window
+        killEventsRef.current = 0;
+        starvationEventsRef.current = 0;
+        respawnEventsRef.current = 0;
+      } catch (err) {
+        console.debug("[fauna:diagnostic] error", err);
+      }
+    }, 3000);
+    return () => clearInterval(id);
+  }, [species]);
+
+  // Dev-only: nudge predator spawn positions closer to prey agents to help observe predation.
+  useEffect(() => {
+    if (!import.meta.env.DEV || !ENABLE_DEV_PREDATION_NUDGE) return;
+    const t = setTimeout(() => {
+      try {
+        for (const sp of species) {
+          if (!sp.preySpeciesIds || sp.preySpeciesIds.length === 0) continue;
+          const predators = registryRef.current.get(sp.id);
+          if (!predators || predators.length === 0) continue;
+          // find any prey agents available in registry
+          const preyCandidates: FaunaAgent[] = [];
+          for (const preyId of sp.preySpeciesIds) {
+            const arr = registryRef.current.get(preyId);
+            if (arr && arr.length > 0) preyCandidates.push(...arr.filter((a) => a.active));
+          }
+          if (preyCandidates.length === 0) continue;
+          // move up to 2 predators near random prey agents
+          for (let i = 0; i < Math.min(2, predators.length); i += 1) {
+            const prey = preyCandidates[Math.floor(Math.random() * preyCandidates.length)];
+            const predator = predators[i];
+            if (prey && predator) {
+              predator.position.x = prey.position.x + (Math.random() - 0.5) * 0.6;
+              predator.position.z = prey.position.z + (Math.random() - 0.5) * 0.6;
+              predator.position.y = prey.position.y;
+            }
+          }
+        }
+      } catch (e) {
+        console.debug("[fauna:diagnostic] spawn nudge failed", e);
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [species]);
+
+  // Carcasses default to fauna visibility but can be toggled independently:
+  // the simulation keeps running (useFrame runs regardless of group visibility),
+  // so hiding live fauna does not pause predation/decomposition.
+  const showCarcasses = carcassesVisible ?? visible;
   return (
-    <group visible={visible}>
-      {species.map((entry) => (
-        <FaunaSpeciesLayer
-          key={entry.id}
-          grid={grid}
-          terrain={terrain}
-          species={entry}
-          paused={paused}
-          speedMultiplier={speedMultiplier}
-          visible={visible}
-          registryRef={registryRef}
-          allSpeciesMap={speciesMap}
-          onCountChange={handleCountChange}
-          emitPuff={emitPuff}
-        />
-      ))}
-      <DeathPuffLayer controllerRef={puffControllerRef} visible={visible} />
+    <group>
+      <group visible={visible}>
+        {species.map((entry) => (
+          <FaunaSpeciesLayer
+            key={entry.id}
+            grid={grid}
+            terrain={terrain}
+            species={entry}
+            paused={paused}
+            speedMultiplier={speedMultiplier}
+            visible={visible}
+            registryRef={registryRef}
+            allSpeciesMap={speciesMap}
+            onCountChange={handleCountChange}
+            emitPuff={emitPuff}
+            emitCarcass={emitCarcass}
+            emitFaunaEvent={handleFaunaEvent}
+          />
+        ))}
+        <DeathPuffLayer controllerRef={puffControllerRef} visible={visible} />
+      </group>
+      <CarcassLayer controllerRef={carcassControllerRef} visible={showCarcasses} />
     </group>
   );
 }

@@ -126,6 +126,33 @@ export const ecologyInspectSchema = z.object({
 });
 
 // POST /ecology/fauna
+const caveTypeSchema = z.enum([
+  "none",
+  "shallow-den",
+  "deep-cave",
+  "sinkhole",
+  "cliff-opening",
+  "river-cave",
+  "lava-tube",
+  "karst-system",
+]);
+
+const terrainObjectTypeSchema = z.enum([
+  "rock",
+  "boulder",
+  "fallen-log",
+  "dead-tree",
+  "bush",
+  "nest",
+  "burrow",
+  "bones",
+  "mushroom",
+  "crystal",
+  "waterfall",
+  "cave-entrance",
+  "cliff-ledge",
+]);
+
 const terrainCellBodySchema = z.object({
   x: z.number(),
   y: z.number(),
@@ -137,6 +164,24 @@ const terrainCellBodySchema = z.object({
   climateCode: z.string(),
   biomeSuggestion: z.string(),
   isWater: z.boolean(),
+  // Structural layer (optional — preserved on round-trip for micro-habitat spawn).
+  slope: z.number().optional(),
+  rockiness: z.number().optional(),
+  altitudeBand: z.enum(["lowland", "hill", "mountain", "cliff"]).optional(),
+  waterFlow: z.number().optional(),
+  riverDistance: z.number().optional(),
+  cave: z
+    .object({
+      type: caveTypeSchema,
+      depth: z.number(),
+      openness: z.number(),
+      humidity: z.number(),
+      darkness: z.number(),
+      connectedTo: z.array(z.string()).optional(),
+      systemId: z.string().optional(),
+    })
+    .optional(),
+  objects: z.array(terrainObjectTypeSchema).optional(),
 });
 
 const faunaGridSchema = z.object({

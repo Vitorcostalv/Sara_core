@@ -8,8 +8,7 @@
     "build": "tsc -p tsconfig.json && vite build",
     "lint": "eslint src vite.config.ts --ext .ts,.tsx",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "models:fetch": "tsx scripts/fetch-fauna-models.ts"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

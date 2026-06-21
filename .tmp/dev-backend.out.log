@@ -1,0 +1,1134 @@
+
+> sara-core@0.1.0 predev:backend
+> node scripts/free-ports.mjs 3333
+
+[free-ports] port 3333: livre
+
+> sara-core@0.1.0 dev:backend
+> npm run dev -w @sara/backend
+
+
+> @sara/backend@0.1.0 dev
+> tsx watch src/server.ts
+
+[2026-06-20 18:31:57.613 -0300] [32mINFO[39m (25216): [36mCORS origins loaded[39m
+    [35mcorsOrigins[39m: [
+      "http://localhost:5180",
+      "http://127.0.0.1:5180",
+      "http://192.168.0.85:5180",
+      "http://10.147.19.63:5180"
+    ]
+[2026-06-20 18:31:57.613 -0300] [32mINFO[39m (25216): [36mOperational security configuration loaded[39m
+    [35mauthMode[39m: "disabled"
+    [35mdatabaseSslMode[39m: "require"
+    [35mtrustProxy[39m: false
+[2026-06-20 18:31:57.613 -0300] [33mWARN[39m (25216): [36mAPI authentication is disabled for this runtime[39m
+[2026-06-20 18:31:57.618 -0300] [32mINFO[39m (25216): [36mSara Core backend started[39m
+    [35mhost[39m: "0.0.0.0"
+    [35mport[39m: 3333
+[2026-06-20 18:31:59.704 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 1,
+      "method": "GET",
+      "url": "/api/v1/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "user-agent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; pt-BR) WindowsPowerShell/5.1.26100.8655",
+        "host": "127.0.0.1:3333",
+        "connection": "Keep-Alive"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 56295
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "212",
+        "etag": "W/\"d4-kmn28NhPvQfU4gWy5iYAeLX0k8E\""
+      }
+    }
+    [35mresponseTime[39m: 905
+[2026-06-20 18:32:13.221 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 2,
+      "method": "GET",
+      "url": "/api/v1/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "user-agent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; pt-BR) WindowsPowerShell/5.1.26100.8655",
+        "host": "127.0.0.1:3333",
+        "connection": "Keep-Alive"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59514
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "213",
+        "etag": "W/\"d5-A7cNAQUCdT/mhU4OH/VbiexRuCY\""
+      }
+    }
+    [35mresponseTime[39m: 127
+[2026-06-20 18:32:33.937 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 3,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://127.0.0.1:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://127.0.0.1:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49778
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://127.0.0.1:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 1
+[2026-06-20 18:32:37.567 -0300] [32mINFO[39m (25216): [36mBiome extracted via LLM[39m
+    [35mmodule[39m: "ecological-terrain-prompt"
+    [35mbiomeSlug[39m: "floresta-tropical"
+    [35msource[39m: "llm"
+[2026-06-20 18:32:37.853 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 4,
+      "method": "POST",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "49",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36",
+        "sec-ch-ua": "\"HeadlessChrome\";v=\"147\", \"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"147\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "origin": "http://127.0.0.1:5180",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://127.0.0.1:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49778
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://127.0.0.1:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "29",
+        "x-ratelimit-reset": "1781991213949",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "535363",
+        "etag": "W/\"82b43-9Onegor1PKJBDNPuv2gK7YGdDKU\""
+      }
+    }
+    [35mresponseTime[39m: 3916
+[2026-06-20 18:32:54.862 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 5,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://127.0.0.1:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://127.0.0.1:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 56713
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://127.0.0.1:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 1
+[2026-06-20 18:32:55.130 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 6,
+      "method": "POST",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "49",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36",
+        "sec-ch-ua": "\"HeadlessChrome\";v=\"147\", \"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"147\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "origin": "http://127.0.0.1:5180",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://127.0.0.1:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 56713
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://127.0.0.1:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "28",
+        "x-ratelimit-reset": "1781991213949",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "535363",
+        "etag": "W/\"82b43-9Onegor1PKJBDNPuv2gK7YGdDKU\""
+      }
+    }
+    [35mresponseTime[39m: 268
+[2026-06-20 18:33:26.541 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 7,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://127.0.0.1:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://127.0.0.1:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 56100
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://127.0.0.1:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 1
+[2026-06-20 18:33:27.698 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 8,
+      "method": "POST",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "49",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36",
+        "sec-ch-ua": "\"HeadlessChrome\";v=\"147\", \"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"147\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "origin": "http://127.0.0.1:5180",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://127.0.0.1:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 56100
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://127.0.0.1:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "27",
+        "x-ratelimit-reset": "1781991213949",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "535363",
+        "etag": "W/\"82b43-9Onegor1PKJBDNPuv2gK7YGdDKU\""
+      }
+    }
+    [35mresponseTime[39m: 1156
+[2026-06-20 18:36:06.426 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 9,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://localhost:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 62223
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 0
+[2026-06-20 18:36:07.559 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 10,
+      "method": "POST",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "49",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Brave\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "sec-gpc": "1",
+        "accept-language": "pt-BR,pt;q=0.7",
+        "origin": "http://localhost:5180",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 62223
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "29",
+        "x-ratelimit-reset": "1781991426427",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "535363",
+        "etag": "W/\"82b43-9Onegor1PKJBDNPuv2gK7YGdDKU\""
+      }
+    }
+    [35mresponseTime[39m: 1132
+[2026-06-20 19:04:22.473 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 11,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://localhost:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58448
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 3
+[2026-06-20 19:04:24.344 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 12,
+      "method": "POST",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "49",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Brave\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "sec-gpc": "1",
+        "accept-language": "pt-BR,pt;q=0.7",
+        "origin": "http://localhost:5180",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58448
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "29",
+        "x-ratelimit-reset": "1781993122476",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "535363",
+        "etag": "W/\"82b43-9Onegor1PKJBDNPuv2gK7YGdDKU\""
+      }
+    }
+    [35mresponseTime[39m: 1870
+[2026-06-20 19:09:54.326 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 13,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/simulate/terrain",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://localhost:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 52240
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 0
+[2026-06-20 19:09:54.345 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 14,
+      "method": "POST",
+      "url": "/api/v1/ecology/simulate/terrain",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "107",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Brave\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "sec-gpc": "1",
+        "accept-language": "pt-BR,pt;q=0.7",
+        "origin": "http://localhost:5180",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 52240
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "29",
+        "x-ratelimit-reset": "1781993454328",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "536867",
+        "etag": "W/\"83123-AePyq5Xc9IPfVL7lZVXDcJFNfWo\""
+      }
+    }
+    [35mresponseTime[39m: 18
+[2026-06-20 19:09:54.354 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 15,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/fauna",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://localhost:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 52240
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 1
+[2026-06-20 19:09:54.362 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 16,
+      "method": "POST",
+      "url": "/api/v1/ecology/fauna",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "4809",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Brave\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "sec-gpc": "1",
+        "accept-language": "pt-BR,pt;q=0.7",
+        "origin": "http://localhost:5180",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 52240
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "28",
+        "x-ratelimit-reset": "1781993454328",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "29890",
+        "etag": "W/\"74c2-kEwkaDfHjLtTEHK7PUdLRfFswcc\""
+      }
+    }
+    [35mresponseTime[39m: 7
+[2026-06-20 19:53:50.997 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 17,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://localhost:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 64016
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 1
+[2026-06-20 19:53:52.794 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 18,
+      "method": "POST",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "49",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Brave\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "sec-gpc": "1",
+        "accept-language": "pt-BR,pt;q=0.7",
+        "origin": "http://localhost:5180",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 64016
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "29",
+        "x-ratelimit-reset": "1781996091000",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "535363",
+        "etag": "W/\"82b43-9Onegor1PKJBDNPuv2gK7YGdDKU\""
+      }
+    }
+    [35mresponseTime[39m: 1796
+[2026-06-20 22:08:28.638 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 19,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://localhost:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 63886
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 14
+[2026-06-20 22:08:30.880 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 20,
+      "method": "POST",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "49",
+        "pragma": "no-cache",
+        "cache-control": "no-cache",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Brave\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "sec-gpc": "1",
+        "accept-language": "pt-BR,pt;q=0.7",
+        "origin": "http://localhost:5180",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 63886
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "29",
+        "x-ratelimit-reset": "1782004168647",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "535363",
+        "etag": "W/\"82b43-9Onegor1PKJBDNPuv2gK7YGdDKU\""
+      }
+    }
+    [35mresponseTime[39m: 2241
+[2026-06-21 12:53:32.920 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 21,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://localhost:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53216
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 8
+[2026-06-21 12:53:34.720 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 22,
+      "method": "POST",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "49",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Brave\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "sec-gpc": "1",
+        "accept-language": "pt-BR,pt;q=0.7",
+        "origin": "http://localhost:5180",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53216
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "29",
+        "x-ratelimit-reset": "1782057272929",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "535363",
+        "etag": "W/\"82b43-9Onegor1PKJBDNPuv2gK7YGdDKU\""
+      }
+    }
+    [35mresponseTime[39m: 1798
+[2026-06-21 13:37:33.922 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 23,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://localhost:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51144
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 2
+[2026-06-21 13:37:35.822 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 24,
+      "method": "POST",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "49",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Brave\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "sec-gpc": "1",
+        "accept-language": "pt-BR,pt;q=0.7",
+        "origin": "http://localhost:5180",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51144
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "29",
+        "x-ratelimit-reset": "1782059913925",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "535363",
+        "etag": "W/\"82b43-9Onegor1PKJBDNPuv2gK7YGdDKU\""
+      }
+    }
+    [35mresponseTime[39m: 1899

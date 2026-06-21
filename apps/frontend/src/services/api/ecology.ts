@@ -136,11 +136,44 @@ export interface VegetationSummary {
   description: string;
 }
 
+export interface FormationSummary {
+  caveCells: number;
+  caveSystems: number;
+  visibleEntrances: number;
+  subterraneanCells: number;
+  chamberCells: number;
+  tunnelCells: number;
+  connections: number;
+  maxCaveDepth: number;
+  avgCaveDepth: number;
+  shallowCaveCount: number;
+  deepCaveCount: number;
+  fallbackSingleCellSystems: number;
+  largestSystemCells: number;
+  caveTypes: Array<{ type: string; count: number }>;
+  mountainCoveragePct: number;
+  cliffCoveragePct: number;
+  rockyCoveragePct: number;
+  ledgeCells: number;
+  riverCells: number;
+  maxWaterFlow: number;
+  waterfallCells: number;
+}
+
 export interface FaunaSummary {
   totalSpecies: number;
   totalPopulation: number;
   byCategory: Array<{ category: string; count: number }>;
-  species: Array<{ commonName: string; scientificName: string; category: string }>;
+  byFeedingStrategy: Array<{ feedingStrategy: FeedingStrategy; count: number }>;
+  species: Array<{
+    commonName: string;
+    scientificName: string;
+    category: string;
+    feedingStrategy: FeedingStrategy;
+    habitat: "cave" | "water" | "land";
+    populationTarget: number;
+    isPredator: boolean;
+  }>;
 }
 
 export interface AbioticFactor {
@@ -182,6 +215,7 @@ export interface EcosystemReport {
   climate: ClimateSummary;
   relief: ReliefSummary;
   vegetation: VegetationSummary;
+  formations: FormationSummary;
   fauna: FaunaSummary;
   abioticFactors: AbioticFactor[];
   scientificExplanation: ScientificExplanation;
@@ -247,6 +281,45 @@ export interface EcologicalLlmResult {
 
 // ─── Terrain ──────────────────────────────────────────────────────────────────
 
+export type CaveType =
+  | "none"
+  | "shallow-den"
+  | "deep-cave"
+  | "sinkhole"
+  | "cliff-opening"
+  | "river-cave"
+  | "lava-tube"
+  | "karst-system";
+
+export type TerrainObjectType =
+  | "rock"
+  | "boulder"
+  | "fallen-log"
+  | "dead-tree"
+  | "bush"
+  | "nest"
+  | "burrow"
+  | "bones"
+  | "mushroom"
+  | "crystal"
+  | "waterfall"
+  | "cave-entrance"
+  | "cliff-ledge";
+
+export type AltitudeBand = "lowland" | "hill" | "mountain" | "cliff";
+
+export interface CaveInfo {
+  type: CaveType;
+  depth: number;
+  openness: number;
+  humidity: number;
+  darkness: number;
+  connectedTo?: string[];
+  systemId?: string;
+  isEntrance?: boolean;
+  role?: "entrance" | "chamber" | "tunnel";
+}
+
 export interface TerrainCell {
   x: number;
   y: number;
@@ -258,6 +331,14 @@ export interface TerrainCell {
   climateCode: string;
   biomeSuggestion: string;
   isWater: boolean;
+  // Structural layer (optional — produced by the backend's enrichTerrain).
+  slope?: number;
+  rockiness?: number;
+  altitudeBand?: AltitudeBand;
+  waterFlow?: number;
+  riverDistance?: number;
+  cave?: CaveInfo;
+  objects?: TerrainObjectType[];
 }
 
 export interface TerrainGrid {
@@ -368,6 +449,56 @@ export type FaunaCategory =
   | "fish";
 
 export type TrophicLevel = "producer" | "herbivore" | "mesopredator" | "apex";
+export type FeedingStrategy = "herbivore" | "carnivore" | "omnivore";
+
+export type HabitatType =
+  | "forest"
+  | "grassland"
+  | "riverbank"
+  | "lake"
+  | "wetland"
+  | "mountain"
+  | "cliff"
+  | "cave"
+  | "deep-cave"
+  | "desert"
+  | "tundra"
+  | "canopy"
+  | "underground"
+  | "ocean";
+
+export type ActivityPeriod = "diurnal" | "nocturnal" | "crepuscular";
+export type SocialBehavior = "solitary" | "pair" | "small-group" | "herd" | "pack" | "swarm";
+export type CaveAffinity = "none" | "shelter" | "nesting" | "primary";
+
+export interface HabitatProfile {
+  primary: HabitatType[];
+  secondary: HabitatType[];
+  avoids: HabitatType[];
+  altitudePreference: "low" | "medium" | "high" | "any";
+  waterDependency: "none" | "low" | "medium" | "high";
+  caveAffinity: CaveAffinity;
+}
+
+export interface BehaviorProfile {
+  activityPeriod: ActivityPeriod;
+  socialBehavior: SocialBehavior;
+  aggression: number;
+  curiosity: number;
+  fear: number;
+  territoriality: number;
+  migration: number;
+}
+
+export interface PredationProfile {
+  attackRange?: number;
+  damageRate?: number;
+  huntRange?: number;
+  hungerRate?: number;
+  starvationThreshold?: number;
+  satiationCooldownMs?: number;
+  preyPreference?: Record<string, number>;
+}
 
 export interface SpeciesDefinition {
   id: string;
@@ -378,6 +509,10 @@ export interface SpeciesDefinition {
   diet: string[];
   preySpeciesIds: string[];
   trophicLevel: TrophicLevel;
+  feedingStrategy: FeedingStrategy;
+  mass: number;
+  awarenessRange: number;
+  predation?: PredationProfile;
   populationTarget: number;
   movementProfile: {
     maxSpeed: number;
@@ -389,6 +524,8 @@ export interface SpeciesDefinition {
     flockRadius: number;
     separationDistance: number;
   };
+  habitatProfile?: HabitatProfile;
+  behaviorProfile?: BehaviorProfile;
 }
 
 export interface FaunaResult {

@@ -48,11 +48,50 @@ export interface VegetationSummary {
   description: string;
 }
 
+export interface FormationSummary {
+  caveCells: number;
+  caveSystems: number;
+  visibleEntrances: number;
+  /** Cave cells that are interior-only (not surface entrances). */
+  subterraneanCells: number;
+  /** Internal cells flagged as deep chambers / connecting tunnels. */
+  chamberCells: number;
+  tunnelCells: number;
+  /** Total intra-system adjacency links across all cave cells. */
+  connections: number;
+  maxCaveDepth: number;
+  avgCaveDepth: number;
+  shallowCaveCount: number;
+  deepCaveCount: number;
+  /** Cave systems that ended up with a single cell (entrance only). */
+  fallbackSingleCellSystems: number;
+  /** Number of cells in the largest connected cave system. */
+  largestSystemCells: number;
+  caveTypes: Array<{ type: string; count: number }>;
+  mountainCoveragePct: number;
+  cliffCoveragePct: number;
+  rockyCoveragePct: number;
+  ledgeCells: number;
+  riverCells: number;
+  maxWaterFlow: number;
+  waterfallCells: number;
+}
+
 export interface FaunaSummary {
   totalSpecies: number;
   totalPopulation: number;
   byCategory: Array<{ category: string; count: number }>;
-  species: Array<{ commonName: string; scientificName: string; category: string }>;
+  byFeedingStrategy: Array<{ feedingStrategy: SpeciesDefinition["feedingStrategy"]; count: number }>;
+  species: Array<{
+    commonName: string;
+    scientificName: string;
+    category: string;
+    feedingStrategy: SpeciesDefinition["feedingStrategy"];
+    /** Coarse micro-habitat used by the viewer's "Animals present" list/filters. */
+    habitat: "cave" | "water" | "land";
+    populationTarget: number;
+    isPredator: boolean;
+  }>;
 }
 
 export interface AbioticFactor {
@@ -94,6 +133,7 @@ export interface EcosystemReport {
   climate: ClimateSummary;
   relief: ReliefSummary;
   vegetation: VegetationSummary;
+  formations: FormationSummary;
   fauna: FaunaSummary;
   abioticFactors: AbioticFactor[];
   scientificExplanation: ScientificExplanation;
@@ -224,11 +264,98 @@ function summarizeVegetation(grid: TerrainGrid, climate: ClimateSummary): Vegeta
   return { dominantBiomes, description };
 }
 
+export function summarizeFormations(grid: TerrainGrid): FormationSummary {
+  let total = 0;
+  let caveCells = 0;
+  let visibleEntrances = 0;
+  let maxCaveDepth = 0;
+  let depthSum = 0;
+  let chamberCells = 0;
+  let tunnelCells = 0;
+  let connections = 0;
+  let shallowCaveCount = 0;
+  let deepCaveCount = 0;
+  let mountainCells = 0;
+  let cliffCells = 0;
+  let rockyCells = 0;
+  let ledgeCells = 0;
+  let riverCells = 0;
+  let maxWaterFlow = 0;
+  let waterfallCells = 0;
+  const caveSystems = new Map<string, number>();
+  const caveTypeCounts = new Map<string, number>();
+
+  for (const row of grid.cells) {
+    for (const cell of row) {
+      total += 1;
+      if (cell.altitudeBand === "mountain") mountainCells += 1;
+      if (cell.altitudeBand === "cliff") cliffCells += 1;
+      if ((cell.rockiness ?? 0) > 0.45) rockyCells += 1;
+      if ((cell.waterFlow ?? 0) > 0 && !cell.isWater) {
+        riverCells += 1;
+        maxWaterFlow = Math.max(maxWaterFlow, cell.waterFlow ?? 0);
+      }
+      if (cell.objects?.includes("cliff-ledge")) ledgeCells += 1;
+      if (cell.objects?.includes("waterfall")) waterfallCells += 1;
+
+      if (cell.cave && cell.cave.type !== "none") {
+        caveCells += 1;
+        depthSum += cell.cave.depth;
+        maxCaveDepth = Math.max(maxCaveDepth, cell.cave.depth);
+        if (cell.cave.depth >= 0.6) deepCaveCount += 1;
+        else shallowCaveCount += 1;
+        if (cell.cave.role === "chamber") chamberCells += 1;
+        if (cell.cave.role === "tunnel") tunnelCells += 1;
+        connections += cell.cave.connectedTo?.length ?? 0;
+        caveTypeCounts.set(cell.cave.type, (caveTypeCounts.get(cell.cave.type) ?? 0) + 1);
+        if (cell.cave.systemId) {
+          caveSystems.set(cell.cave.systemId, (caveSystems.get(cell.cave.systemId) ?? 0) + 1);
+        }
+        if (cell.objects?.includes("cave-entrance")) visibleEntrances += 1;
+      }
+    }
+  }
+
+  const safeTotal = Math.max(1, total);
+  const largestSystemCells = caveSystems.size > 0 ? Math.max(...caveSystems.values()) : 0;
+  const fallbackSingleCellSystems = Array.from(caveSystems.values()).filter((count) => count === 1).length;
+  return {
+    caveCells,
+    caveSystems: caveSystems.size,
+    visibleEntrances,
+    subterraneanCells: Math.max(0, caveCells - visibleEntrances),
+    chamberCells,
+    tunnelCells,
+    connections: Math.round(connections / 2), // adjacency counted from both ends
+    maxCaveDepth: round(maxCaveDepth, 2),
+    avgCaveDepth: caveCells > 0 ? round(depthSum / caveCells, 2) : 0,
+    shallowCaveCount,
+    deepCaveCount,
+    fallbackSingleCellSystems,
+    largestSystemCells,
+    caveTypes: Array.from(caveTypeCounts.entries())
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count),
+    mountainCoveragePct: round((mountainCells / safeTotal) * 100),
+    cliffCoveragePct: round((cliffCells / safeTotal) * 100),
+    rockyCoveragePct: round((rockyCells / safeTotal) * 100),
+    ledgeCells,
+    riverCells,
+    maxWaterFlow: round(maxWaterFlow, 2),
+    waterfallCells,
+  };
+}
+
 function summarizeFauna(species: SpeciesDefinition[]): FaunaSummary {
   const byCategoryMap = new Map<string, number>();
+  const byFeedingStrategyMap = new Map<SpeciesDefinition["feedingStrategy"], number>();
   let totalPopulation = 0;
   for (const s of species) {
     byCategoryMap.set(s.category, (byCategoryMap.get(s.category) ?? 0) + 1);
+    byFeedingStrategyMap.set(
+      s.feedingStrategy,
+      (byFeedingStrategyMap.get(s.feedingStrategy) ?? 0) + 1
+    );
     totalPopulation += s.populationTarget;
   }
 
@@ -238,12 +365,27 @@ function summarizeFauna(species: SpeciesDefinition[]): FaunaSummary {
     byCategory: Array.from(byCategoryMap.entries())
       .map(([category, count]) => ({ category, count }))
       .sort((a, b) => b.count - a.count),
+    byFeedingStrategy: Array.from(byFeedingStrategyMap.entries())
+      .map(([feedingStrategy, count]) => ({ feedingStrategy, count }))
+      .sort((a, b) => b.count - a.count),
     species: species.map((s) => ({
       commonName: s.commonName,
       scientificName: s.scientificName,
       category: s.category,
+      feedingStrategy: s.feedingStrategy,
+      habitat: classifyHabitat(s),
+      populationTarget: s.populationTarget,
+      isPredator: (s.preySpeciesIds?.length ?? 0) > 0,
     })),
   };
+}
+
+function classifyHabitat(species: SpeciesDefinition): "cave" | "water" | "land" {
+  if (species.habitableBiomes.includes("caverna")) return "cave";
+  if (species.category === "fish" || species.habitableBiomes.some((b) => b === "oceano" || b === "oceano-polar")) {
+    return "water";
+  }
+  return "land";
 }
 
 function buildAbioticFactors(climate: ClimateSummary, relief: ReliefSummary, avgSalinity: number): AbioticFactor[] {
@@ -304,7 +446,7 @@ function buildPlausibility(
   const faunaCriterion: PlausibilityCriterion = {
     label: "Fauna compatível",
     rating: ratingFrom(fauna.totalSpecies, 6, 3),
-    detail: `${fauna.totalSpecies} espécie(s) em ${fauna.byCategory.length} categoria(s) trófica(s).`,
+    detail: `${fauna.totalSpecies} espécie(s) em ${fauna.byFeedingStrategy.length} classe(s) alimentares.`,
   };
 
   const abioticCriterion: PlausibilityCriterion = {
@@ -364,6 +506,7 @@ export class EcosystemReportService {
     const climate = summarizeClimate(terrainResult.terrain, terrainResult.terrainParams.baseHumidityPct);
     const relief = summarizeRelief(terrainResult.terrain);
     const vegetation = summarizeVegetation(terrainResult.terrain, climate);
+    const formations = summarizeFormations(terrainResult.terrain);
     const fauna = summarizeFauna(species);
     const abioticFactors = buildAbioticFactors(climate, relief, averageSalinity(terrainResult.terrain));
 
@@ -398,6 +541,7 @@ export class EcosystemReportService {
         climate,
         relief,
         vegetation,
+        formations,
         fauna,
         abioticFactors,
         scientificExplanation,

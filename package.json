@@ -8,8 +8,12 @@
     "packages/*"
   ],
   "scripts": {
+    "free-ports": "node scripts/free-ports.mjs 3333 5180",
+    "predev": "node scripts/free-ports.mjs 3333 5180",
     "dev": "concurrently -n backend,frontend -c cyan,magenta \"npm run dev -w @sara/backend\" \"npm run dev -w @sara/frontend\"",
+    "predev:backend": "node scripts/free-ports.mjs 3333",
     "dev:backend": "npm run dev -w @sara/backend",
+    "predev:frontend": "node scripts/free-ports.mjs 5180",
     "dev:frontend": "npm run dev -w @sara/frontend",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",

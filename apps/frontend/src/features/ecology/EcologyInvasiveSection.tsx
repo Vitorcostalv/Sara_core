@@ -7,8 +7,10 @@ import type {
   InvasiveScenarioResult,
   PlausibilityRating,
   SpeciesDefinition,
+  TerrainCell,
 } from "../../services/api/ecology";
 import { TerrainView } from "./EcologyTerrainSection";
+import type { FaunaEvent } from "./FaunaLayer";
 
 const RATING_LABEL: Record<PlausibilityRating, string> = {
   alto: "Alto",
@@ -37,6 +39,8 @@ export function EcologyInvasiveSection() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const simulatedTimeRef = useRef(12);
+  const [inspected, setInspected] = useState<TerrainCell | null>(null);
+  const [faunaEvents, setFaunaEvents] = useState<FaunaEvent[]>([]);
 
   const submit = async () => {
     if (!speciesText.trim() || !locationText.trim()) {
@@ -166,10 +170,17 @@ export function EcologyInvasiveSection() {
               faunaPaused={false}
               faunaSpeedMultiplier={1}
               showFauna
+              showObjects
+              showCaves
+              showRivers
               rainEnabled={false}
               rainIntensity={0}
               simulatedTimeRef={simulatedTimeRef}
               onFaunaCountUpdate={() => {}}
+              inspected={inspected}
+              setInspected={setInspected}
+              faunaEvents={faunaEvents}
+              setFaunaEvents={setFaunaEvents}
             />
           ) : null}
 
