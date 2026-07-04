@@ -1,5 +1,6 @@
 import { logger } from "../../../logging/logger";
 import type { TerrainGrid } from "./terrain-generator.service";
+import { resourceNeedsFor, type ResourceType } from "./resource-base";
 
 const faunaLogger = logger.child({ module: "fauna-definition" });
 
@@ -13,6 +14,12 @@ export type FaunaCategory =
 
 export type TrophicLevel = "producer" | "herbivore" | "mesopredator" | "apex";
 export type FeedingStrategy = "herbivore" | "carnivore" | "omnivore";
+
+/** Coarse taxonomic group for reporting (não é rank taxonômico formal). */
+export type TaxonGroup = "mamífero" | "ave" | "peixe" | "réptil" | "anfíbio" | "invertebrado";
+
+/** Biogeographic status of a species within a resolved scenario. */
+export type NativeStatus = "native" | "introduced" | "unknown";
 
 // ─── Habitat / behaviour profiles (richer micro-habitat metadata) ───────────────
 
@@ -112,6 +119,14 @@ export interface SpeciesDefinition {
   habitatProfile: HabitatProfile;
   /** Activity period and temperament; derived from category when not declared. */
   behaviorProfile: BehaviorProfile;
+  /** Coarse taxonomic group for reporting; derived from category unless overridden. */
+  taxonGroup: TaxonGroup;
+  /** Biogeographic status; catalog species are native by default. */
+  nativeStatus: NativeStatus;
+  /** Basal (plant/detritus/plankton) resources this consumer depends on; carnivores are empty. */
+  resourceNeeds: ResourceType[];
+  /** Heuristic curation confidence (0–1) for the species' ecological metadata. */
+  confidence: number;
 }
 
 export interface FaunaResult {
@@ -131,6 +146,10 @@ type RawSpecies = Omit<
   | "predation"
   | "habitatProfile"
   | "behaviorProfile"
+  | "taxonGroup"
+  | "nativeStatus"
+  | "resourceNeeds"
+  | "confidence"
 > & {
   trophicLevel?: TrophicLevel;
   feedingStrategy?: FeedingStrategy;
@@ -141,6 +160,10 @@ type RawSpecies = Omit<
   habitatProfile?: Partial<HabitatProfile>;
   /** Partial override; missing fields are derived from category. */
   behaviorProfile?: Partial<BehaviorProfile>;
+  /** Override for non-mammal catalog entries (bats, invertebrates, snakes, fish). */
+  taxonGroup?: TaxonGroup;
+  /** Biogeographic status override; defaults to "native". */
+  nativeStatus?: NativeStatus;
 };
 
 /** Fauna-only pseudo-biome injected when the grid exposes cave cells. */
@@ -606,12 +629,13 @@ const RAW_CATALOG: RawSpecies[] = [
   },
   {
     id: "tilapia",
-    commonName: "Tilápia",
+    commonName: "Tilápia-do-nilo",
     scientificName: "Oreochromis niloticus",
     category: "fish",
     habitableBiomes: ["lago"],
     preySpeciesIds: [],
     feedingStrategy: "omnivore",
+    nativeStatus: "introduced",
     populationTarget: 8,
     movementProfile: { maxSpeed: 2.5, turnRate: 3.5, fleeMultiplier: 2.5 },
     flockProfile: { formsFlocks: true, flockRadius: 2.5, separationDistance: 0.4 },
@@ -926,6 +950,125 @@ const RAW_CATALOG: RawSpecies[] = [
     habitatProfile: { caveAffinity: "primary", waterDependency: "high", primary: ["deep-cave", "lake"] },
     behaviorProfile: { activityPeriod: "nocturnal", socialBehavior: "small-group" },
   },
+
+  // ── Curadoria neotropical adicional (Worker D): répteis, anfíbio, invertebrados e mais herbívoros ──
+  // Predadores répteis ficam confinados a pantanal/lago (fora dos conjuntos de bioma usados nos
+  // testes de floresta) para não perturbar as proporções tróficas calibradas.
+  {
+    id: "jacare-do-pantanal",
+    commonName: "Jacaré-do-pantanal",
+    scientificName: "Caiman yacare",
+    category: "predator-large",
+    trophicLevel: "apex",
+    habitableBiomes: ["pantanal", "lago"],
+    preySpeciesIds: ["piranha", "pacu", "capivara"],
+    feedingStrategy: "carnivore",
+    populationTarget: 4,
+    movementProfile: { maxSpeed: 2.2, turnRate: 1.8, fleeMultiplier: 1.3 },
+    flockProfile: { formsFlocks: false, flockRadius: 4.0, separationDistance: 1.8 },
+    habitatProfile: { waterDependency: "high", primary: ["riverbank", "lake", "wetland"] },
+    behaviorProfile: { activityPeriod: "crepuscular", socialBehavior: "solitary", aggression: 0.6 },
+  },
+  {
+    id: "sucuri",
+    commonName: "Sucuri-verde",
+    scientificName: "Eunectes murinus",
+    category: "predator-large",
+    trophicLevel: "apex",
+    habitableBiomes: ["pantanal", "lago"],
+    preySpeciesIds: ["capivara", "pacu"],
+    feedingStrategy: "carnivore",
+    populationTarget: 3,
+    movementProfile: { maxSpeed: 1.8, turnRate: 1.6, fleeMultiplier: 1.3 },
+    flockProfile: { formsFlocks: false, flockRadius: 3.5, separationDistance: 1.6 },
+    habitatProfile: { waterDependency: "high", primary: ["riverbank", "wetland", "lake"] },
+    behaviorProfile: { activityPeriod: "nocturnal", socialBehavior: "solitary", aggression: 0.5 },
+  },
+  {
+    id: "jabuti",
+    commonName: "Jabuti-piranga",
+    scientificName: "Chelonoidis carbonarius",
+    category: "herbivore-small",
+    habitableBiomes: ["floresta-tropical-umida", "mata-atlantica", "savana-tropical", "caatinga"],
+    preySpeciesIds: [],
+    feedingStrategy: "omnivore",
+    populationTarget: 6,
+    movementProfile: { maxSpeed: 1.0, turnRate: 1.8, fleeMultiplier: 1.6 },
+    flockProfile: { formsFlocks: false, flockRadius: 2.0, separationDistance: 0.8 },
+  },
+  {
+    id: "cutia",
+    commonName: "Cutia",
+    scientificName: "Dasyprocta azarae",
+    category: "herbivore-small",
+    habitableBiomes: ["floresta-tropical-umida", "mata-atlantica", "savana-tropical"],
+    preySpeciesIds: [],
+    feedingStrategy: "herbivore",
+    populationTarget: 9,
+    movementProfile: { maxSpeed: 2.8, turnRate: 3.4, fleeMultiplier: 2.9 },
+    flockProfile: { formsFlocks: false, flockRadius: 2.5, separationDistance: 0.7 },
+  },
+  {
+    id: "queixada",
+    commonName: "Queixada",
+    scientificName: "Tayassu pecari",
+    category: "herbivore-large",
+    habitableBiomes: ["floresta-tropical-umida", "mata-atlantica", "savana-tropical", "caatinga"],
+    preySpeciesIds: [],
+    feedingStrategy: "omnivore",
+    populationTarget: 8,
+    movementProfile: { maxSpeed: 2.6, turnRate: 2.4, fleeMultiplier: 2.4 },
+    flockProfile: { formsFlocks: true, flockRadius: 4.5, separationDistance: 0.9 },
+  },
+  {
+    id: "bugio",
+    commonName: "Bugio-ruivo",
+    scientificName: "Alouatta guariba",
+    category: "herbivore-small",
+    habitableBiomes: ["floresta-tropical-umida", "mata-atlantica"],
+    preySpeciesIds: [],
+    feedingStrategy: "herbivore",
+    populationTarget: 7,
+    movementProfile: { maxSpeed: 2.0, turnRate: 2.8, fleeMultiplier: 2.2 },
+    flockProfile: { formsFlocks: true, flockRadius: 3.5, separationDistance: 0.8 },
+  },
+  {
+    id: "formiga-cortadeira",
+    commonName: "Formiga-cortadeira",
+    scientificName: "Atta sexdens",
+    category: "herbivore-small",
+    habitableBiomes: ["floresta-tropical-umida", "mata-atlantica", "savana-tropical"],
+    preySpeciesIds: [],
+    feedingStrategy: "herbivore",
+    populationTarget: 12,
+    movementProfile: { maxSpeed: 1.2, turnRate: 4.0, fleeMultiplier: 2.0 },
+    flockProfile: { formsFlocks: true, flockRadius: 2.0, separationDistance: 0.3 },
+  },
+  {
+    id: "sapo-cururu",
+    commonName: "Sapo-cururu",
+    scientificName: "Rhinella diptycha",
+    category: "herbivore-small",
+    habitableBiomes: ["floresta-tropical-umida", "mata-atlantica", "savana-tropical", "caatinga"],
+    preySpeciesIds: [],
+    // Insetívoro: predador de invertebrados não modelados, sem presa vertebrada (folha recurso-implícita).
+    feedingStrategy: "carnivore",
+    populationTarget: 8,
+    movementProfile: { maxSpeed: 1.4, turnRate: 3.0, fleeMultiplier: 2.4 },
+    flockProfile: { formsFlocks: false, flockRadius: 2.0, separationDistance: 0.6 },
+  },
+  {
+    id: "seriema",
+    commonName: "Seriema",
+    scientificName: "Cariama cristata",
+    category: "bird",
+    habitableBiomes: ["savana-tropical", "pradaria-estepe", "caatinga"],
+    preySpeciesIds: [],
+    feedingStrategy: "omnivore",
+    populationTarget: 5,
+    movementProfile: { maxSpeed: 3.6, turnRate: 3.0, fleeMultiplier: 2.6 },
+    flockProfile: { formsFlocks: false, flockRadius: 3.5, separationDistance: 1.0 },
+  },
 ];
 
 // ─── Normalisation ──────────────────────────────────────────────────────────
@@ -1093,19 +1236,66 @@ function behaviorProfileFor(raw: RawSpecies): BehaviorProfile {
   return { ...base, ...raw.behaviorProfile };
 }
 
+// Category renderer hacks (bats fly, snakes are "predator-medium") don't imply a taxon, so a few
+// catalog ids carry an explicit taxonGroup override; the rest are derived from category.
+const TAXON_OVERRIDES: Record<string, TaxonGroup> = {
+  morcego: "mamífero",
+  "inseto-cavernicola": "invertebrado",
+  "aranha-cavernicola": "invertebrado",
+  "serpente-cavernicola": "réptil",
+  "jacare-do-pantanal": "réptil",
+  sucuri: "réptil",
+  jabuti: "réptil",
+  "sapo-cururu": "anfíbio",
+  "formiga-cortadeira": "invertebrado",
+};
+
+function taxonGroupFor(raw: RawSpecies): TaxonGroup {
+  if (raw.taxonGroup) return raw.taxonGroup;
+  if (TAXON_OVERRIDES[raw.id]) return TAXON_OVERRIDES[raw.id]!;
+  if (raw.category === "fish") return "peixe";
+  if (raw.category === "bird") return "ave";
+  return "mamífero";
+}
+
 // Derives diet (= preySpeciesIds) and trophicLevel so each raw entry declares prey only once.
 // An explicit raw.trophicLevel wins over the category-based default.
-const SPECIES_CATALOG: SpeciesDefinition[] = RAW_CATALOG.map((raw) => ({
-  ...raw,
-  diet: [...raw.preySpeciesIds],
-  trophicLevel: raw.trophicLevel ?? trophicLevelFor(raw.category),
-  feedingStrategy: feedingStrategyFor(raw),
-  mass: massFor(raw),
-  awarenessRange: awarenessRangeFor(raw),
-  predation: resolvePredationProfile(raw),
-  habitatProfile: habitatProfileFor(raw),
-  behaviorProfile: behaviorProfileFor(raw),
-}));
+const SPECIES_CATALOG: SpeciesDefinition[] = RAW_CATALOG.map((raw) => {
+  const feedingStrategy = feedingStrategyFor(raw);
+  return {
+    ...raw,
+    diet: [...raw.preySpeciesIds],
+    trophicLevel: raw.trophicLevel ?? trophicLevelFor(raw.category),
+    feedingStrategy,
+    mass: massFor(raw),
+    awarenessRange: awarenessRangeFor(raw),
+    predation: resolvePredationProfile(raw),
+    habitatProfile: habitatProfileFor(raw),
+    behaviorProfile: behaviorProfileFor(raw),
+    taxonGroup: taxonGroupFor(raw),
+    nativeStatus: raw.nativeStatus ?? ("native" as NativeStatus),
+    resourceNeeds: resourceNeedsFor({ category: raw.category, feedingStrategy, habitableBiomes: raw.habitableBiomes }),
+    confidence: 0.7,
+  };
+});
+
+/** Read-only lookup of normalized catalog species by id (used by the trophic-network resolver). */
+const CATALOG_BY_ID = new Map(SPECIES_CATALOG.map((s) => [s.id, s]));
+
+/** Catalog-declared diet for a species id, before any scenario pruning. */
+export function catalogDietFor(id: string): string[] {
+  return CATALOG_BY_ID.get(id)?.diet ?? [];
+}
+
+/** The normalized catalog entry for a species id, if present. */
+export function getCatalogSpecies(id: string): SpeciesDefinition | undefined {
+  return CATALOG_BY_ID.get(id);
+}
+
+/** The full normalized species catalog (read-only; used by data-integrity tests). */
+export function listCatalogSpecies(): readonly SpeciesDefinition[] {
+  return SPECIES_CATALOG;
+}
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 

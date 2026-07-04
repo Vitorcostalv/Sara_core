@@ -9,7 +9,33 @@ import { successionSimulatorService } from "./simulation/succession-simulator.se
 import { scenarioEngineService } from "./simulation/scenario-engine.service";
 import { artificialEnvironmentService } from "./simulation/artificial-environment.service";
 import { summarizeFormations } from "./ecosystem-report.service";
+import { resourceAvailabilityEvaluator } from "./simulation/resource-base";
+import { trophicNetworkResolver } from "./simulation/trophic-network.service";
+import { ecologicalPlausibilityEvaluator } from "./simulation/ecological-plausibility.service";
+import { ecosystemProfileService } from "./simulation/ecosystem-profiles";
 import type { ArtificialProjectRow } from "./grounding/ecological-grounding.repository";
+
+// Amazônia-like preset params (matches BiomePresetService "amazonia"): hot, very wet, humid lowland.
+const AMAZON_PARAMS = {
+  width: 48,
+  height: 36,
+  seed: 123,
+  baseTemperatureC: 28,
+  basePrecipitationMm: 2800,
+  baseHumidityPct: 88,
+} as const;
+
+function dominantBiome(grid: TerrainGrid): { biome: string; pct: number } {
+  const counts = new Map<string, number>();
+  let total = 0;
+  for (const cell of grid.cells.flat()) {
+    if (cell.isWater) continue;
+    total += 1;
+    counts.set(cell.biomeSuggestion, (counts.get(cell.biomeSuggestion) ?? 0) + 1);
+  }
+  const [biome, count] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? ["—", 0];
+  return { biome, pct: total > 0 ? (count / total) * 100 : 0 };
+}
 
 // ─── Terrain generator ────────────────────────────────────────────────────────
 
@@ -897,4 +923,84 @@ test("Fauna: a grid with caves resolves the cave-dwelling chain", () => {
 test("Fauna: a cave-free grid does not inject cave species", () => {
   const { species } = faunaDefinitionService.resolveBiomes(["floresta-tropical-umida"]);
   assert.ok(!species.some((s) => s.habitableBiomes.includes("caverna")));
+});
+
+// ─── Amazon coherence regression (post-demo fixes) ──────────────────────────────
+
+test("Amazon: humid rainforest params resolve to wet tropical forest, not dry forest", () => {
+  const grid = terrainGeneratorService.generate(AMAZON_PARAMS);
+  const { biome, pct } = dominantBiome(grid);
+  assert.equal(biome, "floresta-tropical-umida", `dominant biome should be wet forest, got ${biome} (${pct}%)`);
+  // Dry forest must not dominate a hot+wet Amazon grid.
+  const dry = grid.cells.flat().filter((c) => !c.isWater && c.biomeSuggestion === "floresta-tropical-seca").length;
+  const land = grid.cells.flat().filter((c) => !c.isWater).length;
+  assert.ok(dry / land < 0.3, `dry forest should be a minority, got ${(dry / land) * 100}%`);
+});
+
+test("Amazon: no alpine-cold minimum temperature without mountain context", () => {
+  const grid = terrainGeneratorService.generate(AMAZON_PARAMS);
+  const minTemp = Math.min(...grid.cells.flat().map((c) => c.temperatureC));
+  assert.ok(minTemp >= 15, `lowland rainforest min temperature should stay warm, got ${minTemp}°C`);
+});
+
+test("Amazon: ordinary rainforest prompt generates no incidental caves or cave fauna", () => {
+  const grid = terrainGeneratorService.generate(AMAZON_PARAMS);
+  const caveCells = grid.cells.flat().filter((c) => c.cave && c.cave.type !== "none").length;
+  assert.equal(caveCells, 0, "lowland default relief without cave hints must not sprout caves");
+  const species = faunaDefinitionService.resolve(grid).species;
+  assert.ok(!species.some((s) => s.habitableBiomes.includes("caverna")), "no cave fauna without caves");
+});
+
+test("Amazon: coherent report validation is high and not blocked by incidental cave fauna", () => {
+  const grid = terrainGeneratorService.generate(AMAZON_PARAMS);
+  const species = faunaDefinitionService.resolve(grid).species;
+  const resources = resourceAvailabilityEvaluator.assessFromGrid(grid, species);
+  const trophic = trophicNetworkResolver.resolve(species, resources);
+  const { pct } = dominantBiome(grid);
+  const profile = ecosystemProfileService.getBySlug("amazonia")!;
+  const presentResources = new Set(resources.resourceBase.map((r) => r.type));
+  const { mismatches, consistencyScore } = ecosystemProfileService.assessConsistency(profile, {
+    temperatureC: grid.baseTemperatureC,
+    precipitationMmYear: grid.basePrecipitationMm,
+    humidityPct: 88,
+    waterCoveragePct: 10,
+    avgSalinityPsu: 0,
+    caveCells: 0,
+    presentResources,
+  });
+  const validation = ecologicalPlausibilityEvaluator.evaluateEcosystem({
+    source: "keyword",
+    dominantBiomePct: pct,
+    speciesCount: species.length,
+    trophic,
+    resources,
+    grounding: { coverageSufficient: false, factCount: 0 },
+    hasSpecialHabitat: false,
+    profile: { matched: true, displayName: profile.displayName, consistencyScore, mismatches },
+  });
+  assert.equal(validation.blockingContradictions.length, 0, "no blocking contradiction for a coherent Amazon");
+  assert.ok(validation.score > 75, `coherent Amazon should score high, got ${validation.score}`);
+  // Predator/prey chain present (jaguar → capybara or equivalent).
+  const jaguar = species.find((s) => s.id === "onca-pintada");
+  assert.ok(jaguar && jaguar.preySpeciesIds.length > 0, "jaguar should have active prey links");
+});
+
+test("Cave: explicit cave hints still generate caves and a supported cave-dwelling chain", () => {
+  const grid = terrainGeneratorService.generate({
+    ...AMAZON_PARAMS,
+    featureHints: { caveQuantity: "few", requireVisibleCaves: true },
+  });
+  const caveCells = grid.cells.flat().filter((c) => c.cave && c.cave.type !== "none").length;
+  assert.ok(caveCells >= 2, "explicit cave hints must still produce caves");
+  const species = faunaDefinitionService.resolve(grid).species;
+  const caveFauna = species.filter((s) => s.habitableBiomes.includes("caverna"));
+  assert.ok(caveFauna.length > 0, "cave fauna should be injected for a meaningful cave habitat");
+
+  // Cave organic matter is available, so the troglobitic insect is supported (no contradiction).
+  const resources = resourceAvailabilityEvaluator.assessFromGrid(grid, species);
+  const trophic = trophicNetworkResolver.resolve(species, resources);
+  assert.ok(
+    !trophic.unsupportedSpecies.some((n) => n.toLowerCase().includes("trogl")),
+    "troglobitic insect must be supported by cave organic matter when caves are meaningful"
+  );
 });

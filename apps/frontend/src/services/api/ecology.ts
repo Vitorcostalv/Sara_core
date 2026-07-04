@@ -176,6 +176,137 @@ export interface FaunaSummary {
   }>;
 }
 
+// ─── Ecological knowledge layer (resource base, trophic network, validation) ─────
+
+export type TaxonGroup = "mamífero" | "ave" | "peixe" | "réptil" | "anfíbio" | "invertebrado";
+export type NativeStatus = "native" | "introduced" | "unknown";
+
+export type ResourceType =
+  | "pastagem"
+  | "folhagem-arbustiva"
+  | "folhagem-dossel"
+  | "frutos-sementes"
+  | "raizes-tuberculos"
+  | "vegetacao-aquatica"
+  | "plancton"
+  | "algas"
+  | "detrito"
+  | "materia-organica-cavernicola"
+  | "carnica"
+  | "nectar-polen"
+  | "recurso-agricola";
+
+export interface ResourceAvailability {
+  type: ResourceType;
+  label: string;
+  availability: number;
+  sources: string[];
+}
+
+export interface ConsumerSupport {
+  speciesId: string;
+  commonName: string;
+  needs: ResourceType[];
+  satisfiedBy: ResourceType[];
+  supported: boolean;
+}
+
+export interface HerbivorePressure {
+  level: "baixa" | "moderada" | "alta";
+  ratio: number;
+  detail: string;
+}
+
+export interface ResourceBaseAssessment {
+  resourceBase: ResourceAvailability[];
+  consumers: ConsumerSupport[];
+  unsupportedConsumers: string[];
+  resourceWarnings: string[];
+  herbivorePressure: HerbivorePressure;
+}
+
+export interface TrophicLink {
+  predatorId: string;
+  predatorName: string;
+  preyId: string;
+  preyName: string;
+}
+
+export interface PrunedTrophicLink {
+  predatorId: string;
+  predatorName: string;
+  preyId: string;
+  reason: string;
+}
+
+export interface TrophicLevelSummary {
+  level: TrophicLevel;
+  count: number;
+  species: string[];
+}
+
+export interface TrophicConsistencyReport {
+  links: TrophicLink[];
+  prunedLinks: PrunedTrophicLink[];
+  unsupportedSpecies: string[];
+  levels: TrophicLevelSummary[];
+  producers: string[];
+  warnings: string[];
+  pyramidConsistent: boolean;
+}
+
+export type PlausibilityBand = "baixa" | "moderada" | "alta";
+
+export interface PlausibilityComponent {
+  key: string;
+  label: string;
+  score: number;
+  weight: number;
+  detail: string;
+}
+
+export interface EcologicalValidation {
+  score: number;
+  label: PlausibilityBand;
+  components: PlausibilityComponent[];
+  issues: string[];
+  assumptions: string[];
+  missingData: string[];
+  positiveFactors: string[];
+  blockingContradictions: string[];
+}
+
+// ─── Curated ecosystem profile (deterministic reference) ─────────────────────────
+
+export type EcosystemMedium = "terrestrial" | "aquatic" | "mixed" | "cave" | "coastal";
+export type WaterPresence = "none" | "freshwater" | "brackish" | "marine";
+
+export interface EcosystemProfile {
+  slug: string;
+  displayName: string;
+  medium: EcosystemMedium;
+  compatibleBiomes: string[];
+  climate: {
+    temperatureRangeC: [number, number];
+    rainfallMmYear: [number, number];
+    humidityPct: [number, number];
+  };
+  substrateNotes: string;
+  water: { presence: WaterPresence; salinityRangePsu: [number, number] };
+  dominantResources: ResourceType[];
+  compatibleFaunaGroups: string[];
+  incompatibleConditions: string[];
+  sourceNotes: string;
+  confidence: number;
+}
+
+export interface EcosystemProfileMatch {
+  matched: boolean;
+  profile: EcosystemProfile | null;
+  mismatches: string[];
+  consistencyScore: number;
+}
+
 export interface AbioticFactor {
   label: string;
   value: number;
@@ -217,9 +348,14 @@ export interface EcosystemReport {
   vegetation: VegetationSummary;
   formations: FormationSummary;
   fauna: FaunaSummary;
+  resourceBase: ResourceBaseAssessment;
+  trophicNetwork: TrophicConsistencyReport;
+  /** Curated ecosystem-profile match (optional/defensive; older responses may omit it). */
+  ecosystemProfile?: EcosystemProfileMatch;
   abioticFactors: AbioticFactor[];
   scientificExplanation: ScientificExplanation;
   plausibility: PlausibilityAssessment;
+  validation: EcologicalValidation;
   limitations: string[];
 }
 
@@ -230,7 +366,14 @@ export interface EcosystemReportResult extends TerrainPromptResult {
 
 // ─── Invasive species scenario ─────────────────────────────────────────────────
 
-export type InvasionEffect = "predation" | "competition" | "none";
+export type InvasionEffect =
+  | "predation"
+  | "competition"
+  | "habitat-alteration"
+  | "disease"
+  | "resource-pressure"
+  | "none"
+  | (string & {});
 
 export interface NativeImpact {
   speciesId: string;
@@ -244,6 +387,34 @@ export interface InvasionPhase {
   tSeconds: number;
   invaderPop: number;
   nativeDeltas: Record<string, number>;
+  mechanisms?: string[];
+}
+
+export type InvasiveMechanismKind =
+  | "predacao"
+  | "competicao-alimentar"
+  | "competicao-espaco"
+  | "engenharia-habitat"
+  | "transmissao-doenca"
+  | "hibridizacao"
+  | "sobrepastejo"
+  | "supressao-vegetal"
+  | "alteracao-aquatica"
+  | "cascata-trofica"
+  | "deplecao-recursos";
+
+export interface InvasiveImpactMechanism {
+  kind: InvasiveMechanismKind;
+  label: string;
+  description: string;
+  severity: "baixa" | "moderada" | "alta";
+  targets: string[];
+}
+
+export interface AffectedResource {
+  type: ResourceType;
+  label: string;
+  detail: string;
 }
 
 export interface InvasiveScenarioResult {
@@ -258,9 +429,20 @@ export interface InvasiveScenarioResult {
   };
   nativeImpacts: NativeImpact[];
   phases: InvasionPhase[];
+  /** Named ecological mechanisms (empty when the invader cannot establish). */
+  impactMechanisms: InvasiveImpactMechanism[];
+  affectedResources: AffectedResource[];
+  establishmentPlausibility: { score: number; label: PlausibilityBand };
+  spreadPressure: "baixa" | "moderada" | "alta";
   plausibility: PlausibilityAssessment;
   explanation: ScientificExplanation & { text: string };
+  uncertainties: string[];
+  mvpAssumptions: string[];
   limitations: string[];
+  simulationScope?: {
+    simulated?: string[];
+    explanationOnly?: string[];
+  };
 }
 
 // ─── Ecology LLM result ───────────────────────────────────────────────────────
@@ -526,6 +708,19 @@ export interface SpeciesDefinition {
   };
   habitatProfile?: HabitatProfile;
   behaviorProfile?: BehaviorProfile;
+  /** Coarse taxonomic group for reporting (mirror of backend SpeciesDefinition.taxonGroup). */
+  taxonGroup?: TaxonGroup;
+  nativeStatus?: NativeStatus | string;
+  resourceBase?: string[];
+  /** Basal resources this consumer depends on (mirror of backend SpeciesDefinition.resourceNeeds). */
+  resourceNeeds?: ResourceType[];
+  /** Heuristic curation confidence (0–1). */
+  confidence?: number;
+  renderHints?: {
+    spriteAssetPath?: string | null;
+    baseScale?: number;
+    silhouetteStyle?: string | null;
+  };
 }
 
 export interface FaunaResult {

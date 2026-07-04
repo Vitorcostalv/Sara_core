@@ -12,7 +12,6 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import {
   ContactShadows,
   Html,
-  MeshReflectorMaterial,
   OrbitControls,
   useTexture,
 } from "@react-three/drei";
@@ -32,6 +31,7 @@ import type {
 import { DayNightCycle, formatSimulatedTime } from "./DayNightCycle";
 import FaunaLayer, { type FaunaEvent } from "./FaunaLayer";
 import { RainSystem } from "./RainSystem";
+import { getSpeciesRenderProfile } from "./faunaRenderProfiles";
 
 const BIOME_COLORS: Record<string, number> = {
   "floresta-tropical-umida": 0x2f7a4f,
@@ -87,9 +87,8 @@ const WATER_SIZE = 0.98;
 const WATER_HEIGHT = 0.34;
 const LAND_MIN_HEIGHT = 0.72;
 const HEIGHT_SCALE = 6.9;
-const WATER_LEVEL_Y = WATER_HEIGHT + 0.06;
-const WATER_PLANE_Y = WATER_LEVEL_Y;
-const WATER_VOLUME_TOP = WATER_LEVEL_Y - 0.02;
+const WATER_BANK_RECESS = 0.14;
+const MIN_VISIBLE_WATER_DEPTH = 0.12;
 const SHALLOW_WATER_HEX = 0x88c5d9;
 const DEEP_WATER_HEX = 0x1d4d6e;
 const HOVER_COLOR = 0xf4dc8c;
@@ -98,12 +97,8 @@ const FALLBACK_COLOR = 0x7b6a5b;
 // ─── River rendering tunables (the single documented place, frontend side) ──────
 const RIVER_FLOW_MIN = 0.16; // render threshold: below this a cell is a trickle, dropped
 const RIVER_MIN_COMPONENT_CELLS = 3; // drop river fragments smaller than this (prune stubs)
-const RIVER_MEANDER = 0.26; // max deterministic lateral offset per node (world units)
-const RIVER_SURFACE_LIFT = 0.08; // minimum surface lift above the carved channel floor
-const RIVER_SAMPLES_PER_EDGE = 5; // Catmull-Rom samples between two cells (meander smoothness)
+const RIVER_SURFACE_LIFT = 0.1; // minimum water above the carved channel floor
 const RIVER_WATERFALL_DROP = 0.55; // surface-height delta that spawns a waterfall ribbon
-const RIVER_WATER_HEX = "#5a8fa6"; // matches the lake/sea reflective material colour
-const RIVER_VOLUME_HEX = 0x315f74;
 const RIVER_WET_BANK_HEX = 0x243a36;
 
 declare global {
@@ -206,6 +201,7 @@ interface SceneData {
   vegetation: VegetationBatches;
   objects: ObjectBatches;
   objectLegend: LegendEntry[];
+  waterSurfaces: InstanceSpec[]; // animated top faces for lake/sea water volumes
   caves: CaveInstance[]; // every cave cell (entrance + internal) with metadata
   caveTunnels: CaveTunnel[]; // x-ray links between connected cave cells
   rivers: RiverScene; // continuous river channel (bed/current/margin/falls)
@@ -214,12 +210,11 @@ interface SceneData {
   fogDensity: number;
 }
 
-// Continuous river channel: one smooth merged ribbon mesh + waterfall ribbons.
-// `ribbon` is a triangle strip following Catmull-Rom centerlines (A2), with width
-// from Strahler order. UVs run along flow so the water normal map can scroll (A3).
+// Tile-aligned river water. The terrain is rendered as columns, so rivers use the
+// same per-cell grammar as lake/sea water instead of a smooth tube laid on top.
 interface RiverScene {
-  ribbon: { positions: number[]; uvs: number[]; indices: number[] } | null;
   volumes: InstanceSpec[]; // filled river water volumes seated in the carved channel
+  surfaces: InstanceSpec[]; // animated top faces for river volume tiles
   wetBanks: InstanceSpec[]; // waterline/wet-rock bands along the channel shoulders
   falls: InstanceSpec[]; // translucent vertical drops where connected cells differ in height
 }
@@ -230,6 +225,7 @@ interface RiverNode {
   wx: number;
   wz: number;
   surfaceY: number;
+  bankY: number;
   flow: number;
 }
 
@@ -277,6 +273,22 @@ interface HoverState {
   biomeLabel: string;
 }
 
+interface InvasiveOverlayData {
+  invaderSpeciesId: string;
+  invaderName: string;
+  invaderScientificName?: string;
+  phaseLabel?: string;
+  impactMechanisms?: string[];
+  affectedSpecies?: Array<{
+    speciesId: string;
+    commonName: string;
+    effect: string;
+    populationDelta?: number;
+  }>;
+  simulatedNotes?: string[];
+  explanationOnlyNotes?: string[];
+}
+
 function instancedArgs(count: number): [undefined, undefined, number] {
   return [undefined, undefined, Math.max(count, 1)];
 }
@@ -291,6 +303,26 @@ function hashUnit(x: number, z: number, seed: number) {
 
 function colorHex(color: number) {
   return `#${new THREE.Color(color).getHexString()}`;
+}
+
+function terrainTopY(cell: TerrainCell) {
+  return LAND_MIN_HEIGHT + cell.elevation * HEIGHT_SCALE;
+}
+
+function blendedWaterColor(depth: number, maxDepth: number, seedTone: number) {
+  const t = Math.min(1, depth / Math.max(MIN_VISIBLE_WATER_DEPTH, maxDepth));
+  const toneVar = 0.95 + seedTone * 0.1;
+  const sR = (SHALLOW_WATER_HEX >> 16) & 255;
+  const sG = (SHALLOW_WATER_HEX >> 8) & 255;
+  const sB = SHALLOW_WATER_HEX & 255;
+  const dR = (DEEP_WATER_HEX >> 16) & 255;
+  const dG = (DEEP_WATER_HEX >> 8) & 255;
+  const dB = DEEP_WATER_HEX & 255;
+  return (
+    (Math.min(255, Math.round((sR + (dR - sR) * t) * toneVar)) << 16) |
+    (Math.min(255, Math.round((sG + (dG - sG) * t) * toneVar)) << 8) |
+    Math.min(255, Math.round((sB + (dB - sB) * t) * toneVar))
+  );
 }
 
 function variedFoliageColor(baseColor: number, cell: TerrainCell, seed: number) {
@@ -406,12 +438,6 @@ const RIVER_NEIGHBORS_8: ReadonlyArray<readonly [number, number]> = [
 ];
 
 // Centripetal-ish Catmull-Rom interpolation of one segment p1→p2 (p0,p3 = tangents).
-function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
-}
-
 /**
  * Turns the per-cell river field into a smooth, hierarchical network (A2):
  * 1. downstream tree (each cell flows to its lowest river neighbour);
@@ -421,7 +447,7 @@ function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): 
  *    lateral meander, plus waterfall ribbons at steep drops.
  */
 function buildRiverScene(nodes: Map<string, RiverNode>, seed: number, falls: InstanceSpec[]): RiverScene {
-  if (nodes.size === 0) return { ribbon: null, volumes: [], wetBanks: [], falls };
+  if (nodes.size === 0) return { volumes: [], surfaces: [], wetBanks: [], falls };
   const keyOf = (gx: number, gy: number) => `${gx},${gy}`;
 
   // 1. Downstream tree + children.
@@ -489,78 +515,53 @@ function buildRiverScene(nodes: Map<string, RiverNode>, seed: number, falls: Ins
     void node;
   }
 
-  // Deterministic per-node meander offset + sampling helpers.
-  const offsetOf = (n: RiverNode) => {
-    const ang = hashUnit(n.gx, n.gy, seed + 707) * Math.PI * 2;
-    const rad = RIVER_MEANDER * hashUnit(n.gx, n.gy, seed + 911);
-    return [Math.cos(ang) * rad, Math.sin(ang) * rad] as const;
-  };
-  const cx = (n: RiverNode) => n.wx + offsetOf(n)[0];
-  const cz = (n: RiverNode) => n.wz + offsetOf(n)[1];
-  const widthOf = (key: string) => {
-    const o = order.get(key) ?? 1;
-    const t = maxOrder > 1 ? (o - 1) / (maxOrder - 1) : 0;
-    return LAND_SIZE * Math.min(0.95, 0.3 + 0.62 * t + 0.22 * (nodes.get(key)!.flow ?? 0));
-  };
   const depthOf = (key: string) => {
     const o = order.get(key) ?? 1;
     const t = maxOrder > 1 ? (o - 1) / (maxOrder - 1) : 0;
-    return 0.14 + 0.18 * t + 0.08 * (nodes.get(key)!.flow ?? 0);
+    return RIVER_SURFACE_LIFT + 0.16 * t + 0.07 * (nodes.get(key)!.flow ?? 0);
   };
   const waterYOf = (key: string, n = nodes.get(key)!) => {
-    return n.surfaceY + RIVER_SURFACE_LIFT + depthOf(key);
-  };
-  const primaryChild = (key: string): RiverNode | null => {
-    let best: RiverNode | null = null;
-    let bo = -1;
-    let bf = -1;
-    for (const c of children.get(key) ?? []) {
-      const o = order.get(c) ?? 1;
-      const f = nodes.get(c)!.flow;
-      if (o > bo || (o === bo && f > bf)) {
-        bo = o;
-        bf = f;
-        best = nodes.get(c)!;
-      }
-    }
-    return best;
+    const belowBank = n.bankY - WATER_BANK_RECESS;
+    return Math.max(n.surfaceY + 0.04, Math.min(n.surfaceY + depthOf(key), belowBank));
   };
 
-  // 4. Build one merged ribbon: a smooth sub-ribbon per downstream edge.
-  const positions: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
   const volumes: InstanceSpec[] = [];
+  const surfaces: InstanceSpec[] = [];
   const wetBanks: InstanceSpec[] = [];
 
   for (const key of keep) {
     const node = nodes.get(key);
     if (!node) continue;
-    const width = widthOf(key);
-    const depth = depthOf(key);
     const waterY = waterYOf(key, node);
-    const tone = 0.86 + hashUnit(node.gx, node.gy, seed + 1147) * 0.16;
-    const r = Math.min(255, Math.round(((RIVER_VOLUME_HEX >> 16) & 255) * tone));
-    const g = Math.min(255, Math.round(((RIVER_VOLUME_HEX >> 8) & 255) * tone));
-    const b = Math.min(255, Math.round((RIVER_VOLUME_HEX & 255) * tone));
+    const depth = Math.max(0.04, waterY - node.surfaceY);
+    const color = blendedWaterColor(depth, 0.42, hashUnit(node.gx, node.gy, seed + 1147));
+    const orderScale = Math.min(1, 0.92 + (order.get(key) ?? 1) * 0.03);
     volumes.push({
       x: node.wx,
       y: node.surfaceY + depth / 2,
       z: node.wz,
-      sx: width * 1.05,
+      sx: WATER_SIZE * orderScale,
       sy: depth,
-      sz: width * 1.05,
-      ry: hashUnit(node.gx, node.gy, seed + 1201) * Math.PI,
-      color: (r << 16) | (g << 8) | b,
+      sz: WATER_SIZE * orderScale,
+      color,
+    });
+    surfaces.push({
+      x: node.wx,
+      y: waterY + 0.006,
+      z: node.wz,
+      sx: WATER_SIZE * orderScale,
+      sy: WATER_SIZE * orderScale,
+      sz: 1,
+      rx: -Math.PI / 2,
+      color,
     });
     wetBanks.push({
       x: node.wx,
-      y: waterY + 0.015,
+      y: Math.max(node.surfaceY + 0.01, waterY - 0.018),
       z: node.wz,
-      sx: width * 0.62,
-      sy: width * 0.62,
-      sz: 1,
-      rx: Math.PI / 2,
+      sx: WATER_SIZE,
+      sy: 0.025,
+      sz: WATER_SIZE,
       color: RIVER_WET_BANK_HEX,
     });
   }
@@ -572,39 +573,6 @@ function buildRiverScene(nodes: Map<string, RiverNode>, seed: number, falls: Ins
     const ds = nodes.get(dKey)!;
 
     // Catmull-Rom control points: upstream tangent → node → ds → downstream tangent.
-    const up = primaryChild(key) ?? node;
-    const dn = nodes.get(downstream.get(dKey) ?? "") ?? ds;
-    const upKey = keyOf(up.gx, up.gy);
-    const dnKey = keyOf(dn.gx, dn.gy);
-    const p0 = [cx(up), waterYOf(upKey, up), cz(up)] as const;
-    const p1 = [cx(node), waterYOf(key, node), cz(node)] as const;
-    const p2 = [cx(ds), waterYOf(dKey, ds), cz(ds)] as const;
-    const p3 = [cx(dn), waterYOf(dnKey, dn), cz(dn)] as const;
-    const wA = widthOf(key);
-    const wB = widthOf(dKey);
-
-    let prevBase = -1;
-    for (let s = 0; s <= RIVER_SAMPLES_PER_EDGE; s += 1) {
-      const t = s / RIVER_SAMPLES_PER_EDGE;
-      const px = catmullRom(p0[0], p1[0], p2[0], p3[0], t);
-      const pz = catmullRom(p0[2], p1[2], p2[2], p3[2], t);
-      const py = catmullRom(p0[1], p1[1], p2[1], p3[1], t);
-      // Tangent via small finite difference for the perpendicular (in XZ).
-      const tx = catmullRom(p0[0], p1[0], p2[0], p3[0], Math.min(1, t + 0.01)) - px;
-      const tz = catmullRom(p0[2], p1[2], p2[2], p3[2], Math.min(1, t + 0.01)) - pz;
-      const len = Math.hypot(tx, tz) || 1;
-      const nxp = -tz / len;
-      const nzp = tx / len;
-      const w = (wA + (wB - wA) * t) / 2;
-      const base = positions.length / 3;
-      positions.push(px + nxp * w, py, pz + nzp * w, px - nxp * w, py, pz - nzp * w);
-      uvs.push(0, s, 1, s);
-      if (prevBase >= 0) {
-        indices.push(prevBase, prevBase + 1, base, prevBase + 1, base + 1, base);
-      }
-      prevBase = base;
-    }
-
     // Waterfall ribbon at a steep connected drop (now falling into a real channel).
     const drop = Math.abs(node.surfaceY - ds.surfaceY);
     if (drop > RIVER_WATERFALL_DROP) {
@@ -614,7 +582,7 @@ function buildRiverScene(nodes: Map<string, RiverNode>, seed: number, falls: Ins
         x: (node.wx + ds.wx) / 2,
         y: waterYOf(keyOf(lower.gx, lower.gy), lower) + drop / 2,
         z: (node.wz + ds.wz) / 2,
-        sx: Math.max(wA, wB) * 0.9,
+        sx: WATER_SIZE * 0.82,
         sy: drop,
         sz: 0.06,
         ry: angle,
@@ -623,7 +591,7 @@ function buildRiverScene(nodes: Map<string, RiverNode>, seed: number, falls: Ins
     }
   }
 
-  return { ribbon: positions.length > 0 ? { positions, uvs, indices } : null, volumes, wetBanks, falls };
+  return { volumes, surfaces, wetBanks, falls };
 }
 
 function buildSceneData(grid: TerrainGrid): SceneData {
@@ -648,6 +616,7 @@ function buildSceneData(grid: TerrainGrid): SceneData {
   const objBlocks: InstanceSpec[] = [];
   const objCrystals: InstanceSpec[] = [];
   const objWaterfalls: InstanceSpec[] = [];
+  const waterSurfaces: InstanceSpec[] = [];
   const caves: CaveInstance[] = [];
   const caveTunnels: CaveTunnel[] = [];
   const riverFalls: InstanceSpec[] = [];
@@ -675,6 +644,24 @@ function buildSceneData(grid: TerrainGrid): SceneData {
   }
   const legend = new Map<string, string>();
   const objectLegend = new Map<string, string>();
+  const waterElevations = grid.cells.flatMap((row) => row.filter((cell) => cell.isWater).map((cell) => cell.elevation));
+  const fallbackWaterSurfaceY =
+    waterElevations.length > 0
+      ? LAND_MIN_HEIGHT + Math.max(...waterElevations) * HEIGHT_SCALE + MIN_VISIBLE_WATER_DEPTH
+      : LAND_MIN_HEIGHT + MIN_VISIBLE_WATER_DEPTH;
+
+  function minNeighborLandTop(cell: TerrainCell, skipRiverCells = false): number {
+    let minBank = Number.POSITIVE_INFINITY;
+    for (const [dx, dy] of RIVER_NEIGHBORS_8) {
+      const nx = cell.x + dx;
+      const ny = cell.y + dy;
+      if (nx < 0 || ny < 0 || nx >= grid.width || ny >= grid.height) continue;
+      const neighbor = grid.cells[ny]![nx]!;
+      if (skipRiverCells && neighbor.waterFlow && neighbor.waterFlow > RIVER_FLOW_MIN) continue;
+      if (!neighbor.isWater) minBank = Math.min(minBank, terrainTopY(neighbor));
+    }
+    return Number.isFinite(minBank) ? minBank : fallbackWaterSurfaceY + WATER_BANK_RECESS;
+  }
 
   // Pushes a procedural object instance into the right geometry batch.
   function pushObject(type: string, surfaceY: number, ox: number, oz: number, h: number, seed: number) {
@@ -751,41 +738,45 @@ function buildSceneData(grid: TerrainGrid): SceneData {
       const baseColor = BIOME_COLORS[cell.biomeSuggestion] ?? FALLBACK_COLOR;
 
       if (cell.isWater) {
-        const cellTerrainElev = cell.elevation * HEIGHT_SCALE;
-        const depth = Math.max(0, WATER_HEIGHT - cellTerrainElev);
-        const t = Math.min(1, depth / WATER_HEIGHT);
-        const toneVar = 0.95 + hashUnit(cell.x * 41, cell.y * 53, grid.seed) * 0.1;
-        const sR = (SHALLOW_WATER_HEX >> 16) & 255;
-        const sG = (SHALLOW_WATER_HEX >> 8) & 255;
-        const sB = SHALLOW_WATER_HEX & 255;
-        const dR = (DEEP_WATER_HEX >> 16) & 255;
-        const dG = (DEEP_WATER_HEX >> 8) & 255;
-        const dB = DEEP_WATER_HEX & 255;
-        const waterColor =
-          (Math.min(255, Math.round((sR + (dR - sR) * t) * toneVar)) << 16) |
-          (Math.min(255, Math.round((sG + (dG - sG) * t) * toneVar)) << 8) |
-          Math.min(255, Math.round((sB + (dB - sB) * t) * toneVar));
+        const floorY = terrainTopY(cell);
+        const bankY = minNeighborLandTop(cell);
+        const surfaceY = Math.max(
+          floorY + 0.04,
+          Math.min(fallbackWaterSurfaceY, bankY - WATER_BANK_RECESS),
+        );
+        const depth = Math.max(0.04, surfaceY - floorY);
+        const waterColor = blendedWaterColor(depth, WATER_HEIGHT * 2.6, hashUnit(cell.x * 41, cell.y * 53, grid.seed));
         water.push({
           cell,
           x,
-          y: WATER_VOLUME_TOP - WATER_HEIGHT / 2,
+          y: floorY + depth / 2,
           z,
           sx: WATER_SIZE,
-          sy: WATER_HEIGHT,
+          sy: depth,
           sz: WATER_SIZE,
           color: waterColor,
-          tooltipY: WATER_HEIGHT + 1.02,
+          tooltipY: surfaceY + 0.65,
+        });
+        waterSurfaces.push({
+          x,
+          y: surfaceY + 0.006,
+          z,
+          sx: WATER_SIZE,
+          sy: WATER_SIZE,
+          sz: 1,
+          rx: -Math.PI / 2,
+          color: waterColor,
         });
         legend.set(biomeLabel(cell.biomeSuggestion), colorHex(SHALLOW_WATER_HEX));
 
         // Juncos/plantas aquáticas esparsas na lâmina d'água.
         if (cell.objects?.includes("bush")) {
-          pushObject("bush", WATER_LEVEL_Y, x, z, 0.3, grid.seed + 901);
+          pushObject("bush", surfaceY, x, z, 0.3, grid.seed + 901);
         }
         continue;
       }
 
-      const height = LAND_MIN_HEIGHT + cell.elevation * HEIGHT_SCALE;
+      const height = terrainTopY(cell);
       land.push({
         cell,
         x,
@@ -1038,6 +1029,7 @@ function buildSceneData(grid: TerrainGrid): SceneData {
           wx: x,
           wz: z,
           surfaceY: height,
+          bankY: minNeighborLandTop(cell, true),
           flow: Math.min(1, cell.waterFlow),
         });
       }
@@ -1120,6 +1112,7 @@ function buildSceneData(grid: TerrainGrid): SceneData {
       waterfalls: objWaterfalls,
     },
     objectLegend: Array.from(objectLegend.entries()).map(([label, color]) => ({ label, color })),
+    waterSurfaces,
     caves,
     caveTunnels,
     rivers: riverScene,
@@ -1286,42 +1279,42 @@ function WaterDepthVolumes({
 }
 
 
-function WaterReflectorPlane({ sceneData }: { sceneData: SceneData }) {
+function WaterSurfaceTiles({ surfaces }: { surfaces: InstanceSpec[] }) {
+  const ref = useRef<THREE.InstancedMesh>(null!);
   const normalTexture = useTexture("/textures/waternormals.jpg");
-  const planeSize = sceneData.worldRadius * 2.2;
-  const normalScale = useMemo(() => new THREE.Vector2(0.15, 0.15), []);
+  const normalScale = useMemo(() => new THREE.Vector2(0.18, 0.18), []);
+  usePopulateInstancedMesh(ref, surfaces);
 
   useLayoutEffect(() => {
     normalTexture.wrapS = THREE.RepeatWrapping;
     normalTexture.wrapT = THREE.RepeatWrapping;
-    normalTexture.repeat.set(8, 8);
+    normalTexture.repeat.set(1.2, 1.2);
   }, [normalTexture]);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    normalTexture.offset.x = t * 0.02;
-    normalTexture.offset.y = t * 0.013;
+    normalTexture.offset.x = t * 0.025;
+    normalTexture.offset.y = t * 0.017;
   });
 
   return (
-    <mesh rotation-x={-Math.PI / 2} position={[0, WATER_PLANE_Y, 0]} receiveShadow>
-      <planeGeometry args={[planeSize, planeSize]} />
-      <MeshReflectorMaterial
-        blur={[400, 100]}
-        resolution={256}
-        mixBlur={1}
-        mixStrength={0.6}
-        mirror={0.5}
-        color="#5a8fa6"
-        metalness={0.0}
-        roughness={0.55}
+    <instancedMesh ref={ref} args={instancedArgs(surfaces.length)} receiveShadow>
+      <planeGeometry args={[1, 1]} />
+      <meshStandardMaterial
         transparent
-        opacity={0.78}
+        opacity={0.74}
+        roughness={0.32}
+        metalness={0}
         normalMap={normalTexture}
         normalScale={normalScale}
+        side={THREE.DoubleSide}
         depthWrite={false}
+        vertexColors
+        polygonOffset
+        polygonOffsetFactor={-1}
+        polygonOffsetUnits={-1}
       />
-    </mesh>
+    </instancedMesh>
   );
 }
 
@@ -1351,7 +1344,7 @@ function WaterLayer({
         onInspect={onInspect}
       />
       <Suspense fallback={null}>
-        <WaterReflectorPlane sceneData={sceneData} />
+        <WaterSurfaceTiles surfaces={sceneData.waterSurfaces} />
       </Suspense>
     </>
   );
@@ -1581,10 +1574,14 @@ function CaveEntrances({
         const throat = 0.34 + cave.depth * 0.42;
         const yaw = hashUnit(cave.gridX, cave.gridY, 331) * Math.PI * 2;
         return (
-          <group key={`mouth-${cave.gridX}-${cave.gridY}-${index}`} position={[cave.x, cave.surfaceY + 0.04, cave.z]} rotation={[0, yaw, 0]}>
+          <group key={`mouth-${cave.gridX}-${cave.gridY}-${index}`} position={[cave.x, cave.surfaceY - 0.1, cave.z]} rotation={[0, yaw, 0]}>
             <mesh position={[0, sink ? -0.16 : 0.05, cliff ? -0.1 : 0]} scale={[mouthW, sink ? throat * 0.8 : mouthW * 0.72, throat]}>
               <sphereGeometry args={[1, 16, 10]} />
               <meshStandardMaterial color={river ? "#071f2a" : "#100d0b"} roughness={0.98} metalness={0} side={THREE.BackSide} />
+            </mesh>
+            <mesh position={[0, 0.02, 0]} scale={[mouthW * 1.3, 0.08, mouthW * (sink ? 1.18 : 0.86)]}>
+              <boxGeometry args={[1, 1, 1]} />
+              <meshStandardMaterial color="#0e0b09" roughness={0.98} />
             </mesh>
             <mesh rotation={[Math.PI / 2, 0, 0]} scale={[mouthW * 1.1, mouthW * (sink ? 1.1 : 0.72), 1]}>
               <torusGeometry args={[1, 0.12, 8, 22]} />
@@ -1810,52 +1807,6 @@ function CaveSystemHighlight({ caves }: { caves: CaveInstance[] }) {
 // Continuous river ribbon (A3): same water family as lakes/sea — a scrolling
 // normal map suggests current; transparent + polygon-offset to avoid z-fighting
 // against the carved banks. Built once from the merged spline geometry.
-function RiverRibbon({ ribbon, highlighted }: { ribbon: NonNullable<RiverScene["ribbon"]>; highlighted?: boolean }) {
-  const normalTexture = useTexture("/textures/waternormals.jpg");
-  const normalScale = useMemo(() => new THREE.Vector2(0.25, 0.25), []);
-  const geometry = useMemo(() => {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(ribbon.positions, 3));
-    geo.setAttribute("uv", new THREE.Float32BufferAttribute(ribbon.uvs, 2));
-    geo.setIndex(ribbon.indices);
-    geo.computeVertexNormals();
-    return geo;
-  }, [ribbon]);
-
-  useLayoutEffect(() => {
-    normalTexture.wrapS = THREE.RepeatWrapping;
-    normalTexture.wrapT = THREE.RepeatWrapping;
-    normalTexture.repeat.set(1, 1);
-  }, [normalTexture]);
-
-  // Scroll the normal map along flow (v axis runs downstream) to imply current.
-  useFrame((state) => {
-    normalTexture.offset.y = -state.clock.elapsedTime * 0.06;
-    normalTexture.offset.x = Math.sin(state.clock.elapsedTime * 0.4) * 0.02;
-  });
-
-  useEffect(() => () => geometry.dispose(), [geometry]);
-
-  return (
-    <mesh geometry={geometry} receiveShadow>
-      <meshStandardMaterial
-        color={RIVER_WATER_HEX}
-        transparent
-        opacity={highlighted ? 0.9 : 0.82}
-        roughness={0.35}
-        metalness={0.0}
-        normalMap={normalTexture}
-        normalScale={normalScale}
-        side={THREE.DoubleSide}
-        depthWrite={false}
-        polygonOffset
-        polygonOffsetFactor={-1}
-        polygonOffsetUnits={-1}
-      />
-    </mesh>
-  );
-}
-
 function RiverFalls({ falls }: { falls: InstanceSpec[] }) {
   const ref = useRef<THREE.InstancedMesh>(null!);
   usePopulateInstancedMesh(ref, falls);
@@ -1883,20 +1834,20 @@ function RiverWetBanks({ wetBanks }: { wetBanks: InstanceSpec[] }) {
   usePopulateInstancedMesh(ref, wetBanks);
   return (
     <instancedMesh ref={ref} args={instancedArgs(wetBanks.length)} receiveShadow>
-      <torusGeometry args={[1, 0.055, 6, 16]} />
+      <boxGeometry args={[1, 1, 1]} />
       <meshStandardMaterial transparent opacity={0.42} roughness={0.86} metalness={0.02} vertexColors depthWrite={false} />
     </instancedMesh>
   );
 }
 
-function RiverOverlay({ rivers, highlighted }: { rivers: RiverScene; highlighted?: boolean }) {
+function RiverOverlay({ rivers }: { rivers: RiverScene }) {
   return (
     <group>
       {rivers.volumes.length > 0 ? <RiverDepthVolumes volumes={rivers.volumes} /> : null}
       {rivers.wetBanks.length > 0 ? <RiverWetBanks wetBanks={rivers.wetBanks} /> : null}
-      {rivers.ribbon ? (
+      {rivers.surfaces.length > 0 ? (
         <Suspense fallback={null}>
-          <RiverRibbon ribbon={rivers.ribbon} highlighted={highlighted} />
+          <WaterSurfaceTiles surfaces={rivers.surfaces} />
         </Suspense>
       ) : null}
       {rivers.falls.length > 0 ? <RiverFalls falls={rivers.falls} /> : null}
@@ -2128,6 +2079,7 @@ function TerrainScene({
   onFaunaCountUpdate,
   onInspect,
   onFaunaEvent,
+  invasiveSpeciesIds = [],
 }: {
   sceneData: SceneData;
   grid: TerrainGrid;
@@ -2157,8 +2109,14 @@ function TerrainScene({
   onFaunaCountUpdate: (count: number) => void;
   onInspect?: (cell: TerrainCell) => void;
   onFaunaEvent?: (event: FaunaEvent) => void;
+  invasiveSpeciesIds?: string[];
 }) {
   const entranceCaves = useMemo(() => sceneData.caves.filter((cave) => cave.isEntrance), [sceneData.caves]);
+  const rainWaterLevelY = useMemo(() => {
+    const surfaces = [...sceneData.waterSurfaces, ...sceneData.rivers.surfaces];
+    if (surfaces.length === 0) return LAND_MIN_HEIGHT + MIN_VISIBLE_WATER_DEPTH;
+    return surfaces.reduce((sum, surface) => sum + surface.y, 0) / surfaces.length;
+  }, [sceneData.rivers.surfaces, sceneData.waterSurfaces]);
   const highlightCaves = useMemo(
     () => (highlightSystemId ? sceneData.caves.filter((cave) => cave.systemId === highlightSystemId) : []),
     [sceneData.caves, highlightSystemId],
@@ -2199,7 +2157,7 @@ function TerrainScene({
         <CaveInterior caves={sceneData.caves} tunnels={sceneData.caveTunnels} selectedSystemId={highlightSystemId} />
       ) : null}
       {highlightCaves.length > 0 ? <CaveSystemHighlight caves={highlightCaves} /> : null}
-      {showRivers ? <RiverOverlay rivers={sceneData.rivers} highlighted={vegetationOpacity < 0.5} /> : null}
+      {showRivers ? <RiverOverlay rivers={sceneData.rivers} /> : null}
       {showRelief ? <ReliefOverlay markers={sceneData.reliefMarkers} /> : null}
       <FaunaLayer
         grid={grid}
@@ -2211,6 +2169,7 @@ function TerrainScene({
         carcassesVisible={showCarcasses}
         onCountUpdate={onFaunaCountUpdate}
         onFaunaEvent={(event) => onFaunaEvent?.(event)}
+        invasiveSpeciesIds={invasiveSpeciesIds}
       />
       {showEvents ? (
         <EventMarkerLayer
@@ -2224,7 +2183,7 @@ function TerrainScene({
         enabled={rainEnabled}
         intensity={rainIntensity}
         worldRadius={sceneData.worldRadius}
-        waterLevelY={WATER_LEVEL_Y}
+        waterLevelY={rainWaterLevelY}
       />
       <ContactShadows
         position={[0, 0.01, 0]}
@@ -2300,6 +2259,8 @@ export function TerrainView({
   setFaunaEvents,
   selectedFaunaEventId,
   setSelectedFaunaEventId,
+  invasiveSpeciesIds = [],
+  invasiveOverlay = null,
 }: {
   grid: TerrainGrid;
   faunaSpecies: SpeciesDefinition[];
@@ -2332,6 +2293,8 @@ export function TerrainView({
   setFaunaEvents?: React.Dispatch<React.SetStateAction<FaunaEvent[]>>;
   selectedFaunaEventId?: string | null;
   setSelectedFaunaEventId?: React.Dispatch<React.SetStateAction<string | null>>;
+  invasiveSpeciesIds?: string[];
+  invasiveOverlay?: InvasiveOverlayData | null;
 }) {
   // If parent didn't provide UI state, maintain internal fallbacks so the component remains functional.
   const [internalInspected, internalSetInspected] = useState<TerrainCell | null>(null);
@@ -2552,6 +2515,7 @@ export function TerrainView({
                 onLightningObserved={onLightningObserved}
                 onFaunaCountUpdate={onFaunaCountUpdate}
                 onInspect={(cell) => setInspectedState(cell)}
+                invasiveSpeciesIds={invasiveSpeciesIds}
                 onFaunaEvent={(event) => {
                   setFaunaEventsState((state) => [event, ...state].slice(0, 24));
                   // Predation is the salient event — surface it as a brief toast
@@ -2607,7 +2571,10 @@ export function TerrainView({
             open={animalsOpen}
             onToggleOpen={() => setAnimalsOpen((value) => !value)}
             onClose={() => setAnimalsOpen(false)}
+            invasiveSpeciesIds={invasiveSpeciesIds}
           />
+
+          {invasiveOverlay ? <InvasiveImpactOverlay overlay={invasiveOverlay} /> : null}
 
           {showEvents ? (
             <EventHub
@@ -2863,19 +2830,88 @@ const HABITAT_TAG: Record<"cave" | "water" | "land", string> = {
   land: "terra",
 };
 
+function invasiveEffectLabel(effect: string) {
+  switch (effect) {
+    case "predation":
+      return "predacao";
+    case "competition":
+      return "competicao";
+    case "habitat-alteration":
+      return "alteracao de habitat";
+    case "disease":
+      return "doenca";
+    case "resource-pressure":
+      return "pressao sobre recursos";
+    default:
+      return effect || "impacto nao detalhado";
+  }
+}
+
+function InvasiveImpactOverlay({ overlay }: { overlay: InvasiveOverlayData }) {
+  const affected = overlay.affectedSpecies?.slice(0, 4) ?? [];
+  return (
+    <section className="terrain-invasive" aria-label="Leitura da invasao">
+      <div className="terrain-invasive__header">
+        <strong>Foco invasora</strong>
+        <span className="terrain-invasive__phase">{overlay.phaseLabel ?? "fase nao informada"}</span>
+      </div>
+      <div className="terrain-invasive__species">
+        <span className="terrain-invasive__badge">Invasora</span>
+        <div>
+          <strong>{overlay.invaderName}</strong>
+          <small>{overlay.invaderScientificName ?? "nome cientifico indisponivel"}</small>
+        </div>
+      </div>
+      <div className="terrain-invasive__section">
+        <span>Mecanismos</span>
+        <p>{overlay.impactMechanisms?.join(", ") || "detalhes de impacto indisponiveis"}</p>
+      </div>
+      <div className="terrain-invasive__section">
+        <span>Nativas afetadas</span>
+        {affected.length > 0 ? (
+          <ul className="terrain-invasive__list">
+            {affected.map((entry) => (
+              <li key={`${entry.speciesId}-${entry.effect}`}>
+                <strong>{entry.commonName}</strong>
+                <span>
+                  {invasiveEffectLabel(entry.effect)}
+                  {typeof entry.populationDelta === "number" ? ` · delta ${entry.populationDelta}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>Sem especies afetadas listadas pelo backend.</p>
+        )}
+      </div>
+      <div className="terrain-invasive__section">
+        <span>Escopo</span>
+        <p>{overlay.simulatedNotes?.join(", ") || "A simulacao visual mostra presenca e convivencia da invasora."}</p>
+        {overlay.explanationOnlyNotes?.length ? (
+          <p className="terrain-invasive__muted">Explicacao apenas: {overlay.explanationOnlyNotes.join(", ")}</p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function AnimalsPanel({
   species,
   open,
   onToggleOpen,
   onClose,
+  invasiveSpeciesIds,
 }: {
   species: SpeciesDefinition[];
   open: boolean;
   onToggleOpen: () => void;
   onClose: () => void;
+  invasiveSpeciesIds: string[];
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<AnimalFilter>("all");
+  const [search, setSearch] = useState("");
+  const invasiveSet = useMemo(() => new Set(invasiveSpeciesIds), [invasiveSpeciesIds]);
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
@@ -2885,7 +2921,12 @@ function AnimalsPanel({
     return () => window.removeEventListener("pointerdown", onPointerDown);
   }, [open, onClose]);
 
-  const filtered = species.filter((s) => matchesAnimalFilter(s, filter));
+  const filtered = species.filter((s) => {
+    if (!matchesAnimalFilter(s, filter)) return false;
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
+    return `${s.commonName} ${s.scientificName}`.toLowerCase().includes(query);
+  });
 
   if (!open) {
     return (
@@ -2903,6 +2944,13 @@ function AnimalsPanel({
         <strong>Animais presentes ({species.length})</strong>
         <button type="button" onClick={onClose} aria-label="Fechar lista de animais">✕</button>
       </div>
+      <input
+        type="search"
+        className="terrain-animals__search"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Buscar nome comum ou cientifico"
+      />
       <div className="terrain-animals__filters">
         {ANIMAL_FILTERS.map((entry) => (
           <button
@@ -2919,17 +2967,26 @@ function AnimalsPanel({
         <ul className="terrain-animals__list">
           {filtered.map((s) => {
             const habitat = speciesHabitat(s);
+            const renderProfile = getSpeciesRenderProfile(s);
+            const isInvasive = invasiveSet.has(s.id);
             return (
               <li key={s.id} className="terrain-animals__item">
                 <span
                   className="terrain-animals__dot"
                   style={{ "--strategy-color": FEEDING_STRATEGY_COLORS[s.feedingStrategy] } as React.CSSProperties}
                 />
-                <span className="terrain-animals__name">{s.commonName}</span>
+                <span className="terrain-animals__name">
+                  {s.commonName}
+                  {isInvasive ? <small className="terrain-animals__badge">Invasora</small> : null}
+                </span>
+                <span className="terrain-animals__meta">{s.scientificName || "nome cientifico indisponivel"}</span>
                 <span className="terrain-animals__tags">
                   {FEEDING_STRATEGY_LABELS[s.feedingStrategy]}
                   {" · "}
                   {HABITAT_TAG[habitat]}
+                  {" · "}
+                  {s.trophicLevel}
+                  {renderProfile.assetPath ? " · sprite" : " · fallback"}
                   {(s.preySpeciesIds?.length ?? 0) > 0 ? " · predador" : ""}
                 </span>
               </li>
@@ -4960,7 +5017,8 @@ function EcologyTerrainSection({
               <h3>Relatorio do ecossistema{aiResult ? `: ${aiResult.biomeName}` : ""}</h3>
               <p>
                 Sintese estruturada do ambiente gerado a partir da descricao textual:
-                clima, relevo, vegetacao, fauna, fatores abioticos e base cientifica.
+                clima, relevo, vegetacao, fauna, base de recurso, rede trofica, validacao
+                deterministica e base cientifica.
               </p>
             </div>
           </div>
@@ -4989,6 +5047,55 @@ function EcologyTerrainSection({
             </table>
             <p className="plausibility__caveat">{report.plausibility.caveat}</p>
           </div>
+
+          {report.validation ? (
+            <div className="plausibility" data-testid="validation-panel">
+              <div className="plausibility__head">
+                <h4>Validacao ecologica deterministica</h4>
+                <span
+                  className={`plausibility__overall plausibility__overall--${
+                    report.validation.label === "alta"
+                      ? "alto"
+                      : report.validation.label === "moderada"
+                        ? "medio"
+                        : "baixo"
+                  }`}
+                >
+                  {report.validation.score}/100 · {report.validation.label}
+                </span>
+              </div>
+              <p className="plausibility__caveat" style={{ margin: "0 0 0.5rem" }}>
+                Pontuacao calculada por servicos deterministicos (habitat, clima, cadeia trofica,
+                recursos, riqueza e confianca dos dados) — nao pela IA. A IA apenas interpreta o texto
+                e explica o resultado; a consistencia ecologica e imposta pelo backend.
+              </p>
+              <table className="plausibility__table">
+                <tbody>
+                  {report.validation.components.map((c) => {
+                    const band = c.score >= 0.75 ? "alto" : c.score >= 0.5 ? "medio" : "baixo";
+                    return (
+                      <tr key={c.key}>
+                        <td>{c.label}</td>
+                        <td>
+                          <span className={`plausibility__pill plausibility__pill--${band}`}>
+                            {Math.round(c.score * 100)}%
+                          </span>
+                        </td>
+                        <td className="plausibility__detail">{c.detail}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {report.validation.blockingContradictions.length > 0 ? (
+                <ul className="ecosystem-report__limitations" style={{ marginTop: "0.5rem" }}>
+                  {report.validation.blockingContradictions.map((b, i) => (
+                    <li key={i}>Contradicao: {b}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="ecosystem-report__grid">
             <div className="ecosystem-report__card">
@@ -5093,6 +5200,87 @@ function EcologyTerrainSection({
                 ))}
               </ul>
             </div>
+
+            {report.resourceBase ? (
+              <div className="ecosystem-report__card">
+                <h4>Base de recurso</h4>
+                {report.resourceBase.resourceBase.length > 0 ? (
+                  <ul>
+                    {report.resourceBase.resourceBase.map((r) => (
+                      <li key={r.type}>{r.label}: {Math.round(r.availability * 100)}%</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ fontSize: "0.85rem", opacity: 0.75, margin: 0 }}>
+                    Sem base de recurso vegetal detectavel no grid.
+                  </p>
+                )}
+                <p style={{ fontSize: "0.82rem", opacity: 0.8, margin: "0.4rem 0 0" }}>
+                  Pressao herbivora: {report.resourceBase.herbivorePressure.level}
+                </p>
+                {report.resourceBase.unsupportedConsumers.length > 0 ? (
+                  <p style={{ fontSize: "0.82rem", color: "#fca5a5", margin: "0.3rem 0 0" }}>
+                    Sem suporte de recurso: {report.resourceBase.unsupportedConsumers.join(", ")}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {report.trophicNetwork ? (
+              <div className="ecosystem-report__card">
+                <h4>Rede trofica</h4>
+                <ul>
+                  <li>Elos de predacao ativos: {report.trophicNetwork.links.length}</li>
+                  <li>Elos podados (presa ausente): {report.trophicNetwork.prunedLinks.length}</li>
+                  <li>
+                    Piramide: {report.trophicNetwork.pyramidConsistent ? "consistente" : "desbalanceada"}
+                  </li>
+                  {report.trophicNetwork.unsupportedSpecies.length > 0 ? (
+                    <li>Sem suporte: {report.trophicNetwork.unsupportedSpecies.join(", ")}</li>
+                  ) : null}
+                </ul>
+                {report.trophicNetwork.warnings.length > 0 ? (
+                  <p style={{ fontSize: "0.82rem", color: "#fcd34d", margin: "0.3rem 0 0" }}>
+                    {report.trophicNetwork.warnings[0]}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {report.ecosystemProfile?.matched && report.ecosystemProfile.profile ? (
+              <div className="ecosystem-report__card">
+                <h4>Perfil de ecossistema</h4>
+                <ul>
+                  <li>
+                    <strong>{report.ecosystemProfile.profile.displayName}</strong> · meio{" "}
+                    {report.ecosystemProfile.profile.medium}
+                  </li>
+                  <li>
+                    Clima esperado: {report.ecosystemProfile.profile.climate.temperatureRangeC[0]}–
+                    {report.ecosystemProfile.profile.climate.temperatureRangeC[1]} °C,{" "}
+                    {report.ecosystemProfile.profile.climate.rainfallMmYear[0]}–
+                    {report.ecosystemProfile.profile.climate.rainfallMmYear[1]} mm/ano
+                  </li>
+                  <li>
+                    Água: {report.ecosystemProfile.profile.water.presence} · coerência{" "}
+                    {Math.round(report.ecosystemProfile.consistencyScore * 100)}%
+                  </li>
+                </ul>
+                {report.ecosystemProfile.mismatches.length > 0 ? (
+                  <p style={{ fontSize: "0.82rem", color: "#fcd34d", margin: "0.3rem 0 0" }}>
+                    Divergências: {report.ecosystemProfile.mismatches.join(" ")}
+                  </p>
+                ) : (
+                  <p style={{ fontSize: "0.82rem", opacity: 0.75, margin: "0.3rem 0 0" }}>
+                    Condições geradas coerentes com o perfil curado.
+                  </p>
+                )}
+                <p style={{ fontSize: "0.76rem", opacity: 0.6, margin: "0.3rem 0 0" }}>
+                  {report.ecosystemProfile.profile.sourceNotes} (confiança{" "}
+                  {report.ecosystemProfile.profile.confidence})
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <div className="ecosystem-report__facts">

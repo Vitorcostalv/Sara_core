@@ -1132,3 +1132,100 @@
       }
     }
     [35mresponseTime[39m: 1899
+[2026-06-21 17:54:39.840 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 25,
+      "method": "OPTIONS",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "accept": "*/*",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "origin": "http://localhost:5180",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 54987
+    }
+    [35mres[39m: {
+      "statusCode": 204,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin, Access-Control-Request-Headers",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+        "access-control-allow-headers": "content-type",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "content-length": "0"
+      }
+    }
+    [35mresponseTime[39m: 2
+[2026-06-21 17:54:41.066 -0300] [32mINFO[39m (25216): [36mBiome extracted via LLM[39m
+    [35mmodule[39m: "ecological-terrain-prompt"
+    [35mbiomeSlug[39m: "floresta-tropical"
+    [35msource[39m: "llm"
+[2026-06-21 17:54:42.888 -0300] [32mINFO[39m (25216): [36mrequest completed[39m
+    [35mreq[39m: {
+      "id": 26,
+      "method": "POST",
+      "url": "/api/v1/ecology/ecosystem-report",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:3333",
+        "connection": "keep-alive",
+        "content-length": "30",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Brave\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        "sec-gpc": "1",
+        "accept-language": "pt-BR,pt;q=0.7",
+        "origin": "http://localhost:5180",
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:5180/",
+        "accept-encoding": "gzip, deflate, br, zstd"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 54987
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "microphone=(), camera=(), geolocation=()",
+        "cross-origin-resource-policy": "same-site",
+        "access-control-allow-origin": "http://localhost:5180",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "Retry-After,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset",
+        "x-ratelimit-limit": "30",
+        "x-ratelimit-remaining": "29",
+        "x-ratelimit-reset": "1782075339842",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "561221",
+        "etag": "W/\"89045-eKm98+m6C0VXGnLhr+mpoyYpRmA\""
+      }
+    }
+    [35mresponseTime[39m: 3048

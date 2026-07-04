@@ -10,6 +10,7 @@ import type {
 import { AnimalEntity, type AgentState, type FaunaAgent, type AnimalKind } from "./AnimalEntity";
 import { CarcassLayer, type CarcassController, type CarcassRecordInput } from "./CarcassLayer";
 import { DeathPuffLayer, type DeathPuffController } from "./DeathPuffLayer";
+import { FaunaSpatialIndex } from "./FaunaSpatialIndex";
 
 const CELL_SIZE = 1;
 const WATER_HEIGHT = 0.26;
@@ -30,6 +31,7 @@ const HUNGER_MAX = 1.4;
 const PREDATION_ENERGY_PER_MASS = 0.65;
 const HUNT_TARGET_MEMORY_SECONDS = 2.2;
 const ENABLE_DEV_PREDATION_NUDGE = false;
+const SPATIAL_INDEX_CELL_SIZE = 3.2;
 
 export type FaunaEventKind = "predation" | "starvation" | "respawn" | "decomposition";
 
@@ -86,6 +88,7 @@ interface FaunaLayerProps {
   carcassesVisible?: boolean;
   onCountUpdate?: (count: number) => void;
   onFaunaEvent?: (event: FaunaEvent) => void;
+  invasiveSpeciesIds?: string[];
 }
 
 interface FaunaSpeciesLayerProps {
@@ -101,6 +104,9 @@ interface FaunaSpeciesLayerProps {
   emitPuff: (x: number, y: number, z: number) => void;
   emitCarcass: (input: CarcassRecordInput) => void;
   emitFaunaEvent?: (event: Omit<FaunaEvent, "id" | "createdAt">) => void;
+  spatialIndexRef: React.MutableRefObject<FaunaSpatialIndex>;
+  spatialTickRef: React.MutableRefObject<number>;
+  invasiveSpeciesIds: Set<string>;
 }
 
 function hashUnit(x: number, z: number, seed: number) {
@@ -398,6 +404,9 @@ function FaunaSpeciesLayer({
   emitPuff,
   emitCarcass,
   emitFaunaEvent,
+  spatialIndexRef,
+  spatialTickRef,
+  invasiveSpeciesIds,
 }: FaunaSpeciesLayerProps) {
   const initialAgents = useMemo(() => spawnAgents(species, terrain, grid.seed), [grid.seed, species, terrain]);
   const agentsRef = useRef<FaunaAgent[]>(initialAgents);
@@ -440,6 +449,13 @@ function FaunaSpeciesLayer({
     const now = simClockRef.current;
     const agents = agentsRef.current;
     const isHunter = species.preySpeciesIds.length > 0;
+    const interactionRadius = Math.max(
+      species.flockProfile.flockRadius,
+      species.flockProfile.separationDistance,
+      awarenessRange,
+      isHunter ? predation.huntRange : 0,
+    );
+    spatialIndexRef.current.rebuild(registryRef.current, spatialTickRef.current);
     let liveCount = 0;
 
     const killAgent = (
@@ -503,12 +519,15 @@ function FaunaSpeciesLayer({
         isBird(species.category) ? Math.sin(agent.timer * 0.6 + agent.flapOffset * 0.7) * 0.2 : 0,
         Math.cos(agent.timer * 1.1 + agent.flapOffset),
       );
+      const nearbyEntries = spatialIndexRef.current.query(agent.position.x, agent.position.z, interactionRadius);
       let neighbors = 0;
       let nearestThreatDistance = Number.POSITIVE_INFINITY;
       let nearestHuntScore = Number.POSITIVE_INFINITY;
       let state: AgentState = "wandering";
 
-      for (const other of agents) {
+      for (const entry of nearbyEntries) {
+        if (entry.speciesId !== species.id) continue;
+        const other = entry.agent;
         if (other === agent || !other.active || other.state === "dying") continue;
         const diff = new THREE.Vector3().subVectors(agent.position, other.position);
         const distance = diff.length();
@@ -546,63 +565,62 @@ function FaunaSpeciesLayer({
       const isSated = isHunter && now < agent.satedUntil;
       const huntWeight = HUNT_WEIGHT * (0.55 + agent.hunger);
 
-      for (const [otherSpeciesId, otherAgents] of registryRef.current.entries()) {
+      for (const entry of nearbyEntries) {
+        const otherSpeciesId = entry.speciesId;
         if (otherSpeciesId === species.id) continue;
         const otherSpecies = allSpeciesMap.get(otherSpeciesId);
         if (!otherSpecies) continue;
 
         const currentSpeciesIsPrey = otherSpecies.preySpeciesIds.includes(species.id);
         const currentSpeciesCanHunt = flockIds.has(otherSpeciesId);
+        const otherAgent = entry.agent;
+        if (!otherAgent.active || otherAgent.state === "dying") continue;
 
-        for (const otherAgent of otherAgents) {
-          if (!otherAgent.active || otherAgent.state === "dying") continue;
+        const offset = new THREE.Vector3().subVectors(otherAgent.position, agent.position);
+        const distance = offset.length();
+        if (distance <= 0.0001) continue;
 
-          const offset = new THREE.Vector3().subVectors(otherAgent.position, agent.position);
-          const distance = offset.length();
-          if (distance <= 0.0001) continue;
+        if (currentSpeciesIsPrey && distance < awarenessRange && distance < nearestThreatDistance) {
+          nearestThreatDistance = distance;
+          steering.addScaledVector(offset.normalize().multiplyScalar(-1), FLEE_WEIGHT);
+          state = "fleeing";
+        }
 
-          if (currentSpeciesIsPrey && distance < awarenessRange && distance < nearestThreatDistance) {
-            nearestThreatDistance = distance;
-            steering.addScaledVector(offset.normalize().multiplyScalar(-1), FLEE_WEIGHT);
-            state = "fleeing";
-          }
+        if (!isSated && currentSpeciesCanHunt && distance < predation.huntRange) {
+          const preference = Math.max(0.1, predation.preyPreference[otherSpeciesId] ?? 1);
+          const targetKey = `${otherSpeciesId}:${otherAgent.slot}`;
+          const targetMemory =
+            agent.huntTargetKey === targetKey && now < agent.huntTargetUntil ? 0.58 : 1;
+          const huntScore = (distance / preference) * targetMemory;
+          if (huntScore >= nearestHuntScore) continue;
 
-          if (!isSated && currentSpeciesCanHunt && distance < predation.huntRange) {
-            const preference = Math.max(0.1, predation.preyPreference[otherSpeciesId] ?? 1);
-            const targetKey = `${otherSpeciesId}:${otherAgent.slot}`;
-            const targetMemory =
-              agent.huntTargetKey === targetKey && now < agent.huntTargetUntil ? 0.58 : 1;
-            const huntScore = (distance / preference) * targetMemory;
-            if (huntScore >= nearestHuntScore) continue;
+          nearestHuntScore = huntScore;
+          steering.addScaledVector(offset.normalize(), huntWeight * preference);
+          state = "hunting";
+          agent.huntTargetKey = targetKey;
+          agent.huntTargetUntil = now + HUNT_TARGET_MEMORY_SECONDS;
 
-            nearestHuntScore = huntScore;
-            steering.addScaledVector(offset.normalize(), huntWeight * preference);
-            state = "hunting";
-            agent.huntTargetKey = targetKey;
-            agent.huntTargetUntil = now + HUNT_TARGET_MEMORY_SECONDS;
-
-            if (distance < predation.attackRange) {
-              otherAgent.health -= dt * predation.damageRate;
-              if (otherAgent.health <= 0) {
-                const position = killAgent(otherAgent, otherSpecies, "predation", species);
-                emitFaunaEvent?.({
-                  kind: "predation",
-                  message: `${species.commonName} caçou ${otherSpecies.commonName}`,
-                  speciesId: species.id,
-                  predatorSpeciesId: species.id,
-                  preySpeciesId: otherSpecies.id,
-                  ...position,
-                });
-                agent.hunger = Math.max(
-                  0,
-                  agent.hunger - speciesMass(otherSpecies) * PREDATION_ENERGY_PER_MASS,
-                );
-                agent.satedUntil = now + predation.satiationCooldownMs / 1000;
-                agent.huntTargetKey = null;
-                agent.huntTargetUntil = 0;
-              } else {
-                otherAgent.state = "fleeing";
-              }
+          if (distance < predation.attackRange) {
+            otherAgent.health -= dt * predation.damageRate;
+            if (otherAgent.health <= 0) {
+              const position = killAgent(otherAgent, otherSpecies, "predation", species);
+              emitFaunaEvent?.({
+                kind: "predation",
+                message: `${species.commonName} cacou ${otherSpecies.commonName}`,
+                speciesId: species.id,
+                predatorSpeciesId: species.id,
+                preySpeciesId: otherSpecies.id,
+                ...position,
+              });
+              agent.hunger = Math.max(
+                0,
+                agent.hunger - speciesMass(otherSpecies) * PREDATION_ENERGY_PER_MASS,
+              );
+              agent.satedUntil = now + predation.satiationCooldownMs / 1000;
+              agent.huntTargetKey = null;
+              agent.huntTargetUntil = 0;
+            } else {
+              otherAgent.state = "fleeing";
             }
           }
         }
@@ -745,9 +763,11 @@ function FaunaSpeciesLayer({
             key={agent.slot}
             agent={agent}
             kind={kind}
+            species={species}
             category={species.category}
             feedingStrategy={species.feedingStrategy}
             speedMultiplier={speedMultiplier}
+            isInvasive={invasiveSpeciesIds.has(species.id)}
           />
         );
       })}
@@ -765,10 +785,13 @@ export function FaunaLayer({
   carcassesVisible,
   onCountUpdate,
   onFaunaEvent,
+  invasiveSpeciesIds = [],
 }: FaunaLayerProps) {
   const terrain = useMemo(() => buildTerrainContext(grid), [grid]);
   const registryRef = useRef<Map<string, FaunaAgent[]>>(new Map());
   const countsRef = useRef<Map<string, number>>(new Map());
+  const spatialIndexRef = useRef(new FaunaSpatialIndex(SPATIAL_INDEX_CELL_SIZE));
+  const spatialTickRef = useRef(0);
   const killEventsRef = useRef(0);
   const starvationEventsRef = useRef(0);
   const respawnEventsRef = useRef(0);
@@ -776,6 +799,7 @@ export function FaunaLayer({
   const puffControllerRef = useRef<DeathPuffController | null>(null);
   const carcassControllerRef = useRef<CarcassController | null>(null);
   const speciesMap = useMemo(() => new Map(species.map((entry) => [entry.id, entry])), [species]);
+  const invasiveSet = useMemo(() => new Set(invasiveSpeciesIds), [invasiveSpeciesIds]);
 
   const emitPuff = useMemo(
     () => (x: number, y: number, z: number) => puffControllerRef.current?.emit(x, y, z),
@@ -791,6 +815,14 @@ export function FaunaLayer({
     countsRef.current.clear();
     onCountUpdate?.(0);
   }, [onCountUpdate, species]);
+
+  useFrame(
+    () => {
+      spatialTickRef.current += 1;
+      spatialIndexRef.current.rebuild(registryRef.current, spatialTickRef.current);
+    },
+    -10,
+  );
 
   function handleCountChange(speciesId: string, count: number) {
     countsRef.current.set(speciesId, count);
@@ -914,6 +946,9 @@ export function FaunaLayer({
             emitPuff={emitPuff}
             emitCarcass={emitCarcass}
             emitFaunaEvent={handleFaunaEvent}
+            spatialIndexRef={spatialIndexRef}
+            spatialTickRef={spatialTickRef}
+            invasiveSpeciesIds={invasiveSet}
           />
         ))}
         <DeathPuffLayer controllerRef={puffControllerRef} visible={visible} />

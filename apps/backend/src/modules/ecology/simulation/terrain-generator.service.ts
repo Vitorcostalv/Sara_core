@@ -149,9 +149,12 @@ function toBiomeSuggestion(tempC: number, precipMm: number, elevation: number): 
   if (precipMm < 200) return tempC > 20 ? "deserto-quente" : "deserto-frio";
   if (precipMm < 500) return tempC > 18 ? "caatinga" : "pradaria-estepe";
   if (precipMm < 900 && tempC > 18) return "savana-tropical";
+  // Hot + wet lowland → equatorial rainforest. Broadened (temp>20, precip>=1600) so that
+  // procedural precip/temperature noise on a rainforest preset doesn't collapse to dry forest.
+  if (tempC > 20 && precipMm >= 1600) return "floresta-tropical-umida";
+  // Warm + humid but less rainy → Atlantic-forest-like moist forest.
+  if (tempC > 18 && precipMm >= 1100) return "mata-atlantica";
   if (precipMm < 1200 && tempC > 18) return "floresta-tropical-seca";
-  if (tempC > 22 && precipMm > 2000) return "floresta-tropical-umida";
-  if (tempC > 18 && precipMm > 1200) return "mata-atlantica";
   if (tempC > 10) return "floresta-tropical-seca";
   return "pradaria-estepe";
 }
@@ -253,8 +256,11 @@ export class TerrainGeneratorService {
         const humidityNoise = octaveNoise(nx * 2 + 11, ny * 2 + 7, seed + 500, 3);
         const precipNoise = octaveNoise(nx * 2.5 + 3, ny * 2.5 + 13, seed + 300, 3);
 
-        // Temperature decreases with elevation (simplified lapse rate)
-        const altitudeKm = elev * 4;
+        // Temperature decreases with elevation (simplified lapse rate). Only relief styles that
+        // model real altitude (mountain/polar) get the full 0–4 km column; lowland styles use a
+        // gentle scale so a hot-humid lowland prompt (e.g. Amazônia) does not report alpine-cold
+        // minimums from procedural elevation noise.
+        const altitudeKm = elev * (style === "mountain" || style === "polar" ? 4 : 1.6);
         const temperatureC = baseTemperatureC - altitudeKm * LAPSE_RATE + (humidityNoise - 0.5) * 4;
 
         // Humidity and precipitation modulated by noise
@@ -303,7 +309,10 @@ export class TerrainGeneratorService {
 
     // Second logical layer: rivers (carved by gradient), caves and procedural
     // objects. Purely additive — never rewrites elevation/isWater/biomeSuggestion.
-    enrichTerrain(grid, input.featureHints);
+    // Incidental natural caves are gated to cave-prone relief (mountain); explicit cave hints
+    // still generate caves in any style. Lowland default/ocean/polar prompts stay cave-free
+    // unless hinted, so an Amazon prompt doesn't sprout caves + cave-specialist fauna.
+    enrichTerrain(grid, input.featureHints, { allowNaturalCaves: style === "mountain" });
 
     return grid;
   }

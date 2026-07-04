@@ -14,7 +14,7 @@ import type { FaunaEvent } from "./FaunaLayer";
 
 const RATING_LABEL: Record<PlausibilityRating, string> = {
   alto: "Alto",
-  medio: "Médio",
+  medio: "Medio",
   baixo: "Baixo",
 };
 
@@ -25,14 +25,17 @@ const RATING_TONE: Record<PlausibilityRating, "success" | "warning" | "error"> =
 };
 
 const EFFECT_LABEL: Record<string, string> = {
-  predation: "Predação",
-  competition: "Competição",
+  predation: "Predacao",
+  competition: "Competicao",
+  "habitat-alteration": "Alteracao de habitat",
+  disease: "Doenca",
+  "resource-pressure": "Pressao sobre recursos",
   none: "Sem impacto direto",
 };
 
 export function EcologyInvasiveSection() {
-  const [speciesText, setSpeciesText] = useState("leão");
-  const [locationText, setLocationText] = useState("floresta amazônica");
+  const [speciesText, setSpeciesText] = useState("leao");
+  const [locationText, setLocationText] = useState("floresta amazonica");
   const [result, setResult] = useState<InvasiveScenarioResult | null>(null);
   const [faunaSpecies, setFaunaSpecies] = useState<SpeciesDefinition[]>([]);
   const [phaseIndex, setPhaseIndex] = useState(0);
@@ -44,7 +47,7 @@ export function EcologyInvasiveSection() {
 
   const submit = async () => {
     if (!speciesText.trim() || !locationText.trim()) {
-      setError("Informe a espécie e o local.");
+      setError("Informe a especie e o local.");
       return;
     }
     setIsLoading(true);
@@ -61,7 +64,6 @@ export function EcologyInvasiveSection() {
       const data = response.data;
       setResult(data);
 
-      // Nativos do bioma + invasor injetado (entra na cadeia predatória do FaunaLayer).
       let natives: SpeciesDefinition[] = [];
       try {
         const faunaResponse = await ecologyApi.fauna({ biomes: data.resolvedBiomes });
@@ -77,13 +79,12 @@ export function EcologyInvasiveSection() {
     }
   };
 
+  const phase = result?.phases[phaseIndex];
   const nameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const impact of result?.nativeImpacts ?? []) map.set(impact.speciesId, impact.commonName);
     return map;
   }, [result]);
-
-  const phase = result?.phases[phaseIndex];
   const impactedNatives = (result?.nativeImpacts ?? []).filter((i) => i.effect !== "none");
 
   return (
@@ -102,28 +103,28 @@ export function EcologyInvasiveSection() {
       <section className="signal-panel signal-panel--llm">
         <div className="signal-panel__header">
           <div>
-            <h3>Espécie invasora</h3>
+            <h3>Especie invasora</h3>
             <p>
-              Descreva uma espécie e um local. O sistema avalia, com grounding científico, se a
-              invasão é plausível e mostra na prática o invasor entrando na cadeia (predando ou
-              competindo com os nativos) no visualizador 3D.
+              Descreva uma especie e um local. O sistema avalia, com grounding cientifico, se a
+              invasao e plausivel e mostra na pratica o invasor convivendo com a fauna nativa no
+              visualizador 3D.
             </p>
           </div>
           {result ? (
             <StatusPill tone={result.invaderProfile.survives ? "warning" : "neutral"}>
-              {result.invaderProfile.survives ? "Invasão plausível" : "Invasão improvável"}
+              {result.invaderProfile.survives ? "Invasao plausivel" : "Invasao improvavel"}
             </StatusPill>
           ) : null}
         </div>
 
         <div className="ecology-form-grid">
           <div className="ui-input-field">
-            <label className="ui-input-field__label">Espécie invasora</label>
+            <label className="ui-input-field__label">Especie invasora</label>
             <input
               className="ui-input"
               value={speciesText}
               onChange={(e) => setSpeciesText(e.target.value)}
-              placeholder="ex: leão, javali, tilápia"
+              placeholder="ex: leao, javali, tilapia"
             />
           </div>
           <div className="ui-input-field">
@@ -132,7 +133,7 @@ export function EcologyInvasiveSection() {
               className="ui-input"
               value={locationText}
               onChange={(e) => setLocationText(e.target.value)}
-              placeholder="ex: floresta amazônica, cerrado"
+              placeholder="ex: floresta amazonica, cerrado"
             />
           </div>
         </div>
@@ -140,23 +141,23 @@ export function EcologyInvasiveSection() {
         <div className="form-actions">
           <Button variant="primary" onClick={() => void submit()} disabled={isLoading}>
             <Bug weight="duotone" />
-            {isLoading ? "Simulando..." : "Simular invasão"}
+            {isLoading ? "Simulando..." : "Simular invasao"}
           </Button>
         </div>
       </section>
 
-      {isLoading ? <LoadingBlock label="Avaliando a invasão..." /> : null}
+      {isLoading ? <LoadingBlock label="Avaliando a invasao..." /> : null}
 
       {error && !isLoading ? (
-        <ErrorState title="Falha na simulação" message={error} onRetry={() => void submit()} />
+        <ErrorState title="Falha na simulacao" message={error} onRetry={() => void submit()} />
       ) : null}
 
       {!result && !error && !isLoading ? (
         <EmptyState
           icon={<Bug weight="duotone" />}
-          title="Nenhuma simulação ainda"
-          description="Informe uma espécie e um local e simule a invasão."
-          actionLabel="Simular invasão"
+          title="Nenhuma simulacao ainda"
+          description="Informe uma especie e um local e simule a invasao."
+          actionLabel="Simular invasao"
           onAction={() => void submit()}
         />
       ) : null}
@@ -181,6 +182,38 @@ export function EcologyInvasiveSection() {
               setInspected={setInspected}
               faunaEvents={faunaEvents}
               setFaunaEvents={setFaunaEvents}
+              invasiveSpeciesIds={[result.invader.id]}
+              invasiveOverlay={{
+                invaderSpeciesId: result.invader.id,
+                invaderName: result.invaderProfile.displayName,
+                invaderScientificName: result.invaderProfile.scientificName,
+                phaseLabel: phase?.label,
+                impactMechanisms:
+                  (result.impactMechanisms?.map((entry) => entry.label) as string[] | undefined) ??
+                  Array.from(
+                    new Set(
+                      result.nativeImpacts
+                        .map((entry) => EFFECT_LABEL[entry.effect] ?? entry.effect)
+                        .filter(Boolean),
+                    ),
+                  ),
+                affectedSpecies: result.nativeImpacts.map((entry) => ({
+                  speciesId: entry.speciesId,
+                  commonName: entry.commonName,
+                  effect: EFFECT_LABEL[entry.effect] ?? entry.effect,
+                  populationDelta: entry.populationDelta,
+                })),
+                simulatedNotes:
+                  result.simulationScope?.simulated ?? [
+                    "presenca visual da invasora",
+                    "interacao local com fauna nativa",
+                    "eventos de predacao e fuga",
+                  ],
+                explanationOnlyNotes:
+                  result.simulationScope?.explanationOnly ?? [
+                    "efeitos ecossistemicos de longo prazo",
+                  ],
+              }}
             />
           ) : null}
 
@@ -200,7 +233,7 @@ export function EcologyInvasiveSection() {
               <table className="invasive-table">
                 <thead>
                   <tr>
-                    <th>Critério</th>
+                    <th>Criterio</th>
                     <th>Nota</th>
                     <th>Detalhe</th>
                   </tr>
@@ -225,7 +258,7 @@ export function EcologyInvasiveSection() {
             <section className="signal-panel">
               <div className="signal-panel__header">
                 <div>
-                  <h3>Linha do tempo da invasão</h3>
+                  <h3>Linha do tempo da invasao</h3>
                   <p>Arraste para percorrer as fases projetadas.</p>
                 </div>
               </div>
@@ -241,8 +274,8 @@ export function EcologyInvasiveSection() {
                 <>
                   <div className="invasive-phase-head">
                     <strong>{phase.label}</strong>
-                    <span style={{ opacity: 0.7 }}>t ≈ {phase.tSeconds}s</span>
-                    <StatusPill tone="info">população invasora: {phase.invaderPop}</StatusPill>
+                    <span style={{ opacity: 0.7 }}>t ~ {phase.tSeconds}s</span>
+                    <StatusPill tone="info">populacao invasora: {phase.invaderPop}</StatusPill>
                   </div>
                   <div className="invasive-deltas">
                     {Object.entries(phase.nativeDeltas).length === 0 ? (
@@ -269,14 +302,14 @@ export function EcologyInvasiveSection() {
             <div className="signal-panel__header">
               <div>
                 <h3>Impacto sobre os nativos</h3>
-                <p>Efeito do invasor sobre cada espécie nativa do local.</p>
+                <p>Efeito do invasor sobre cada especie nativa do local.</p>
               </div>
             </div>
             {impactedNatives.length === 0 ? (
               <div className="signal-message signal-message--neutral">
                 <WarningCircle weight="duotone" />
                 <div>
-                  <span>Nenhum impacto direto projetado (invasor improvável ou sem sobreposição).</span>
+                  <span>Nenhum impacto direto projetado.</span>
                 </div>
               </div>
             ) : (
@@ -285,7 +318,7 @@ export function EcologyInvasiveSection() {
                   <div key={impact.speciesId}>
                     <strong>{impact.commonName}</strong>
                     <span>
-                      {EFFECT_LABEL[impact.effect]} · Δ população {impact.populationDelta}
+                      {EFFECT_LABEL[impact.effect] ?? impact.effect} · delta populacao {impact.populationDelta}
                     </span>
                   </div>
                 ))}
@@ -296,8 +329,100 @@ export function EcologyInvasiveSection() {
           <section className="signal-panel">
             <div className="signal-panel__header">
               <div>
-                <h3>Explicação científica</h3>
-                <p>Avaliação grounded nos fatos do banco.</p>
+                <h3>Mecanismos de impacto</h3>
+                <p>Mecanismos ecologicos nomeados, definidos por servicos deterministicos (nao pela IA).</p>
+              </div>
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                {result.establishmentPlausibility ? (
+                  <StatusPill
+                    tone={
+                      result.establishmentPlausibility.label === "alta"
+                        ? "success"
+                        : result.establishmentPlausibility.label === "moderada"
+                          ? "warning"
+                          : "error"
+                    }
+                  >
+                    Estabelecimento: {result.establishmentPlausibility.score}/100
+                  </StatusPill>
+                ) : null}
+                {result.spreadPressure ? (
+                  <StatusPill
+                    tone={
+                      result.spreadPressure === "alta"
+                        ? "error"
+                        : result.spreadPressure === "moderada"
+                          ? "warning"
+                          : "neutral"
+                    }
+                  >
+                    Dispersao: {result.spreadPressure}
+                  </StatusPill>
+                ) : null}
+              </div>
+            </div>
+            {result.impactMechanisms && result.impactMechanisms.length > 0 ? (
+              <div className="summary-list">
+                {result.impactMechanisms.map((m) => (
+                  <div key={m.kind}>
+                    <strong>{m.label}</strong>{" "}
+                    <StatusPill
+                      tone={m.severity === "alta" ? "error" : m.severity === "moderada" ? "warning" : "neutral"}
+                    >
+                      {m.severity}
+                    </StatusPill>
+                    <span>{m.description}</span>
+                    {m.targets && m.targets.length > 0 ? (
+                      <span style={{ opacity: 0.75 }}>Alvos: {m.targets.join(", ")}</span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="signal-message signal-message--neutral">
+                <WarningCircle weight="duotone" />
+                <div>
+                  <span>
+                    Nenhum mecanismo de impacto identificado — a especie provavelmente nao se
+                    estabelece neste bioma.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {result.affectedResources && result.affectedResources.length > 0 ? (
+              <p style={{ fontSize: "0.84rem", marginTop: "0.5rem" }}>
+                <strong>Recursos afetados:</strong>{" "}
+                {result.affectedResources.map((r) => r.label).join(", ")}
+              </p>
+            ) : null}
+
+            {((result.uncertainties?.length ?? 0) > 0 || (result.mvpAssumptions?.length ?? 0) > 0) ? (
+              <div className="stack-sm" style={{ marginTop: "0.6rem" }}>
+                {(result.uncertainties ?? []).map((u) => (
+                  <div key={u} className="signal-message signal-message--warning">
+                    <WarningCircle weight="duotone" />
+                    <div>
+                      <span>Incerteza: {u}</span>
+                    </div>
+                  </div>
+                ))}
+                {(result.mvpAssumptions ?? []).map((a) => (
+                  <div key={a} className="signal-message signal-message--neutral">
+                    <div>
+                      <span>Premissa: {a}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
+
+          <section className="signal-panel">
+            <div className="signal-panel__header">
+              <div>
+                <h3>Explicacao cientifica</h3>
+                <p>Avaliacao grounded nos fatos do banco.</p>
               </div>
               <StatusPill tone={result.explanation.coverage === "sufficient" ? "success" : "warning"}>
                 {result.explanation.coverage === "sufficient" ? "Cobertura suficiente" : "Cobertura limitada"}

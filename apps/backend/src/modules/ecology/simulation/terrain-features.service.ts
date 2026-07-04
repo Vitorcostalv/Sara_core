@@ -150,11 +150,11 @@ function rockinessFor(elevation: number, slope: number, isWater: boolean, noise:
 // Tunables — the single documented place for terrain-carving knobs.
 export const CHANNEL_CARVE = {
   /** Max elevation lowered at a full-flow channel cell (0-1 elevation units). */
-  maxCarve: 0.085,
+  maxCarve: 0.115,
   /** Normalised flow (0-1) below which a cell is not treated as a channel. */
   carveFlowMin: 0.12,
   /** Valley widening: carve weight applied to cells 0/1/2 steps from a channel. */
-  valleyFalloff: [1, 0.5, 0.22] as const,
+  valleyFalloff: [1, 0.58, 0.28] as const,
   /** Box-blur passes applied to the carve field to avoid stair-stepping. */
   smoothing: 1,
   /** Elevation floor channels cannot be carved below. */
@@ -162,7 +162,7 @@ export const CHANNEL_CARVE = {
   /** Tiny step enforced downstream so carved channels keep draining. */
   monotonicEpsilon: 0.001,
   /** Extra nonlinear depth applied only to high-flow trunk cells. */
-  trunkBoost: 0.045,
+  trunkBoost: 0.065,
   /** Flow at which the extra trunk carve starts becoming visible. */
   trunkFlowMin: 0.58,
 } as const;
@@ -951,7 +951,21 @@ export interface TerrainFeatureSummary {
  * rockiness, waterFlow, riverDistance, cave, objects). River banks also receive a
  * small humidity boost (clamped to 100). Returns a summary for diagnostics/reports.
  */
-export function enrichTerrain(grid: TerrainGrid, hints?: TerrainFeatureHints): TerrainFeatureSummary {
+export interface EnrichOptions {
+  /**
+   * Whether incidental natural caves may form. Caves are a geological feature: they are gated to
+   * cave-prone relief (e.g. mountain) or to explicit cave hints, so ordinary lowland prompts
+   * (e.g. Amazônia) don't sprout caves/cave-fauna. Explicit hints always take effect regardless.
+   * Defaults to true for backward compatibility with direct callers/tests.
+   */
+  allowNaturalCaves?: boolean;
+}
+
+export function enrichTerrain(
+  grid: TerrainGrid,
+  hints?: TerrainFeatureHints,
+  options?: EnrichOptions
+): TerrainFeatureSummary {
   const { width, height, cells } = grid;
 
   const slope = computeSlope(cells, width, height);
@@ -966,7 +980,15 @@ export function enrichTerrain(grid: TerrainGrid, hints?: TerrainFeatureHints): T
     }
   }
 
-  const caves = applyCaveHints(grid, slope, rockiness, riverDistance, assignCaves(grid, slope, rockiness, riverDistance), hints);
+  // Natural caves only when allowed (cave-prone relief); hint-driven caves still apply either way.
+  const allowNaturalCaves = options?.allowNaturalCaves ?? true;
+  const emptyCaves: (CaveInfo | undefined)[][] = Array.from({ length: height }, () =>
+    new Array<CaveInfo | undefined>(width).fill(undefined)
+  );
+  const naturalCaves = allowNaturalCaves
+    ? assignCaves(grid, slope, rockiness, riverDistance)
+    : emptyCaves;
+  const caves = applyCaveHints(grid, slope, rockiness, riverDistance, naturalCaves, hints);
   const objects = placeObjects(grid, slope, rockiness, waterFlow, riverDistance, caves, hints);
 
   let riverCells = 0;

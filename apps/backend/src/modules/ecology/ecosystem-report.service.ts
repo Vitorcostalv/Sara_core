@@ -5,6 +5,16 @@ import {
   ecologicalTerrainPromptService,
   type TerrainPromptResult,
 } from "./llm/ecological-terrain-prompt.service";
+import { resourceAvailabilityEvaluator, type ResourceBaseAssessment } from "./simulation/resource-base";
+import { trophicNetworkResolver, type TrophicConsistencyReport } from "./simulation/trophic-network.service";
+import {
+  ecologicalPlausibilityEvaluator,
+  type EcologicalValidation,
+} from "./simulation/ecological-plausibility.service";
+import {
+  ecosystemProfileService,
+  type EcosystemProfile,
+} from "./simulation/ecosystem-profiles";
 import type { TerrainGrid } from "./simulation/terrain-generator.service";
 
 // Slugs de bioma do prompt-terrain que não batem 1:1 com o slug de ecossistema no banco.
@@ -129,15 +139,32 @@ export interface PlausibilityAssessment {
   caveat: string;
 }
 
+/** Matched curated ecosystem profile + detected divergences vs. the generated grid. */
+export interface EcosystemProfileMatch {
+  matched: boolean;
+  profile: EcosystemProfile | null;
+  mismatches: string[];
+  /** 0–1 heuristic consistency (1 when no profile matched). */
+  consistencyScore: number;
+}
+
 export interface EcosystemReport {
   climate: ClimateSummary;
   relief: ReliefSummary;
   vegetation: VegetationSummary;
   formations: FormationSummary;
   fauna: FaunaSummary;
+  /** Basal plant/resource base and which consumers it supports. */
+  resourceBase: ResourceBaseAssessment;
+  /** Explicit trophic network (active + pruned links) and consistency warnings. */
+  trophicNetwork: TrophicConsistencyReport;
+  /** Curated ecosystem-profile match used as an extra deterministic consistency layer. */
+  ecosystemProfile: EcosystemProfileMatch;
   abioticFactors: AbioticFactor[];
   scientificExplanation: ScientificExplanation;
   plausibility: PlausibilityAssessment;
+  /** Component-weighted numeric plausibility score (0–100) for thesis comparison. */
+  validation: EcologicalValidation;
   limitations: string[];
 }
 
@@ -525,6 +552,44 @@ export class EcosystemReportService {
       ),
     };
 
+    // Camada de conhecimento: base de recurso vegetal, rede trófica explícita e validação pontuada.
+    const resourceBase = resourceAvailabilityEvaluator.assessFromGrid(terrainResult.terrain, species);
+    const trophicNetwork = trophicNetworkResolver.resolve(species, resourceBase);
+    const hasSpecialHabitat =
+      formations.caveCells > 0 ||
+      formations.riverCells > 0 ||
+      formations.mountainCoveragePct > 10 ||
+      relief.waterCoveragePct > 10;
+
+    // Camada determinística de perfil de ecossistema: casa o cenário com um perfil curado e mede
+    // divergências (clima/água/salinidade/recursos). Se nada casar, o pipeline segue inalterado.
+    const ecosystemProfile = matchEcosystemProfile(
+      terrainResult,
+      vegetation,
+      relief,
+      formations,
+      averageSalinity(terrainResult.terrain),
+      resourceBase
+    );
+
+    const validation = ecologicalPlausibilityEvaluator.evaluateEcosystem({
+      source: terrainResult.source,
+      dominantBiomePct: vegetation.dominantBiomes[0]?.pct ?? 0,
+      speciesCount: species.length,
+      trophic: trophicNetwork,
+      resources: resourceBase,
+      grounding: { coverageSufficient: context.coverage.sufficient, factCount: context.facts.length },
+      hasSpecialHabitat,
+      profile: ecosystemProfile.matched
+        ? {
+            matched: true,
+            displayName: ecosystemProfile.profile!.displayName,
+            consistencyScore: ecosystemProfile.consistencyScore,
+            mismatches: ecosystemProfile.mismatches,
+          }
+        : undefined,
+    });
+
     const limitations = buildLimitations(terrainResult, context.facts.length, context.coverage.sufficient, species.length);
     const plausibility = buildPlausibility(
       terrainResult.source,
@@ -543,13 +608,46 @@ export class EcosystemReportService {
         vegetation,
         formations,
         fauna,
+        resourceBase,
+        trophicNetwork,
+        ecosystemProfile,
         abioticFactors,
         scientificExplanation,
         plausibility,
+        validation,
         limitations,
       },
     };
   }
+}
+
+/** Best-effort match of the generated scenario to a curated ecosystem profile + consistency scoring. */
+function matchEcosystemProfile(
+  terrainResult: TerrainPromptResult,
+  vegetation: VegetationSummary,
+  relief: ReliefSummary,
+  formations: FormationSummary,
+  avgSalinityPsu: number,
+  resourceBase: ResourceBaseAssessment
+): EcosystemProfileMatch {
+  const dominantBiomes = vegetation.dominantBiomes.map((b) => b.biome);
+  const profile = ecosystemProfileService.matchForReport(terrainResult.biomeSlug, dominantBiomes);
+  if (!profile) {
+    return { matched: false, profile: null, mismatches: [], consistencyScore: 1 };
+  }
+
+  const presentResources = new Set(resourceBase.resourceBase.map((r) => r.type));
+  const { mismatches, consistencyScore } = ecosystemProfileService.assessConsistency(profile, {
+    temperatureC: terrainResult.terrain.baseTemperatureC,
+    precipitationMmYear: terrainResult.terrain.basePrecipitationMm,
+    humidityPct: terrainResult.terrainParams.baseHumidityPct,
+    waterCoveragePct: relief.waterCoveragePct,
+    avgSalinityPsu,
+    caveCells: formations.caveCells,
+    presentResources,
+  });
+
+  return { matched: true, profile, mismatches, consistencyScore };
 }
 
 function buildLimitations(

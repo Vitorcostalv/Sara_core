@@ -1,6 +1,6 @@
 # Sara Core System Reference
 
-Last updated: 2026-06-21
+Last updated: 2026-07-04
 
 ## Purpose
 
@@ -118,8 +118,15 @@ Simulation:
 - `ScenarioEngineService`: baseline/modified climate and disturbance risk.
 - `SuccessionSimulatorService`: primary/secondary succession stage progression.
 - `ArtificialEnvironmentService`: project-type design components, constraints, monitoring recommendations.
-- `InvasiveScenarioService`: deterministic invader profile, habitat plausibility, predation/competition impacts, phases, grounded explanation.
-- `EcosystemReportService`: terrain + fauna + climate/relief/vegetation/fauna/abiotic summaries, scientific explanation, plausibility, limitations.
+- `InvasiveScenarioService`: deterministic invader profile, habitat plausibility, predation/competition impacts, phases, grounded explanation. Now also emits **named `impactMechanisms`** (predação, competição, sobrepastejo, alteração aquática, cascata trófica, etc.), `affectedResources`, numeric `establishmentPlausibility`, `spreadPressure`, `uncertainties` and `mvpAssumptions`.
+- `EcosystemReportService`: terrain + fauna + climate/relief/vegetation/fauna/abiotic summaries, scientific explanation, plausibility, limitations. Now also emits `resourceBase`, `trophicNetwork` and a scored `validation`.
+
+Knowledge layer (deterministic, offline — see `docs/architecture/ecological-knowledge-layer.md`):
+
+- `ResourceAvailabilityEvaluator` (`simulation/resource-base.ts`): `ResourceType` vocabulary, `resourceNeedsFor()` (per-species basal resource needs), grid/biome-level resource availability, consumer support and `herbivorePressure`. Herbivores/omnivores now depend on a plant/detritus/plankton base instead of existing only as prey.
+- `TrophicNetworkResolver` (`simulation/trophic-network.service.ts`): explicit trophic network over resolved fauna — active links, pruned links (with reason), unsupported species, per-level summary, pyramid consistency. Orphaned-predator = carnivore whose *declared* catalog prey was fully pruned (prey-less catalog carnivores are treated as resource-implicit leaves, not contradictions).
+- `EcologicalPlausibilityEvaluator` (`simulation/ecological-plausibility.service.ts`): component-weighted plausibility score (0–100) with `issues`, `assumptions`, `missingData`, `positiveFactors` and `blockingContradictions` (which cap the score below the "alta" band). Supports the thesis comparison of LLM-only vs. grounded scenarios.
+- `SpeciesDefinition` gained derived, additive fields: `taxonGroup`, `nativeStatus`, `resourceNeeds`, `confidence`. `fauna-definition.service.ts` also exports `catalogDietFor()` / `getCatalogSpecies()` for the resolver.
 
 ## Frontend Architecture
 
@@ -147,6 +154,10 @@ UI/state:
 - `theme`: color/tokens/CSS variable injection.
 
 ## Frontend Ecology Features
+
+Current terrain art direction note:
+
+- The terrain renderer is block/column based. Cave mouths are recessed below the carved tile top, and lake/sea/river water is rendered as tile-aligned per-cell volumes with animated top faces seated on the carved heightfield. Smooth river ribbon bodies are retired while this terrain grammar remains in use.
 
 - `EcologyQuerySection`: grounded ecology Q&A and handoff from query to terrain generation.
 - `EcologyCatalogSection`: catalog panels for ecosystems, species, abiotic factors, projects, modeling approaches.
@@ -336,6 +347,7 @@ Backend tests run through `npm run test -w @sara/backend` and cover:
 - Multi-cell prompt cave systems (2–4 spaced systems, one entrance each, clustered internal cells) and bounded natural cave systems (largest-K, min size, no 1-cell noise).
 - Formation summary fields (chambers/tunnels/connections, shallow/deep counts, subterranean cells, depth stats) matching grid metadata.
 - Animal-list coherence: cave fauna present when caves exist, no polar/ocean leakage in a tropical grid.
+- Knowledge layer (`ecology.knowledge-layer.test.ts`): species resource needs (carnivores empty), resource availability & unsupported-consumer flagging, trophic active/pruned links and pyramid consistency, plausibility scoring with contradiction capping, and invasive impact mechanisms / establishment scoring.
 
 ## Change Report: Polygon Fauna Refactor
 
@@ -650,17 +662,274 @@ Next steps from this change:
 3. Add backend unit coverage directly around `carveWaterBasins()` to assert deterministic shore-to-center depth falloff.
 4. Keep voxel terrain, erosion over time, and navigable cave pathfinding out of scope until the MVP heightfield contract is stable.
 
+## Change Report: Tile-Seated Water And Cave Entrances
+
+Goal: fix the remaining "floating on top" look by matching the terrain's block/column art direction. Since the terrain is rendered as discrete heightfield tiles, water now follows the same tile grammar instead of mixing in smooth river tubes.
+
+Implemented changes:
+
+- Frontend `EcologyTerrainSection.tsx`: removed the global lake/ocean water plane. Lake/sea water now renders as per-cell volumes from the carved cell floor (`terrainTopY(cell)`) up to a local surface below neighboring bank tops.
+- Frontend `EcologyTerrainSection.tsx`: added `waterSurfaces` and reusable `WaterSurfaceTiles`, so animated normals appear only on each water tile's top face.
+- Frontend `buildRiverScene()`: retired the smooth Catmull-Rom river ribbon as the river body. Rivers now render as tile-aligned water volumes + tile top faces, using Strahler order for depth and existing cell flow for hierarchy.
+- Frontend `buildRiverScene()`: river bank height ignores neighboring river cells when seating water, so channel water is measured against actual surrounding land tiles.
+- Frontend `RiverOverlay`: renders river volumes, thin square wet-bank slabs, tile top faces, and waterfall blocks. It no longer renders a smooth tube/ribbon over the block terrain.
+- Frontend `CaveEntrances`: cave mouth groups are recessed below the carved terrain tile top and include a dark cut-in slab, so entrances read as cut into the column rather than stamped on the surface. Locator rings remain behind the optional Marcadores layer.
+- Backend `CHANNEL_CARVE`: trunk/channel carve was increased again to create a clearer visible step between channel cells and bank cells in the blocky terrain renderer.
+- Single height source: terrain columns, lake/sea water, river water, cave seating, object scatter, and rain water reference now derive from the same carved `cell.elevation` height path.
+
+Validation:
+
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run test -w @sara/backend` passes (97 tests).
+
+Art-direction note:
+
+- Current terrain is a blocky heightfield/column renderer. Water is intentionally tile-aligned so rivers and lakes read as carved into that terrain. Smooth meandering river ribbons should only return if the terrain itself is later changed to a smoothed/interpolated mesh.
+
+## Change Report: Ecological Knowledge Layer & Scenario Compiler (Worker A)
+
+Goal: strengthen the scientific core so the thesis can argue AI-as-constrained-assistant over a
+deterministic ecological knowledge layer. All changes are backend/contracts + tests + docs;
+no Three.js/rendering/UI files were touched (frontend edits are contract mirrors only).
+
+New backend services (`apps/backend/src/modules/ecology/simulation/`):
+
+- `resource-base.ts` — `ResourceType` vocabulary, `resourceNeedsFor()`, `ResourceAvailabilityEvaluator`
+  (grid/biome resource availability, consumer support, `herbivorePressure`).
+- `trophic-network.service.ts` — `TrophicNetworkResolver` (active/pruned links + reasons, unsupported
+  species, per-level summary, pyramid consistency).
+- `ecological-plausibility.service.ts` — `EcologicalPlausibilityEvaluator` (0–100 weighted score,
+  issues/assumptions/missingData/positiveFactors/blockingContradictions).
+
+Extended:
+
+- `fauna-definition.service.ts`: additive derived fields on `SpeciesDefinition` (`taxonGroup`,
+  `nativeStatus`, `resourceNeeds`, `confidence`); exported `catalogDietFor` / `getCatalogSpecies`.
+- `invasive-scenario.service.ts`: per-profile `mechanisms`, and result fields `impactMechanisms`,
+  `affectedResources`, `establishmentPlausibility`, `spreadPressure`, `uncertainties`, `mvpAssumptions`.
+  Pure helpers exported for tests (`resolveProfile`, `buildImpactMechanisms`, `establishmentPlausibilityScore`, `spreadPressureFor`).
+- `ecosystem-report.service.ts`: report now carries `resourceBase`, `trophicNetwork` and scored `validation`.
+- `apps/frontend/src/services/api/ecology.ts`: mirrored all new contracts (types only).
+
+Tests: added `ecology.knowledge-layer.test.ts` (12 tests) — resource needs, resource availability &
+unsupported consumers, trophic links/pruning, plausibility scoring & contradiction capping, invasive
+mechanisms & establishment. Registered in the backend `test` script. Suite: **109 passing** (was 97).
+
+Validation: `npm run typecheck -w @sara/backend`, `npm run lint -w @sara/backend`,
+`npm run test -w @sara/backend` all green. Frontend `ecology.ts` typechecks/lints clean (a pre-existing,
+unrelated `FaunaLayer.tsx` type error on this branch is Worker B territory and predates this change).
+
+Known limitations of this change: resource availability is grid-level heuristic (not per-plant);
+invasion projection is educational/deterministic (not validated risk); no DB migration was needed —
+the knowledge layer is code/seed-driven over the existing catalog.
+
+## Change Report: Thesis Demo Frontend Pass (Worker B)
+
+Goal: make the thesis demo more legible under presentation conditions without reintroducing GLB
+runtime complexity. This pass is frontend-first: fauna rendering, in-scene explanation UX,
+invasive-species visibility, and simulation broad-phase performance.
+
+Implemented:
+
+- Added `faunaRenderProfiles.ts`: frontend-only `SpeciesRenderProfile` layer with per-species
+  `assetPath`, `fallbackShape`, `baseScale`, `heightOffset`, `billboardMode`,
+  `habitatPlacement`, and `labelPriority`.
+- Added billboard-ready fauna asset convention: `apps/frontend/public/fauna/<species-id>.png`.
+  Missing assets degrade to the existing polygon path; no GLB dependency returns.
+- `AnimalEntity.tsx` now supports a hybrid render path:
+  - sprite billboard when a local sprite is configured and loads,
+  - procedural polygon fallback when no sprite exists or loading fails,
+  - invasive-species visual ring accent,
+  - retained feeding-strategy glyph redundancy plus state emissive cues.
+- Added `FaunaSpatialIndex.ts`: uniform-grid broad phase used by `FaunaLayer`.
+  Nearby flock, flee, and hunt checks now query neighboring cells instead of scanning the full
+  registry every time.
+- `FaunaLayer.tsx` now consumes the spatial index, forwards `species` into `AnimalEntity`, and
+  accepts `invasiveSpeciesIds` so the viewer can visually distinguish the invader.
+- `EcologyTerrainSection.tsx` now:
+  - passes invasive species ids into the fauna renderer,
+  - supports an optional in-scene `InvasiveImpactOverlay`,
+  - upgrades `AnimalsPanel` with search, scientific-name display, invasive badge, and
+    render-mode visibility (`sprite` vs `fallback`).
+- `EcologyInvasiveSection.tsx` was rewritten into clean Portuguese-facing copy and now feeds the
+  viewer with:
+  - invasive species highlight,
+  - impact-mechanism summary,
+  - affected native species list,
+  - explicit simulated-vs-explanation-only notes.
+- `apps/frontend/src/services/api/ecology.ts` now mirrors Worker A contract additions used by this
+  pass, including optional render hints and richer invasive-scenario metadata.
+
+Validation:
+
+- `npm.cmd run typecheck -w @sara/frontend` passes.
+- `npm.cmd run lint -w @sara/frontend` passes.
+
+Complexity note:
+
+- Before: fauna interaction checks were effectively `O(species * agents^2)` in the render loop.
+- After: nearby-interaction lookup is grid-bucketed through `FaunaSpatialIndex`, so predators,
+  prey, and flocking agents only inspect local candidates. Exact runtime still depends on spatial
+  density, but the practical broad phase is now local-neighborhood rather than full-population scan.
+
+## Change Report: Integration & Demo QA Pass (Worker C)
+
+Goal: integrate Worker A (deterministic knowledge layer) and Worker B (hybrid fauna / demo UX)
+into a stable, thesis-legible whole. No new architecture, no ecological logic moved to the
+frontend, polygon fallback and no-GLB rules preserved.
+
+Integration work:
+
+- **Contract audit** — verified the backend contracts and the frontend API mirror
+  (`services/api/ecology.ts`) agree field-for-field for `EcosystemReport.resourceBase`,
+  `trophicNetwork`, `validation`; `InvasiveScenarioResult.impactMechanisms` (object array),
+  `affectedResources`, `establishmentPlausibility`, `spreadPressure`, `uncertainties`,
+  `mvpAssumptions`; and `SpeciesDefinition.taxonGroup/nativeStatus/resourceNeeds/confidence`.
+  Frontend fields are optional (defensive); backend sends them required. No duplicate type
+  declarations in the mirror.
+- **Report UI gap fixed** — `EcologyTerrainSection` previously ignored the knowledge-layer output.
+  Added defensive cards: a **deterministic validation score (0–100)** with per-component
+  breakdown and blocking contradictions, a **Base de recurso** card (availability, herbivore
+  pressure, unsupported consumers), and a **Rede trófica** card (active/pruned links, pyramid
+  consistency, warnings). All guarded so older responses without these fields do not crash.
+- **Invasive UI gap fixed** — `EcologyInvasiveSection` now renders the named `impactMechanisms`
+  (label + severity + description + targets), `affectedResources`, `establishmentPlausibility`,
+  `spreadPressure`, `uncertainties` and `mvpAssumptions`. Empty mechanisms render an explicit
+  "no mechanism identified" message; every field is optional-guarded.
+- **Sprite convention** — documented `public/fauna/<species-id>.png` in `public/fauna/README.md`.
+  `SPECIES_ASSET_PATHS` stays empty so no missing-sprite 404s hit the console; every species uses
+  the crash-safe polygon fallback until a real PNG is dropped in and registered.
+- **Spatial index review** — confirmed `FaunaSpatialIndex` query radius covers
+  flock/awareness/hunt distances, so the broad phase does not drop predation/flee interactions.
+- **Mojibake** — scanned all ecology frontend files; found no genuine encoding corruption
+  (Ã/Â/� bytes). The accent-stripped Portuguese copy is a consistent deliberate style and was
+  left intact (mass re-accenting would be a full copy rewrite, out of scope).
+
+Validation (all from repo root):
+
+- `npm run typecheck` — backend + frontend + shared-types clean.
+- `npm run lint` — all workspaces clean.
+- `npm run test` — backend 109/109 pass.
+
+Note: live browser/DB demo was not driven from this pass (requires a running Neon DB + provider);
+validation was static (typecheck/lint/test) plus render-path review of the defensive UI.
+
+## Change Report: Demo Freeze (final pass)
+
+Small stabilization pass for the thesis demo; no new architecture or features.
+
+- Removed the `NativeImpact.mechanisms`/`.notes` contract drift (backend never emitted them) from
+  the frontend mirror, `EcologyInvasiveSection`, and the `InvasiveOverlayData` type. Invasive
+  rendering stays defensive.
+- Shipped 3 placeholder field-guide sprite silhouettes under `apps/frontend/public/fauna/`
+  (`capivara`, `onca-pintada`, `invasor-javali`) and registered them in `SPECIES_ASSET_PATHS`, so
+  the hybrid billboard path is demonstrable. Unregistered species make no request and keep the
+  polygon fallback (no 404 spam).
+- Added `docs/usage/demo-prompts.md` with 3 tested prompts (ecosystem, predator/prey, invasive)
+  chosen to surface the validation score, resource base, trophic network, fauna list and invasive
+  mechanisms.
+- Validated from repo root: `npm run typecheck`, `npm run lint`, `npm run test` (109/109), and a
+  frontend production build all pass.
+
+## Change Report: Curated Ecological Data Expansion (Worker D)
+
+Expansion of the deterministic curated data layer; no new architecture, no runtime DB dependency
+(audit confirmed the simulation is pure TS while the DB feeds only LLM grounding/catalog). Curated
+data lives in backend TS files with per-item source notes + confidence. See
+`docs/data/ecological-data-curation.md`.
+
+- **Ecosystem profiles** (`simulation/ecosystem-profiles.ts`, new): `EcosystemProfileService` +
+  10 curated profiles (Amazônia, Cerrado, Pantanal, Mata Atlântica, Caatinga, Pampa, Manguezal,
+  Rio/lago dulcícola, Costeiro/marinho, Caverna tropical) — climate, substrate, water/salinity,
+  dominant resources, compatible fauna groups, incompatible conditions, source, confidence.
+- **Basal-resource catalog** (`simulation/resource-base.ts`): `ResourceType` grown to 13 (added
+  `raizes-tuberculos`, `algas`, `carnica`, `nectar-polen`, `recurso-agricola`) + `RESOURCE_CATALOG`
+  metadata; new resources wired into `FAMILY_RESOURCES` where a biome plausibly supplies them
+  (`recurso-agricola` intentionally left out of natural biomes).
+- **Species catalog** (`simulation/fauna-definition.service.ts`): added neotropical taxa (jacaré,
+  sucuri, jabuti, cutia, queixada, bugio, formiga-cortadeira, sapo-cururu, seriema) spanning
+  reptile/amphibian/invertebrate; per-species `nativeStatus` override (tilápia → `introduced`);
+  exported `listCatalogSpecies()`. Reptile apex predators confined to `pantanal`/`lago` to preserve
+  the calibrated forest trophic-pyramid tests.
+- **Invasive profiles**: 6 → **13** (búfalo, cabra, lebre-europeia, tucunaré, rã-touro,
+  caramujo-gigante-africano, mexilhão-dourado) with `taxonGroup`, establishment notes and
+  species-specific uncertainties; exported `INVADER_PROFILES`.
+- **Frontend mirror**: `ResourceType` union extended (additive).
+- **Tests**: `ecology.curated-data.test.ts` (12 tests) — resource-need semantics, catalog integrity
+  (no dangling prey/resource ids), predator pruning, ≥10 named-mechanism invaders across diverse
+  taxa, resource-catalog coverage, and Brazilian/cave ecosystem profiles resolving plausible
+  fauna+resource sets. Backend suite: **121 passing**.
+- Validation: `npm run typecheck`/`lint`/`test -w @sara/backend` green; frontend typecheck/lint green.
+
+## Change Report: Ecosystem Profiles Wired Into Report/Validation (Worker E)
+
+Activated Worker D's curated ecosystem profiles inside the deterministic pipeline (no new
+architecture, no DB, additive contracts).
+
+- `ecosystem-profiles.ts`: added `EcosystemProfileService.matchForReport(biomeSlug, dominantBiomes)`
+  (prompt-slug aliases + dominant-biome fallback; returns undefined when nothing matches) and
+  `assessConsistency(profile, observed)` → `{ mismatches, consistencyScore }` comparing the generated
+  grid's temperature/rainfall/water/salinity/cave/resources against the profile.
+- `EcosystemReportService`: matches a profile per report and now emits `report.ecosystemProfile`
+  (`{ matched, profile, mismatches, consistencyScore }`). If no profile matches, the pipeline is
+  unchanged (matched=false, consistency 1).
+- `EcologicalPlausibilityEvaluator`: optional `profile` input adds a `profile-consistency` component
+  and folds mismatches into `issues`. Scoring now divides by total component weight, so it stays
+  0–100 for any component count and is **identical** to before when no profile is supplied (base
+  weights sum to 1). Mangrove-without-water/salinity, dry-vs-Amazon, marine-vs-freshwater etc. lower
+  the score via this component + warnings.
+- Frontend: mirrored `EcosystemProfile`/`EcosystemProfileMatch` and optional `report.ecosystemProfile`;
+  added a compact "Perfil de ecossistema" card (expected conditions, divergences, confidence/source)
+  in the report grid.
+- Tests: `ecology.curated-data.test.ts` +5 (slug/alias matching, no-penalty when consistent, penalty
+  when inconsistent, score drop with a matched inconsistent profile, and no-op when unmatched). Backend
+  suite **126 passing**; root typecheck/lint/test + frontend build all green.
+
+## Change Report: Amazon/Rainforest Coherence & Cave Gating (post-demo)
+
+Fixed incoherence where a hot/humid Amazon prompt produced dry forest, alpine-cold temperatures,
+incidental caves + cave fauna, and a validation drop to 64/100. Deterministic-layer fixes only.
+
+- **Biome mapping** (`terrain-generator.service.ts` `toBiomeSuggestion`): hot+wet now resolves to
+  `floresta-tropical-umida` (`tempC>20 && precip>=1600`) before the dry-forest fallthrough, with a
+  warm-humid `mata-atlantica` band (`tempC>18 && precip>=1100`). Amazon grids are now
+  wet-forest-dominant instead of ~78% `floresta-tropical-seca`.
+- **Climate/lapse**: the elevation lapse uses the full 0–4 km column only for `mountain`/`polar`
+  relief; lowland styles use a gentle scale (`elev*1.6`), so lowland rainforest prompts no longer
+  report alpine-cold minimums (was 8.6°C; now ≥15°C) from procedural elevation noise.
+- **Cave gating rule**: incidental **natural caves are generated only for cave-prone relief
+  (`mountain`) or when explicit cave hints are present** (`caverna`, `gruta`, `subterrâneo`,
+  `carste`, `cavernícola`, `cave`, `karst`, …). Lowland default/ocean/polar prompts stay cave-free
+  unless hinted. `enrichTerrain` gained an `allowNaturalCaves` option; `generate()` sets it from the
+  relief style. Explicit cave prompts and mountain manual terrain still generate caves/cave-fauna.
+- **Cave-fauna support**: cave organic matter is a *local* within-habitat resource, so a meaningful
+  cave (≥2 cells) floors the `caverna` resource weight instead of using the tiny surface-area
+  fraction. Troglobites are now supported when caves are meaningful (no "sem presa nem recurso"
+  blocking contradiction); combined with cave gating, ordinary rainforest prompts carry no cave
+  fauna at all.
+- **Aliases**: Amazon/rainforest/wet-tropical terms map to wet tropical forest expectations
+  (`amazonia` preset 28°C/2800mm/88%, profile `amazonia`).
+- Tests: +5 in `ecology.simulation.test.ts` (wet-forest dominance, warm min temp, no incidental
+  caves/fauna, coherent Amazon validation >75 with 0 blocking, explicit-cave prompt still supported).
+  Suite **131 passing**; root typecheck/lint/test + frontend build green.
+
 ## Known Limitations
 
 - Heightfield terrain cannot express true enclosed voids. Caves are represented as dedicated modeled entrance/interior geometry, revealed through cave/subsoil modes and cutaway-style visuals rather than carved voxel cavities.
+- Rivers/lakes are tile-aligned to match the column terrain grammar; they are not smooth hydrodynamic surfaces.
 - Terrain and population behavior are heuristic, not validated ecological models.
-- `preySpeciesIds` only models animal prey; plant resources are implicit.
+- `preySpeciesIds` only models animal prey; plant/basal resources are now represented at report level (`resourceBase`, `resourceNeeds`, `herbivorePressure`) but are still a grid-level heuristic and do not drive the frontend agent simulation.
 - Omnivores can be visually classified as omnivores even when their plant diet is not explicitly represented in `diet`.
 - `PredationProfile` is species-level, but individual species customization UI is not implemented yet.
 - Death/decomposition is visual only: carcasses/remains are rendered, but there is no nutrient-cycle, decomposer, or scavenging model yet.
 - The fauna simulation is local to the frontend render loop; backend resolves species but does not simulate individual agents.
-- The frontend still uses an O(species * agents^2) interaction scan; no spatial grid is implemented yet.
-- Frontend report strings still contain some legacy Portuguese/mojibake text from earlier files.
+- Billboard fauna depends on local sprite production; until assets are added under `public/fauna/`,
+  many species will continue using the polygon fallback path by design.
+- The new broad phase reduces local interaction cost but does not yet add a full ECS or
+  crowd-simulation architecture; very large population caps are still out of scope for the MVP.
+- Frontend report strings still contain some legacy Portuguese/mojibake text outside the panels
+  touched by this pass.
 - LLM classification depends on provider availability; deterministic keyword fallback is available.
 
 ## Next Steps
@@ -669,7 +938,7 @@ Next steps from this change:
 2. Split `feedingStrategy` from future richer diet modeling: plant resources, detritus, scavenging, aquatic prey, and omnivore ratios.
 3. Extend the visual carcass lifecycle into ecological decomposition: decomposer attraction, nutrient pulse, and optional scavenging.
 4. Add plant resource/pasture pressure so herbivores consume vegetation instead of only acting as prey.
-5. Add frontend tests or Playwright checks for nonblank polygon fauna rendering and visual state colors.
+5. Add frontend tests or Playwright checks for sprite fallback, invasive badge visibility, and terrain-viewer smoke coverage.
 6. Add backend tests for invasive `feedingStrategy`, invasive predation profiles, and ecosystem report `byFeedingStrategy`.
 7. Clean legacy mojibake strings and standardize UI language.
-8. Add a spatial grid/broad-phase lookup before raising population caps.
+8. Use the spatial index as the base for later species inspection, impact markers, and any future population-cap increase.
