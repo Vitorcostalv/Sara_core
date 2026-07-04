@@ -56,9 +56,11 @@ export const ecologyTerrainSchema = z.object({
   width: z.coerce.number().int().min(4).max(64).default(16),
   height: z.coerce.number().int().min(4).max(64).default(16),
   seed: z.coerce.number().int().default(42),
-  baseTemperatureC: z.coerce.number().min(-30).max(40).default(18),
+  baseTemperatureC: z.coerce.number().min(-40).max(40).default(18),
   basePrecipitationMm: z.coerce.number().min(0).max(8_000).default(1_200),
   baseHumidityPct: z.coerce.number().min(0).max(100).default(60),
+  reliefStyle: z.enum(["default", "ocean", "mountain", "polar"]).optional(),
+  seaLevel: z.coerce.number().min(0.05).max(0.9).optional(),
 });
 
 // POST /ecology/simulate/succession
@@ -107,6 +109,15 @@ export const ecologyEcosystemReportSchema = z.object({
   seed: z.coerce.number().int().optional(),
 });
 
+// POST /ecology/invasive
+export const ecologyInvasiveSchema = z.object({
+  speciesText: z.string().trim().min(1).max(200),
+  locationText: z.string().trim().min(1).max(200),
+  width: z.coerce.number().int().min(4).max(64).default(48),
+  height: z.coerce.number().int().min(4).max(64).default(36),
+  seed: z.coerce.number().int().optional(),
+});
+
 // GET /ecology/inspect (dry-run context inspection)
 export const ecologyInspectSchema = z.object({
   ecosystems: z.array(ecosystemSlugSchema).max(8).default([]),
@@ -115,6 +126,33 @@ export const ecologyInspectSchema = z.object({
 });
 
 // POST /ecology/fauna
+const caveTypeSchema = z.enum([
+  "none",
+  "shallow-den",
+  "deep-cave",
+  "sinkhole",
+  "cliff-opening",
+  "river-cave",
+  "lava-tube",
+  "karst-system",
+]);
+
+const terrainObjectTypeSchema = z.enum([
+  "rock",
+  "boulder",
+  "fallen-log",
+  "dead-tree",
+  "bush",
+  "nest",
+  "burrow",
+  "bones",
+  "mushroom",
+  "crystal",
+  "waterfall",
+  "cave-entrance",
+  "cliff-ledge",
+]);
+
 const terrainCellBodySchema = z.object({
   x: z.number(),
   y: z.number(),
@@ -126,6 +164,24 @@ const terrainCellBodySchema = z.object({
   climateCode: z.string(),
   biomeSuggestion: z.string(),
   isWater: z.boolean(),
+  // Structural layer (optional — preserved on round-trip for micro-habitat spawn).
+  slope: z.number().optional(),
+  rockiness: z.number().optional(),
+  altitudeBand: z.enum(["lowland", "hill", "mountain", "cliff"]).optional(),
+  waterFlow: z.number().optional(),
+  riverDistance: z.number().optional(),
+  cave: z
+    .object({
+      type: caveTypeSchema,
+      depth: z.number(),
+      openness: z.number(),
+      humidity: z.number(),
+      darkness: z.number(),
+      connectedTo: z.array(z.string()).optional(),
+      systemId: z.string().optional(),
+    })
+    .optional(),
+  objects: z.array(terrainObjectTypeSchema).optional(),
 });
 
 const faunaGridSchema = z.object({
@@ -159,4 +215,5 @@ export type EcologyArtificialEnvInput = z.infer<typeof ecologyArtificialEnvSchem
 export type EcologyInspectInput = z.infer<typeof ecologyInspectSchema>;
 export type EcologyPromptTerrainInput = z.infer<typeof ecologyPromptTerrainSchema>;
 export type EcologyEcosystemReportInput = z.infer<typeof ecologyEcosystemReportSchema>;
+export type EcologyInvasiveInput = z.infer<typeof ecologyInvasiveSchema>;
 export type EcologyFaunaInput = z.infer<typeof ecologyFaunaSchema>;

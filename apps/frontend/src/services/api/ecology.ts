@@ -87,6 +87,8 @@ export interface DomainCoverageStats {
 
 // ─── Prompt terrain result ────────────────────────────────────────────────────
 
+export type ReliefStyle = "default" | "ocean" | "mountain" | "polar";
+
 export interface TerrainPromptResult {
   biomeName: string;
   biomeSlug: string;
@@ -98,6 +100,8 @@ export interface TerrainPromptResult {
     width: number;
     height: number;
     seed: number;
+    reliefStyle?: ReliefStyle;
+    seaLevel?: number;
   };
   terrain: TerrainGrid;
   source: "llm" | "keyword" | "default";
@@ -132,11 +136,175 @@ export interface VegetationSummary {
   description: string;
 }
 
+export interface FormationSummary {
+  caveCells: number;
+  caveSystems: number;
+  visibleEntrances: number;
+  subterraneanCells: number;
+  chamberCells: number;
+  tunnelCells: number;
+  connections: number;
+  maxCaveDepth: number;
+  avgCaveDepth: number;
+  shallowCaveCount: number;
+  deepCaveCount: number;
+  fallbackSingleCellSystems: number;
+  largestSystemCells: number;
+  caveTypes: Array<{ type: string; count: number }>;
+  mountainCoveragePct: number;
+  cliffCoveragePct: number;
+  rockyCoveragePct: number;
+  ledgeCells: number;
+  riverCells: number;
+  maxWaterFlow: number;
+  waterfallCells: number;
+}
+
 export interface FaunaSummary {
   totalSpecies: number;
   totalPopulation: number;
   byCategory: Array<{ category: string; count: number }>;
-  species: Array<{ commonName: string; scientificName: string; category: string }>;
+  byFeedingStrategy: Array<{ feedingStrategy: FeedingStrategy; count: number }>;
+  species: Array<{
+    commonName: string;
+    scientificName: string;
+    category: string;
+    feedingStrategy: FeedingStrategy;
+    habitat: "cave" | "water" | "land";
+    populationTarget: number;
+    isPredator: boolean;
+  }>;
+}
+
+// ─── Ecological knowledge layer (resource base, trophic network, validation) ─────
+
+export type TaxonGroup = "mamífero" | "ave" | "peixe" | "réptil" | "anfíbio" | "invertebrado";
+export type NativeStatus = "native" | "introduced" | "unknown";
+
+export type ResourceType =
+  | "pastagem"
+  | "folhagem-arbustiva"
+  | "folhagem-dossel"
+  | "frutos-sementes"
+  | "raizes-tuberculos"
+  | "vegetacao-aquatica"
+  | "plancton"
+  | "algas"
+  | "detrito"
+  | "materia-organica-cavernicola"
+  | "carnica"
+  | "nectar-polen"
+  | "recurso-agricola";
+
+export interface ResourceAvailability {
+  type: ResourceType;
+  label: string;
+  availability: number;
+  sources: string[];
+}
+
+export interface ConsumerSupport {
+  speciesId: string;
+  commonName: string;
+  needs: ResourceType[];
+  satisfiedBy: ResourceType[];
+  supported: boolean;
+}
+
+export interface HerbivorePressure {
+  level: "baixa" | "moderada" | "alta";
+  ratio: number;
+  detail: string;
+}
+
+export interface ResourceBaseAssessment {
+  resourceBase: ResourceAvailability[];
+  consumers: ConsumerSupport[];
+  unsupportedConsumers: string[];
+  resourceWarnings: string[];
+  herbivorePressure: HerbivorePressure;
+}
+
+export interface TrophicLink {
+  predatorId: string;
+  predatorName: string;
+  preyId: string;
+  preyName: string;
+}
+
+export interface PrunedTrophicLink {
+  predatorId: string;
+  predatorName: string;
+  preyId: string;
+  reason: string;
+}
+
+export interface TrophicLevelSummary {
+  level: TrophicLevel;
+  count: number;
+  species: string[];
+}
+
+export interface TrophicConsistencyReport {
+  links: TrophicLink[];
+  prunedLinks: PrunedTrophicLink[];
+  unsupportedSpecies: string[];
+  levels: TrophicLevelSummary[];
+  producers: string[];
+  warnings: string[];
+  pyramidConsistent: boolean;
+}
+
+export type PlausibilityBand = "baixa" | "moderada" | "alta";
+
+export interface PlausibilityComponent {
+  key: string;
+  label: string;
+  score: number;
+  weight: number;
+  detail: string;
+}
+
+export interface EcologicalValidation {
+  score: number;
+  label: PlausibilityBand;
+  components: PlausibilityComponent[];
+  issues: string[];
+  assumptions: string[];
+  missingData: string[];
+  positiveFactors: string[];
+  blockingContradictions: string[];
+}
+
+// ─── Curated ecosystem profile (deterministic reference) ─────────────────────────
+
+export type EcosystemMedium = "terrestrial" | "aquatic" | "mixed" | "cave" | "coastal";
+export type WaterPresence = "none" | "freshwater" | "brackish" | "marine";
+
+export interface EcosystemProfile {
+  slug: string;
+  displayName: string;
+  medium: EcosystemMedium;
+  compatibleBiomes: string[];
+  climate: {
+    temperatureRangeC: [number, number];
+    rainfallMmYear: [number, number];
+    humidityPct: [number, number];
+  };
+  substrateNotes: string;
+  water: { presence: WaterPresence; salinityRangePsu: [number, number] };
+  dominantResources: ResourceType[];
+  compatibleFaunaGroups: string[];
+  incompatibleConditions: string[];
+  sourceNotes: string;
+  confidence: number;
+}
+
+export interface EcosystemProfileMatch {
+  matched: boolean;
+  profile: EcosystemProfile | null;
+  mismatches: string[];
+  consistencyScore: number;
 }
 
 export interface AbioticFactor {
@@ -178,16 +346,103 @@ export interface EcosystemReport {
   climate: ClimateSummary;
   relief: ReliefSummary;
   vegetation: VegetationSummary;
+  formations: FormationSummary;
   fauna: FaunaSummary;
+  resourceBase: ResourceBaseAssessment;
+  trophicNetwork: TrophicConsistencyReport;
+  /** Curated ecosystem-profile match (optional/defensive; older responses may omit it). */
+  ecosystemProfile?: EcosystemProfileMatch;
   abioticFactors: AbioticFactor[];
   scientificExplanation: ScientificExplanation;
   plausibility: PlausibilityAssessment;
+  validation: EcologicalValidation;
   limitations: string[];
 }
 
 export interface EcosystemReportResult extends TerrainPromptResult {
   species: SpeciesDefinition[];
   report: EcosystemReport;
+}
+
+// ─── Invasive species scenario ─────────────────────────────────────────────────
+
+export type InvasionEffect =
+  | "predation"
+  | "competition"
+  | "habitat-alteration"
+  | "disease"
+  | "resource-pressure"
+  | "none"
+  | (string & {});
+
+export interface NativeImpact {
+  speciesId: string;
+  commonName: string;
+  effect: InvasionEffect;
+  populationDelta: number;
+}
+
+export interface InvasionPhase {
+  label: string;
+  tSeconds: number;
+  invaderPop: number;
+  nativeDeltas: Record<string, number>;
+  mechanisms?: string[];
+}
+
+export type InvasiveMechanismKind =
+  | "predacao"
+  | "competicao-alimentar"
+  | "competicao-espaco"
+  | "engenharia-habitat"
+  | "transmissao-doenca"
+  | "hibridizacao"
+  | "sobrepastejo"
+  | "supressao-vegetal"
+  | "alteracao-aquatica"
+  | "cascata-trofica"
+  | "deplecao-recursos";
+
+export interface InvasiveImpactMechanism {
+  kind: InvasiveMechanismKind;
+  label: string;
+  description: string;
+  severity: "baixa" | "moderada" | "alta";
+  targets: string[];
+}
+
+export interface AffectedResource {
+  type: ResourceType;
+  label: string;
+  detail: string;
+}
+
+export interface InvasiveScenarioResult {
+  terrain: TerrainGrid;
+  resolvedBiomes: string[];
+  invader: SpeciesDefinition;
+  invaderProfile: {
+    displayName: string;
+    scientificName: string;
+    nativeBiomes: string[];
+    survives: boolean;
+  };
+  nativeImpacts: NativeImpact[];
+  phases: InvasionPhase[];
+  /** Named ecological mechanisms (empty when the invader cannot establish). */
+  impactMechanisms: InvasiveImpactMechanism[];
+  affectedResources: AffectedResource[];
+  establishmentPlausibility: { score: number; label: PlausibilityBand };
+  spreadPressure: "baixa" | "moderada" | "alta";
+  plausibility: PlausibilityAssessment;
+  explanation: ScientificExplanation & { text: string };
+  uncertainties: string[];
+  mvpAssumptions: string[];
+  limitations: string[];
+  simulationScope?: {
+    simulated?: string[];
+    explanationOnly?: string[];
+  };
 }
 
 // ─── Ecology LLM result ───────────────────────────────────────────────────────
@@ -208,6 +463,45 @@ export interface EcologicalLlmResult {
 
 // ─── Terrain ──────────────────────────────────────────────────────────────────
 
+export type CaveType =
+  | "none"
+  | "shallow-den"
+  | "deep-cave"
+  | "sinkhole"
+  | "cliff-opening"
+  | "river-cave"
+  | "lava-tube"
+  | "karst-system";
+
+export type TerrainObjectType =
+  | "rock"
+  | "boulder"
+  | "fallen-log"
+  | "dead-tree"
+  | "bush"
+  | "nest"
+  | "burrow"
+  | "bones"
+  | "mushroom"
+  | "crystal"
+  | "waterfall"
+  | "cave-entrance"
+  | "cliff-ledge";
+
+export type AltitudeBand = "lowland" | "hill" | "mountain" | "cliff";
+
+export interface CaveInfo {
+  type: CaveType;
+  depth: number;
+  openness: number;
+  humidity: number;
+  darkness: number;
+  connectedTo?: string[];
+  systemId?: string;
+  isEntrance?: boolean;
+  role?: "entrance" | "chamber" | "tunnel";
+}
+
 export interface TerrainCell {
   x: number;
   y: number;
@@ -219,6 +513,14 @@ export interface TerrainCell {
   climateCode: string;
   biomeSuggestion: string;
   isWater: boolean;
+  // Structural layer (optional — produced by the backend's enrichTerrain).
+  slope?: number;
+  rockiness?: number;
+  altitudeBand?: AltitudeBand;
+  waterFlow?: number;
+  riverDistance?: number;
+  cave?: CaveInfo;
+  objects?: TerrainObjectType[];
 }
 
 export interface TerrainGrid {
@@ -328,13 +630,71 @@ export type FaunaCategory =
   | "bird"
   | "fish";
 
+export type TrophicLevel = "producer" | "herbivore" | "mesopredator" | "apex";
+export type FeedingStrategy = "herbivore" | "carnivore" | "omnivore";
+
+export type HabitatType =
+  | "forest"
+  | "grassland"
+  | "riverbank"
+  | "lake"
+  | "wetland"
+  | "mountain"
+  | "cliff"
+  | "cave"
+  | "deep-cave"
+  | "desert"
+  | "tundra"
+  | "canopy"
+  | "underground"
+  | "ocean";
+
+export type ActivityPeriod = "diurnal" | "nocturnal" | "crepuscular";
+export type SocialBehavior = "solitary" | "pair" | "small-group" | "herd" | "pack" | "swarm";
+export type CaveAffinity = "none" | "shelter" | "nesting" | "primary";
+
+export interface HabitatProfile {
+  primary: HabitatType[];
+  secondary: HabitatType[];
+  avoids: HabitatType[];
+  altitudePreference: "low" | "medium" | "high" | "any";
+  waterDependency: "none" | "low" | "medium" | "high";
+  caveAffinity: CaveAffinity;
+}
+
+export interface BehaviorProfile {
+  activityPeriod: ActivityPeriod;
+  socialBehavior: SocialBehavior;
+  aggression: number;
+  curiosity: number;
+  fear: number;
+  territoriality: number;
+  migration: number;
+}
+
+export interface PredationProfile {
+  attackRange?: number;
+  damageRate?: number;
+  huntRange?: number;
+  hungerRate?: number;
+  starvationThreshold?: number;
+  satiationCooldownMs?: number;
+  preyPreference?: Record<string, number>;
+}
+
 export interface SpeciesDefinition {
   id: string;
   commonName: string;
   scientificName: string;
   category: FaunaCategory;
   habitableBiomes: string[];
+  diet: string[];
   preySpeciesIds: string[];
+  trophicLevel: TrophicLevel;
+  feedingStrategy: FeedingStrategy;
+  mass: number;
+  awarenessRange: number;
+  predation?: PredationProfile;
   populationTarget: number;
   movementProfile: {
     maxSpeed: number;
@@ -345,6 +705,21 @@ export interface SpeciesDefinition {
     formsFlocks: boolean;
     flockRadius: number;
     separationDistance: number;
+  };
+  habitatProfile?: HabitatProfile;
+  behaviorProfile?: BehaviorProfile;
+  /** Coarse taxonomic group for reporting (mirror of backend SpeciesDefinition.taxonGroup). */
+  taxonGroup?: TaxonGroup;
+  nativeStatus?: NativeStatus | string;
+  resourceBase?: string[];
+  /** Basal resources this consumer depends on (mirror of backend SpeciesDefinition.resourceNeeds). */
+  resourceNeeds?: ResourceType[];
+  /** Heuristic curation confidence (0–1). */
+  confidence?: number;
+  renderHints?: {
+    spriteAssetPath?: string | null;
+    baseScale?: number;
+    silhouetteStyle?: string | null;
   };
 }
 
@@ -466,6 +841,8 @@ export const ecologyApi = {
     baseTemperatureC?: number;
     basePrecipitationMm?: number;
     baseHumidityPct?: number;
+    reliefStyle?: ReliefStyle;
+    seaLevel?: number;
   }) =>
     ecologyRequest<ApiSingle<TerrainGrid>>("/ecology/simulate/terrain", {
       method: "POST",
@@ -522,6 +899,18 @@ export const ecologyApi = {
 
   ecosystemReport: (payload: { prompt: string; width?: number; height?: number; seed?: number }) =>
     ecologyRequest<ApiSingle<EcosystemReportResult>>("/ecology/ecosystem-report", {
+      method: "POST",
+      body: payload,
+    }),
+
+  invasive: (payload: {
+    speciesText: string;
+    locationText: string;
+    width?: number;
+    height?: number;
+    seed?: number;
+  }) =>
+    ecologyRequest<ApiSingle<InvasiveScenarioResult>>("/ecology/invasive", {
       method: "POST",
       body: payload,
     }),

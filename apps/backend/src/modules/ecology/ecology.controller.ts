@@ -10,6 +10,7 @@ import { terrainGeneratorService } from "./simulation/terrain-generator.service"
 import { successionSimulatorService } from "./simulation/succession-simulator.service";
 import { scenarioEngineService } from "./simulation/scenario-engine.service";
 import { artificialEnvironmentService } from "./simulation/artificial-environment.service";
+import { invasiveScenarioService } from "./simulation/invasive-scenario.service";
 import { faunaDefinitionService } from "./simulation/fauna-definition.service";
 import type {
   EcologyGroundedQueryInput,
@@ -23,6 +24,7 @@ import type {
   EcologyFaunaInput,
   EcologyPromptTerrainInput,
   EcologyEcosystemReportInput,
+  EcologyInvasiveInput,
 } from "./ecology.schemas";
 
 export class EcologyController {
@@ -144,6 +146,19 @@ export class EcologyController {
     sendOk(res, result);
   }
 
+  // POST /ecology/invasive
+  async invasive(req: Request, res: Response): Promise<void> {
+    const payload = req.body as EcologyInvasiveInput;
+    const result = await invasiveScenarioService.simulate({
+      speciesText: payload.speciesText,
+      locationText: payload.locationText,
+      width: payload.width,
+      height: payload.height,
+      seed: payload.seed,
+    });
+    sendOk(res, result);
+  }
+
   // POST /ecology/simulate/terrain
   async simulateTerrain(req: Request, res: Response): Promise<void> {
     const payload = req.body as EcologyTerrainInput;
@@ -154,6 +169,8 @@ export class EcologyController {
       baseTemperatureC: payload.baseTemperatureC,
       basePrecipitationMm: payload.basePrecipitationMm,
       baseHumidityPct: payload.baseHumidityPct,
+      reliefStyle: payload.reliefStyle,
+      seaLevel: payload.seaLevel,
     });
     sendOk(res, grid);
   }

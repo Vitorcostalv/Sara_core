@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Leaf, Mountains, Plant, Stack, Thermometer } from "@phosphor-icons/react";
+import { Bug, Leaf, Mountains, Plant, Stack, Thermometer } from "@phosphor-icons/react";
 import { PageHeader } from "../components/ui";
 import { EcologyCatalogSection } from "../features/ecology/EcologyCatalogSection";
+import { EcologyInvasiveSection } from "../features/ecology/EcologyInvasiveSection";
 import { EcologyQuerySection } from "../features/ecology/EcologyQuerySection";
 import { EcologyScenarioSection } from "../features/ecology/EcologyScenarioSection";
 import { EcologySuccessionSection } from "../features/ecology/EcologySuccessionSection";
@@ -9,7 +10,7 @@ import { EcologyTerrainSection } from "../features/ecology/EcologyTerrainSection
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
-type EcologyTab = "consulta" | "catalogo" | "terreno" | "cenario" | "evolucao";
+type EcologyTab = "consulta" | "catalogo" | "terreno" | "cenario" | "evolucao" | "invasora";
 
 interface TabDef {
   id: EcologyTab;
@@ -48,6 +49,12 @@ const TABS: TabDef[] = [
     label: "Evolução",
     subtitle: "Sucessão ecológica",
     icon: <Plant weight="duotone" />,
+  },
+  {
+    id: "invasora",
+    label: "Invasora",
+    subtitle: "Bioinvasão",
+    icon: <Bug weight="duotone" />,
   },
 ];
 
@@ -101,6 +108,7 @@ export function EcologyPage() {
       )}
       {activeTab === "cenario" && <EcologyScenarioSection />}
       {activeTab === "evolucao" && <EcologySuccessionSection />}
+      {activeTab === "invasora" && <EcologyInvasiveSection />}
     </div>
   );
 }

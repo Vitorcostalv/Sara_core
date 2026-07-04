@@ -69,6 +69,12 @@ Pipeline completo: interpreta a descrição, gera o terreno + fauna e devolve um
 - Request: `{ "prompt": string, "width"?: number, "height"?: number, "seed"?: number }`
 - Response: `TerrainPromptResult` + `{ species, report }`, onde `report` traz `climate`, `relief`, `vegetation`, `fauna`, `abioticFactors`, `scientificExplanation` (grounded, com cobertura e fontes), `plausibility` (avaliação por critério: clima/vegetação/fauna/abióticos/grounding + nota geral) e `limitations`.
 
+### POST `/ecology/invasive`
+Simula a introdução de uma espécie invasora num local e avalia (com grounding) se ela é plausível e como afeta os nativos.
+- Request: `{ "speciesText": string, "locationText": string, "width"?: number, "height"?: number, "seed"?: number }`
+- Response: `{ terrain, resolvedBiomes[], invader (SpeciesDefinition), invaderProfile, nativeImpacts[] (effect: "predation"|"competition"|"none" + populationDelta), phases[] (introdução→dispersão→equilíbrio/colapso, com invaderPop e nativeDeltas), plausibility (mesmo formato do ecosystem-report), explanation { text, facts[], sources[] }, limitations[] }`.
+- Notes: a compatibilidade de habitat é avaliada contra o **bioma pretendido** do local (ex.: leão na Amazônia → implausível, população decai; tigre na Amazônia → plausível). Se o grounding for insuficiente, a explicação é honesta quanto à limitação.
+
 ### POST `/ecology/fauna`
 Resolve a fauna compatível para um conjunto de biomas ou para um grid de terreno.
 - Request: `{ "biomes"?: string[], "grid"?: TerrainGrid }`
