@@ -1,38 +1,40 @@
+// Natural / field-lab palette for the ecological thesis UI.
+// Warm-neutral light workspace: forest green, muted blue, clay, off-white, sand.
 export const colors = {
   background: {
-    primary: "#090c11",
-    secondary: "#11161e",
-    subtle: "#181f2a"
+    primary: "#f4efe4",
+    secondary: "#efe7d8",
+    subtle: "#e7ddca"
   },
   surface: {
-    base: "#10161f",
-    elevated: "#171f2a",
-    contrast: "#f5ecdf"
+    base: "#fffaf0",
+    elevated: "#ffffff",
+    contrast: "#1f2a24"
   },
   brand: {
-    primary: "#ff9a3c",
-    secondary: "#42d4c8",
-    accent: "#f5ecdf"
+    primary: "#2f6b4f",
+    secondary: "#2f6f8f",
+    accent: "#c98b3c"
   },
   border: {
-    base: "rgba(212, 187, 148, 0.16)",
-    strong: "rgba(245, 208, 147, 0.34)"
+    base: "rgba(56, 76, 62, 0.18)",
+    strong: "rgba(56, 76, 62, 0.34)"
   },
   text: {
-    primary: "#f5ecdf",
-    secondary: "#c8c0b5",
-    muted: "#8d8a83",
-    inverse: "#0b0d12"
+    primary: "#1f2a24",
+    secondary: "#3f4a43",
+    muted: "#5d6b62",
+    inverse: "#fffaf0"
   },
   semantic: {
-    success: "#49d89f",
-    warning: "#ffb347",
-    error: "#ff7b6b",
-    info: "#58d4ff"
+    success: "#2f6b4f",
+    warning: "#b7791f",
+    error: "#b84a3a",
+    info: "#2f6f8f"
   },
   state: {
-    hover: "rgba(255, 154, 60, 0.1)",
-    active: "rgba(255, 154, 60, 0.16)",
-    disabled: "rgba(121, 120, 116, 0.35)"
+    hover: "rgba(47, 107, 79, 0.08)",
+    active: "rgba(47, 107, 79, 0.14)",
+    disabled: "rgba(120, 120, 116, 0.32)"
   }
 } as const;

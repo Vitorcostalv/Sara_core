@@ -102,9 +102,9 @@ export function EcologyQuerySection({ onGenerateEcosystem }: EcologyQuerySection
           <div>
             <h3>Consulta ecológica</h3>
             <p>
-              Faça uma pergunta sobre ecologia ambiental (resposta grounded nos dados
-              do banco) ou descreva um bioma e use "Gerar ecossistema" para montá-lo em
-              3D na aba Terreno.
+              Faça uma pergunta sobre ecologia ambiental (resposta com base científica
+              nos dados do banco) ou descreva um bioma e use "Gerar ecossistema" para
+              montá-lo em 3D na aba Simular ambiente.
             </p>
           </div>
           {result ? (
@@ -143,8 +143,8 @@ export function EcologyQuerySection({ onGenerateEcosystem }: EcologyQuerySection
             >
               <BracketsCurly weight="duotone" />
               <div>
-                <strong>Inspeção técnica</strong>
-                <span>Inclui detalhes de contexto e fatos na resposta.</span>
+                <strong>Ver contexto usado</strong>
+                <span>Inclui os fatos e o contexto científico enviados ao modelo.</span>
               </div>
             </button>
           </div>
@@ -200,9 +200,7 @@ export function EcologyQuerySection({ onGenerateEcosystem }: EcologyQuerySection
         <EmptyState
           icon={<Leaf weight="duotone" />}
           title="Nenhuma consulta ainda"
-          description="Use o formulário acima para fazer uma pergunta grounded sobre ecologia ambiental."
-          actionLabel="Inspecionar contexto"
-          onAction={() => void submit(true)}
+          description="Escreva uma pergunta no formulário acima para obter uma resposta com base científica nos dados do banco."
         />
       ) : null}
 

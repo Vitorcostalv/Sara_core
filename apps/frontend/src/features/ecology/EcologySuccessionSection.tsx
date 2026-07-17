@@ -160,9 +160,7 @@ export function EcologySuccessionSection() {
         <EmptyState
           icon={<Plant weight="duotone" />}
           title="Nenhuma simulação ainda"
-          description="Escolha o tipo de sucessão e simule a evolução do ecossistema ao longo do tempo."
-          actionLabel="Simular evolução"
-          onAction={() => void submit()}
+          description="Escolha o tipo de sucessão no formulário acima e simule a evolução do ecossistema ao longo do tempo."
         />
       ) : null}
 

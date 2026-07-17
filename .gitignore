@@ -18,6 +18,29 @@ skills-lock.json
 apps/frontend/public/models/
 apps/frontend/test-results/
 apps/frontend/artifacts/
+.tmp/demo-pack/
+# Android / Capacitor packaging — never commit binaries, keys or machine-local config.
+# The maintained Android source project (apps/frontend/android/**) IS tracked; only the
+# generated/build/secret artifacts below are ignored.
+*.apk
+*.aab
+*.jks
+*.keystore
+keystore.properties
+local.properties
+android/.gradle/
+android/app/build/
+apps/frontend/android/.gradle/
+apps/frontend/android/app/build/
+apps/frontend/android/build/
+apps/frontend/android/capacitor-cordova-android-plugins/build/
+.tmp/android-release/
+**/.gradle/
+**/build/
 
 # Logs temporários
 tmp-*.log
+
+# Local/private documentation — never commit
+docs/private/
+*.local.md

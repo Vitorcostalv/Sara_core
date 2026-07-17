@@ -1,6 +1,6 @@
 # Sara Core System Reference
 
-Last updated: 2026-07-04
+Last updated: 2026-07-09
 
 ## Purpose
 
@@ -135,12 +135,12 @@ Entry points:
 - `apps/frontend/src/main.tsx`: React bootstrap.
 - `apps/frontend/src/router/index.tsx`: routes `/` to `/ecology`.
 - `apps/frontend/src/app/App.tsx`: shell outlet.
-- `apps/frontend/src/layouts/AppShell.tsx`: application frame.
+- `apps/frontend/src/layouts/AppShell.tsx`: application frame — a single sticky top header (brand crest, thesis subtitle, status chips). The old left sidebar was removed in the thesis UI redesign; `components/layout/SidebarNavItem.tsx` is now unused.
 
 Main page:
 
 - `EcologyPage`: tabbed ecology dashboard.
-- Tabs: `Consulta`, `Catalogo`, `Terreno`, `Cenario`, `Evolucao`, `Invasora`.
+- Tabs (ids unchanged; labels clarified in the redesign): `consulta` → **Perguntar**, `catalogo` → **Dados**, `terreno` → **Simular ambiente**, `cenario` → **Risco climático**, `evolucao` → **Sucessão**, `invasora` → **Bioinvasão** ("Espécie invasora"). Routes/state behavior unchanged.
 
 API client:
 
@@ -914,7 +914,93 @@ incidental caves + cave fauna, and a validation drop to 64/100. Deterministic-la
   caves/fauna, coherent Amazon validation >75 with 0 blocking, explicit-cave prompt still supported).
   Suite **131 passing**; root typecheck/lint/test + frontend build green.
 
+## Change Report: Fauna Asset Pipeline Hardening & Preview
+
+Goal: make the local fauna sprite pipeline reproducible and self-auditing, and give reviewers a
+zero-router way to eyeball every sprite. No runtime/contract changes; assets and asset list unchanged.
+
+- **Stricter `validate()`** in `scripts/prepare_fauna_assets.py`: on top of the existing
+  file-exists / 512×512 / license-allowlist checks, every manifest entry is now rejected for an
+  empty `sourceUrl`, empty `author`, `author == "Unknown"`, empty `licenseUrl`, empty
+  `modifications`, a duplicate `speciesId`, or a duplicate `localFile`; and every `localFile` must
+  end with `.png`. The asset list (`ASSETS`) and download/normalization behavior are untouched.
+- **Static QA preview** at `apps/frontend/public/fauna/fauna-preview.html`: a self-contained page
+  that `fetch`es `fauna-assets.manifest.json` and renders a grid (sprite, `speciesId`, common name,
+  scientific name, `reviewStatus`, source, license). `needs-review` entries are visually
+  highlighted (amber card + badge) and can be isolated via a filter toggle. **Not wired into the app
+  router** — it is a local review helper only; serve it over HTTP (e.g. `npx serve
+  apps/frontend/public/fauna`) since `file://` blocks the manifest fetch.
+- Current manifest: **35 species / 8 `needs-review`** (licensed proxy assets). See `CREDITS.md` and
+  `MISSING_ASSETS.md`.
+- Validation: `python scripts/prepare_fauna_assets.py` prepares + validates all 35; frontend
+  `typecheck`, `lint`, and `build` all green.
+
+## Change Report: Frontend Ecological Thesis UI Redesign
+
+Goal: replace the dark/cyberpunk dashboard look with a calm, readable, academic **field-lab**
+interface for the TCC/thesis demo. Frontend-only; **no backend logic, API, or ecological contract
+changed**; the 3D terrain viewer, fauna simulation, invasive scenario, ecosystem report and
+deterministic validation cards all keep working.
+
+**Visual direction** — natural/light palette (forest green `#2f6b4f`, muted blue `#2f6f8f`, clay
+`#c98b3c`, off-white/sand surfaces, `#1f2a24` text) replacing neon orange/cyan on near-black.
+Serif display font (**Fraunces**) for titles; softer, warmer shadows; no glow/glassmorphism/neon
+borders. Driven by `theme/colors.ts` + `theme/tokens.ts` (CSS variables) and a rewritten
+`styles/main.css`.
+
+**Frame / sidebar** — the left "Workspace" sidebar and the duplicate topbar "Ecologia" header were
+removed. `AppShell.tsx` is now one sticky top header: brand crest + "Sara Core" + thesis subtitle
+("Simulação ecológica assistida por IA e validada por regras determinísticas") + status chips
+(Local-first / Grounded / Determinístico). `SidebarNavItem.tsx` is now unused.
+
+**Page header / navigation** — a single compact `PageHeader` (eyebrow + serif title + thesis helper
+sentence), followed by a new **demo-flow strip** (A Descrever → B Gerar → C Inspecionar → D Validação
+→ E Invasora) that sells the core workflow. Tabs restyled as a larger, calm segmented control and
+relabeled for clarity (ids/state unchanged — see Frontend Ecology Features).
+
+**Report readability** — cards are now white surfaces with a subtle earthy border and soft shadow
+instead of dark glass. The terrain report's slate-blue cards and cyan "Validação/Plausibilidade"
+panel were re-tinted to the warm theme; the deterministic validation panel gets an info-blue accent
+border so it stands out. Status pills use accessible dark-on-tint colors (success green, warning
+amber, danger clay, info blue) and no longer rely on glow.
+
+**Removed / simplified** — big decorative hero card; duplicate page framing; the beige Terreno form
+card no longer clashes (whole workspace is now warm-light); duplicate action buttons inside every
+empty state (5 sections) were dropped so empty states are compact; ~8 kB of dead voice/tool-assistant
+CSS (`voice-*`, `tool-*`, `trace-card`, `signal-metric`, `llm-hero/layout`, `side-note-card`,
+`sidebar-*`, `app-topbar`) was deleted from `main.css` (CSS bundle 33 kB → 25 kB). Some debug-ish
+copy softened ("resposta grounded" → "resposta com base científica", etc.).
+
+Files changed: `theme/colors.ts`, `theme/tokens.ts`, `styles/main.css`, `layouts/AppShell.tsx`,
+`pages/EcologyPage.tsx`, `components/ui/EmptyState.tsx` call sites in the five `features/ecology/*Section.tsx`,
+and the embedded `<style>` in `EcologyTerrainSection.tsx` (report/plausibility tints only).
+
+Validation: `npm run typecheck`/`lint`/`test` (root, **132 backend tests pass**) and
+`npm run typecheck`/`lint`/`build -w @sara/frontend` all green. Interactive browser QA of each tab
+(3D viewer, fauna/layers/events, report cards, responsive 1366×768 / 1920×1080) was **not** run in
+this pass and is recommended before the demo.
+
 ## Known Limitations
+
+## Change Report: UX Simplification, PWA And Portable Offline Demo
+
+Goal: make the TCC presentation flow simpler and portable while preserving the deterministic backend and keeping offline mode truthful.
+
+- **Navigation hierarchy**: primary destinations are now `Simular ambiente` and `Bioinvasao`; `Perguntar`, `Dados`, `Risco climatico` and `Sucessao` are grouped under `Explorar`. Section ids and component state remain unchanged.
+- **Technical UI hidden by default**: manual width/height/seed/climate fields, fauna speed, rain and environment controls moved behind `Configuracoes avancadas`; layer-level technical switches remain inside the in-scene `Camadas > Avancado`.
+- **System explanation**: permanent `Local-first/Grounded/Deterministico` chips were replaced by `Como o Sara Core funciona`, explaining IA interpretation, curated data, deterministic validation, visualization, and the educational/heuristic nature of scores.
+- **Presentation Mode**: local-only toggle in the header enlarges the working canvas, keeps the demo flow visible, emphasizes the terrain/report path, and preserves safe local settings.
+- **Performance profiles**: `Qualidade alta`, `Equilibrado`, and `Modo leve`; light mode lowers visual resolution/manual terrain size/rain detail without changing backend scientific values. Visual caps are presentation controls, not population-report changes.
+- **Mobile/touch**: navigation scrolls horizontally on small screens, terrain tap/click opens the inspector, panels behave as bottom-sheet style overlays, and a dismissible gesture helper explains orbit/zoom/select/inspect.
+- **PWA strategy**: added manifest, service worker, install/update/offline indicators, SPA fallback, critical-asset precache and runtime caching for safe static assets. Build prints a 5 MB precache budget estimate.
+- **Offline scenario architecture**: shared scenario catalog plus typed, versioned precomputed snapshots for Amazonia coherent, Cerrado predator/prey, intentionally inconsistent mangrove, and Cerrado wild-boar invasion. Offline disclosure is visible and no LLM/DB/backend call is implied.
+- **Online/offline behavior**: modes are `Ao vivo`, `Demonstracao offline`, and `Automatico`; automatic mode health-checks the backend and offers offline fallback without silently replacing live results. Last full scenario can be restored locally; local demo data can be cleared.
+- **Hosted deployment**: added `apps/backend/Dockerfile` and `docs/deployment/portable-demo.md` covering frontend static hosting, backend env/CORS/health, Neon/provider config, PWA install and security constraints.
+- **Capacitor Android wrapper**: documented as optional after PWA/offline verification; no Android source project was generated in this pass and no APK was built here.
+- **Emergency pack**: added `docs/demo/emergency-demo-checklist.md` and `npm run demo:pack`, generating `.tmp/demo-pack` with frontend build, demo prompts, checklist and metadata.
+- **Security constraints**: removed frontend API-key header embedding; built frontend was scanned for `API_AUTH_KEY`, `LLM_API_KEY`, `DATABASE_URL`, `DIRECT_DATABASE_URL`, and `x-sara-api-key`.
+- **Validation**: `npm run typecheck`, `npm run lint`, `npm run test` (132 backend tests), `npm run build -w @sara/frontend`, and `npm run demo:pack` passed. PWA precache estimate: 1.66 MB / 5 MB.
+- **Known limitations from this pass**: no Lighthouse/browser-driven PWA audit, no physical Android APK/device test, no Windows installed-PWA manual test, and no live backend generation QA beyond automated tests/builds.
 
 - Heightfield terrain cannot express true enclosed voids. Caves are represented as dedicated modeled entrance/interior geometry, revealed through cave/subsoil modes and cutaway-style visuals rather than carved voxel cavities.
 - Rivers/lakes are tile-aligned to match the column terrain grammar; they are not smooth hydrodynamic surfaces.
@@ -942,3 +1028,61 @@ incidental caves + cave fauna, and a validation drop to 64/100. Deterministic-la
 6. Add backend tests for invasive `feedingStrategy`, invasive predation profiles, and ecosystem report `byFeedingStrategy`.
 7. Clean legacy mojibake strings and standardize UI language.
 8. Use the spatial index as the base for later species inspection, impact markers, and any future population-cap increase.
+
+## Change Report: Portable Demo Release Candidate & Android Wrapper
+
+Release-candidate validation + optional Capacitor Android wrapper. No new product features, no
+interface redesign, no ecological-algorithm changes. Builds on the earlier "UX Simplification, PWA
+And Portable Offline Demo" pass (not repeated here).
+
+Release-blocking defects found and fixed:
+
+- **Offline reload was blank.** The service worker (`public/sw.js`) precached the app shell HTML and
+  fauna/textures but its catch-all `fetch` handler returned `caches.match || fetch` **without ever
+  storing** hashed `/assets/*.js|css`. Offline, the shell HTML loaded but its scripts 404'd → blank
+  screen. Rewrote the SW: same-origin static assets now go through a `cacheFirst` store-on-fetch
+  path; navigations stay network-first with app-shell fallback; `/api/` and cross-origin are never
+  intercepted; `CACHE_VERSION` bumped `v1 → v2` so an old cached release is replaced on update.
+- **631 MB bundled into the build.** Vite copies all of `public/` into `dist/`; a stray, git-ignored
+  `public/models/fauna/Docker Desktop Installer.exe` (+ an unrelated PDF) inflated `dist/` to ~635 MB
+  and would have gone into the demo pack and the APK. Added `scripts/prune-dist.mjs` (wired into the
+  frontend `build`) that removes the dead `dist/models/` copy only — the source `public/models/` is
+  untouched. `dist/` is now ~3.8 MB. (The stray *source* files remain on the user's disk under the
+  ignored `public/models/`; they can be deleted manually.)
+
+Frontend smoke tests (new): Vitest + jsdom, `apps/frontend/src/__tests__/` (23 tests) —
+offline-scenario contract (valid snapshots, required report sections, referenced fauna sprites
+exist, invasive→terrain reference), mode behavior (explicit offline/live, restore/clear, corrupt
+storage, validators reject junk), Presentation Mode + Modo leve, navigation reachability, and PWA
+metadata (manifest/icons, SW precache + `/api/` bypass + asset caching + version bump). Runner:
+`npm run test -w @sara/frontend` (or root `npm run test:frontend`); test files excluded from the
+production `tsc` build.
+
+Capacitor Android wrapper (optional): `apps/frontend/capacitor.config.ts`
+(`appId com.saracore.app`, "Sara Core", `webDir: dist`, **no `server.url`** — bundles the local
+build, not a remote wrapper) + tracked native project `apps/frontend/android/`. Online mode still
+uses the configurable remote backend URL; all four offline scenarios, Presentation Mode and Modo
+leve ship in the APK; the Express backend does not. Added Android hardware/gesture **back-button**
+handling (`src/pwa/androidBack.ts`, wired in `AppShell`), **safe-area** support
+(`viewport-fit=cover` + `env(safe-area-inset-*)`), portrait+landscape, and generated launcher
+icons + splash (light/dark) from `apps/frontend/assets/logo.png`. Scripts:
+`android:sync` / `android:open` / `android:apk` / `android:apk:copy` (root) and
+`cap:sync` / `cap:open` / `apk:debug` / `apk:copy` (frontend). `.gitignore` extended for
+`.tmp/android-release/` and the Android build/keys/machine-local config; the Android **source** is
+tracked.
+
+APK build status: **not built here** — Gradle 8.2.1 downloaded and JDK 21 was accepted, but the
+build stops at `SDK location not found ... ANDROID_HOME`. The **Android SDK is not installed** in
+this environment. The project is ready; install Android Studio/SDK and run `npm run android:apk`.
+Expected output: `apps/frontend/android/app/build/outputs/apk/debug/app-debug.apk`.
+
+Docs: `docs/deployment/android-capacitor.md` (wrapper setup, prerequisites, scripts, finishing the
+build), `docs/demo/physical-device-checklist.md` (Android PWA / APK / Windows backup), and
+`docs/demo/release-candidate-checklist.md` (build/commit, tested modes, PWA/APK status, limitations,
+presentation checklist).
+
+Validation: `npm run typecheck`, `npm run lint`, `npm run test` (backend **132/132**),
+`npm run test -w @sara/frontend` (**23/23**), `npm run build -w @sara/frontend`, and
+`npm run demo:pack` all pass; precache 1.66 MB / 5 MB; no secrets in the bundle. **Not done:**
+Lighthouse/DevTools-driven PWA audit, real installed-PWA offline test, physical-device testing, and
+the APK build (blocked on the Android SDK).

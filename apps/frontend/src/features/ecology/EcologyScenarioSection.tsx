@@ -275,9 +275,7 @@ export function EcologyScenarioSection() {
         <EmptyState
           icon={<Thermometer weight="duotone" />}
           title="Nenhum cenário simulado"
-          description="Configure os parâmetros e simule para ver a comparação de risco ecológico."
-          actionLabel="Simular"
-          onAction={() => void simulate()}
+          description="Configure os parâmetros no formulário acima e simule para ver a comparação de risco ecológico."
         />
       ) : null}
 

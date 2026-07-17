@@ -3,7 +3,7 @@ import { useUiStore } from "../../state/ui.store";
 
 const fallbackApiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3333/api/v1";
-const optionalApiAuthKey = import.meta.env.VITE_API_AUTH_KEY?.trim() || "";
+const defaultTimeoutMs = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 12000);
 
 function getApiBaseUrl(): string {
   const configured = useUiStore.getState().apiBaseUrl?.trim();
@@ -17,13 +17,32 @@ export function buildApiUrl(endpoint: string): string {
 }
 
 export function buildApiHeaders(headers: HeadersInit = {}): Headers {
-  const nextHeaders = new Headers(headers);
+  return new Headers(headers);
+}
 
-  if (optionalApiAuthKey.length > 0) {
-    nextHeaders.set("x-sara-api-key", optionalApiAuthKey);
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = defaultTimeoutMs
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
   }
+}
 
-  return nextHeaders;
+export async function checkApiHealth(timeoutMs = 3000): Promise<boolean> {
+  try {
+    const apiRoot = getApiBaseUrl().replace(/\/api\/v1\/?$/, "");
+    const response = await fetchWithTimeout(`${apiRoot}/health`, {}, timeoutMs);
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 export class ApiClientError extends Error {

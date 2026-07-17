@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger";
 import { ecologicalContextBuilderService } from "./grounding/ecological-context-builder.service";
 import { faunaDefinitionService } from "./simulation/fauna-definition.service";
 import type { SpeciesDefinition } from "./simulation/fauna-definition.service";
@@ -16,6 +17,8 @@ import {
   type EcosystemProfile,
 } from "./simulation/ecosystem-profiles";
 import type { TerrainGrid } from "./simulation/terrain-generator.service";
+
+const reportLogger = logger.child({ module: "ecosystem-report" });
 
 // Slugs de bioma do prompt-terrain que não batem 1:1 com o slug de ecossistema no banco.
 const ECOSYSTEM_SLUG_ALIASES: Record<string, string[]> = {
@@ -589,6 +592,30 @@ export class EcosystemReportService {
           }
         : undefined,
     });
+
+    // Diagnóstico (só emite em LOG_LEVEL=debug): torna visível, no runtime, se o pipeline corrigido
+    // está ativo — bioma, estilo de relevo, gate de cavernas, contagem de cavernas, faixa térmica.
+    if (reportLogger.isLevelEnabled("debug")) {
+      const temps = terrainResult.terrain.cells.flat().map((c) => c.temperatureC);
+      const caveCells = formations.caveCells;
+      reportLogger.debug(
+        {
+          prompt: input.prompt.slice(0, 80),
+          biomeSlug: terrainResult.biomeSlug,
+          source: terrainResult.source,
+          reliefStyle: terrainResult.terrainParams.reliefStyle ?? "default",
+          allowNaturalCaves: terrainResult.terrainParams.reliefStyle === "mountain",
+          caveHintDetected: caveCells > 0 && terrainResult.terrainParams.reliefStyle !== "mountain",
+          dominantBiome: vegetation.dominantBiomes[0] ?? null,
+          minTemperatureC: Math.min(...temps),
+          maxTemperatureC: Math.max(...temps),
+          caveCells,
+          caveFaunaPresent: species.some((s) => s.habitableBiomes.includes("caverna")),
+          validationScore: validation.score,
+        },
+        "ecosystem-report debug"
+      );
+    }
 
     const limitations = buildLimitations(terrainResult, context.facts.length, context.coverage.sufficient, species.length);
     const plausibility = buildPlausibility(

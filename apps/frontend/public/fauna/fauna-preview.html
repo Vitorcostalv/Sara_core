@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fauna Sprites — QA / Revisão</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1115;
+        --card: #191c22;
+        --card-review: #2a1f10;
+        --border: #2b2f38;
+        --border-review: #b5842a;
+        --text: #e7e9ee;
+        --muted: #9aa0ab;
+        --accent: #ffb020;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      header { margin-bottom: 20px; }
+      h1 { margin: 0 0 4px; font-size: 20px; }
+      .sub { color: var(--muted); font-size: 13px; }
+      .toolbar {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        margin: 14px 0 20px;
+        flex-wrap: wrap;
+        font-size: 13px;
+      }
+      .toolbar label { color: var(--muted); cursor: pointer; user-select: none; }
+      .counts { color: var(--muted); font-size: 13px; }
+      .counts b { color: var(--text); }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .card.needs-review {
+        background: var(--card-review);
+        border-color: var(--border-review);
+        box-shadow: 0 0 0 1px var(--border-review) inset;
+      }
+      .thumb {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: contain;
+        background:
+          repeating-conic-gradient(#20242c 0% 25%, #171a20 0% 50%) 50% / 24px 24px;
+        border-radius: 8px;
+      }
+      .name { font-weight: 600; font-size: 15px; }
+      .sci { font-style: italic; color: var(--muted); font-size: 13px; }
+      .row { font-size: 12px; color: var(--muted); }
+      .row b { color: var(--text); font-weight: 500; }
+      .id { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 11px; color: var(--muted); }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        width: fit-content;
+      }
+      .badge.accepted { background: #16351f; color: #7fdca0; }
+      .badge.needs-review { background: var(--accent); color: #201400; }
+      .error { color: #ff7a7a; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Fauna Sprites — QA / Revisão</h1>
+      <div class="sub">
+        Helper estático de revisão. Não faz parte do roteador do app. Fonte:
+        <code>fauna-assets.manifest.json</code>.
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <label><input type="checkbox" id="only-review" /> Mostrar apenas needs-review</label>
+      <span class="counts" id="counts"></span>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <script>
+      const grid = document.getElementById("grid");
+      const counts = document.getElementById("counts");
+      const onlyReview = document.getElementById("only-review");
+      let entries = [];
+
+      function esc(value) {
+        return String(value ?? "").replace(/[&<>"]/g, (c) => (
+          { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]
+        ));
+      }
+
+      function render() {
+        const showAll = !onlyReview.checked;
+        const visible = entries.filter((e) => showAll || e.reviewStatus === "needs-review");
+        grid.innerHTML = visible
+          .map((e) => {
+            const review = e.reviewStatus === "needs-review";
+            return `
+              <div class="card ${review ? "needs-review" : ""}">
+                <img class="thumb" src="${esc(e.localFile)}" alt="${esc(e.commonName)}" loading="lazy" />
+                <span class="badge ${esc(e.reviewStatus)}">${esc(e.reviewStatus)}</span>
+                <div class="name">${esc(e.commonName)}</div>
+                <div class="sci">${esc(e.scientificName)}</div>
+                <div class="id">${esc(e.speciesId)}</div>
+                <div class="row"><b>Fonte:</b> ${esc(e.sourceName)}</div>
+                <div class="row"><b>Licença:</b> ${esc(e.license)}</div>
+              </div>`;
+          })
+          .join("");
+
+        const review = entries.filter((e) => e.reviewStatus === "needs-review").length;
+        counts.innerHTML =
+          `<b>${entries.length}</b> espécies · <b>${review}</b> needs-review · ` +
+          `<b>${visible.length}</b> visíveis`;
+      }
+
+      onlyReview.addEventListener("change", render);
+
+      fetch("fauna-assets.manifest.json")
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then((data) => {
+          entries = data;
+          render();
+        })
+        .catch((err) => {
+          grid.innerHTML =
+            `<p class="error">Falha ao carregar o manifest: ${esc(err.message)}.<br />` +
+            `Sirva este arquivo por HTTP (ex.: <code>npx serve apps/frontend/public/fauna</code>) ` +
+            `em vez de abrir via file://.</p>`;
+        });
+    </script>
+  </body>
+</html>

@@ -13,6 +13,7 @@ import { resourceAvailabilityEvaluator } from "./simulation/resource-base";
 import { trophicNetworkResolver } from "./simulation/trophic-network.service";
 import { ecologicalPlausibilityEvaluator } from "./simulation/ecological-plausibility.service";
 import { ecosystemProfileService } from "./simulation/ecosystem-profiles";
+import { ecologicalTerrainPromptService } from "./llm/ecological-terrain-prompt.service";
 import type { ArtificialProjectRow } from "./grounding/ecological-grounding.repository";
 
 // Amazônia-like preset params (matches BiomePresetService "amazonia"): hot, very wet, humid lowland.
@@ -1003,4 +1004,28 @@ test("Cave: explicit cave hints still generate caves and a supported cave-dwelli
     !trophic.unsupportedSpecies.some((n) => n.toLowerCase().includes("trogl")),
     "troglobitic insect must be supported by cave organic matter when caves are meaningful"
   );
+});
+
+// Integration test on the EXACT report-service path (classify → terrain), using the demo prompt.
+test("Integration: the demo Amazon prompt runs the fixed terrain pipeline coherently", async () => {
+  const PROMPT =
+    "Crie uma floresta amazônica úmida, quente, com rios, vegetação densa, capivaras, onças e alta biodiversidade.";
+
+  // Keyword classification (deterministic, no LLM/DB) resolves the prompt to the amazonia preset.
+  assert.equal(biomePresetService.findByKeyword(PROMPT)?.slug, "amazonia");
+
+  // The prompt service is exactly what /ecosystem-report calls to build the terrain.
+  const result = await ecologicalTerrainPromptService.generate({ prompt: PROMPT, seed: 123 });
+  assert.equal(result.biomeSlug, "amazonia", `expected amazonia, got ${result.biomeSlug} (${result.source})`);
+
+  const { biome } = dominantBiome(result.terrain);
+  assert.equal(biome, "floresta-tropical-umida", `dominant biome should be wet forest, got ${biome}`);
+
+  const temps = result.terrain.cells.flat().map((c) => c.temperatureC);
+  assert.ok(Math.min(...temps) >= 15, `min temperature should stay warm, got ${Math.min(...temps)}°C`);
+
+  const caveCells = result.terrain.cells.flat().filter((c) => c.cave && c.cave.type !== "none").length;
+  assert.equal(caveCells, 0, "no cave hints → no caves in the report terrain");
+  const species = faunaDefinitionService.resolve(result.terrain).species;
+  assert.ok(!species.some((s) => s.habitableBiomes.includes("caverna")), "no cave fauna without caves");
 });

@@ -17,7 +17,7 @@ import {
 } from "@react-three/drei";
 import { Mountains, Sparkle, WarningCircle } from "@phosphor-icons/react";
 import { Button, EmptyState, ErrorState, LoadingBlock } from "../../components/ui";
-import { getApiErrorMessage } from "../../services/api/client";
+import { checkApiHealth, getApiErrorMessage } from "../../services/api/client";
 import { ecologyApi } from "../../services/api/ecology";
 import type {
   ActivityPeriod,
@@ -28,6 +28,15 @@ import type {
   TerrainGrid,
   TerrainPromptResult,
 } from "../../services/api/ecology";
+import { DEMO_SCENARIOS, PERFORMANCE_PROFILES, type DemoScenarioId } from "../../demo/catalog";
+import {
+  clearLocalDemoData,
+  getOfflineEcosystemSnapshot,
+  readLastScenario,
+  saveLastScenario,
+  type DemoRunMode,
+} from "../../demo/offline";
+import { useUiStore } from "../../state/ui.store";
 import { DayNightCycle, formatSimulatedTime } from "./DayNightCycle";
 import FaunaLayer, { type FaunaEvent } from "./FaunaLayer";
 import { RainSystem } from "./RainSystem";
@@ -1210,8 +1219,6 @@ function TerrainColumns({
         }}
         onPointerOut={clearHover}
         onPointerDown={(event) => {
-          // Inspect only with Ctrl (Windows/Linux) or Cmd (Mac)
-          if (!(event.ctrlKey || event.metaKey)) return;
           event.stopPropagation();
           if (typeof event.instanceId === "number") {
             const inst = sceneData.land[event.instanceId];
@@ -1264,7 +1271,6 @@ function WaterDepthVolumes({
       }}
       onPointerOut={clearHover}
       onPointerDown={(event) => {
-        if (!(event.ctrlKey || event.metaKey)) return;
         event.stopPropagation();
         if (typeof event.instanceId === "number" && typeof onInspect === "function") {
           const inst = sceneData.water[event.instanceId];
@@ -2261,6 +2267,7 @@ export function TerrainView({
   setSelectedFaunaEventId,
   invasiveSpeciesIds = [],
   invasiveOverlay = null,
+  performanceProfile = "balanced",
 }: {
   grid: TerrainGrid;
   faunaSpecies: SpeciesDefinition[];
@@ -2295,6 +2302,7 @@ export function TerrainView({
   setSelectedFaunaEventId?: React.Dispatch<React.SetStateAction<string | null>>;
   invasiveSpeciesIds?: string[];
   invasiveOverlay?: InvasiveOverlayData | null;
+  performanceProfile?: "high" | "balanced" | "light";
 }) {
   // If parent didn't provide UI state, maintain internal fallbacks so the component remains functional.
   const [internalInspected, internalSetInspected] = useState<TerrainCell | null>(null);
@@ -2333,12 +2341,17 @@ export function TerrainView({
     const span = sceneData.worldRadius;
     return [span * 0.58, span * 0.92, span * 1.16] as [number, number, number];
   }, [sceneData.worldRadius]);
+  const profile = PERFORMANCE_PROFILES[performanceProfile];
   const [eventsExpanded, setEventsExpanded] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
   const [animalsOpen, setAnimalsOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [locator, setLocator] = useState<LocatorTarget | null>(null);
   const [highlightSystemId, setHighlightSystemId] = useState<string | null>(null);
+  const [gestureHelpOpen, setGestureHelpOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("sara-core.gesture-help-dismissed") !== "true";
+  });
   const locatorTimer = useRef<number | null>(null);
   const highlightTimer = useRef<number | null>(null);
   const toastTimers = useRef<number[]>([]);
@@ -2475,7 +2488,7 @@ export function TerrainView({
           <Canvas
             data-testid="terrain-canvas-viewport"
             shadows
-            dpr={[1, 2]}
+            dpr={profile.dpr}
             camera={{ position: cameraPosition, fov: 34, near: 0.1, far: 500 }}
             gl={{
               antialias: true,
@@ -2510,7 +2523,13 @@ export function TerrainView({
                 locator={locator}
                 highlightSystemId={highlightSystemId}
                 rainEnabled={rainEnabled}
-                rainIntensity={rainIntensity}
+                rainIntensity={
+                  profile.rainParticles === "off"
+                    ? 0
+                    : profile.rainParticles === "reduced"
+                      ? Math.min(rainIntensity, 45)
+                      : rainIntensity
+                }
                 simulatedTimeRef={simulatedTimeRef}
                 onLightningObserved={onLightningObserved}
                 onFaunaCountUpdate={onFaunaCountUpdate}
@@ -2566,17 +2585,19 @@ export function TerrainView({
             />
           ) : null}
 
-          <AnimalsPanel
-            species={faunaSpecies}
-            open={animalsOpen}
-            onToggleOpen={() => setAnimalsOpen((value) => !value)}
-            onClose={() => setAnimalsOpen(false)}
-            invasiveSpeciesIds={invasiveSpeciesIds}
-          />
+          {faunaSpecies.length > 0 ? (
+            <AnimalsPanel
+              species={faunaSpecies}
+              open={animalsOpen}
+              onToggleOpen={() => setAnimalsOpen((value) => !value)}
+              onClose={() => setAnimalsOpen(false)}
+              invasiveSpeciesIds={invasiveSpeciesIds}
+            />
+          ) : null}
 
           {invasiveOverlay ? <InvasiveImpactOverlay overlay={invasiveOverlay} /> : null}
 
-          {showEvents ? (
+          {showEvents && faunaEventsState.length > 0 ? (
             <EventHub
               events={faunaEventsState}
               selectedId={selectedEventId}
@@ -2587,6 +2608,27 @@ export function TerrainView({
           ) : null}
 
           {showEvents ? <ToastStack toasts={toasts} /> : null}
+          <button type="button" className="terrain-help-chip" onClick={() => setGestureHelpOpen(true)}>
+            Gestos
+          </button>
+          {gestureHelpOpen ? (
+            <section className="terrain-gesture-help" aria-label="Ajuda de gestos">
+              <button
+                type="button"
+                onClick={() => {
+                  window.localStorage.setItem("sara-core.gesture-help-dismissed", "true");
+                  setGestureHelpOpen(false);
+                }}
+                aria-label="Fechar ajuda de gestos"
+              >
+                Fechar
+              </button>
+              <span>Arraste para orbitar.</span>
+              <span>Pinca para zoom.</span>
+              <span>Toque para selecionar.</span>
+              <span>Toque prolongado ou toque novamente para inspecionar.</span>
+            </section>
+          ) : null}
         </div>
       </div>
     </div>
@@ -3268,12 +3310,14 @@ const EMPTY_FORMATIONS: EcosystemReport["formations"] = {
 interface EcologyTerrainSectionProps {
   /** Prompt vindo de outra aba (ex: chat da Consulta) para gerar um ecossistema ao montar. */
   initialPrompt?: string | null;
+  initialOfflineScenarioId?: string | null;
   /** Chamado após o prompt inicial ser consumido, para o pai limpar o estado compartilhado. */
   onInitialPromptConsumed?: () => void;
 }
 
 function EcologyTerrainSection({
   initialPrompt,
+  initialOfflineScenarioId,
   onInitialPromptConsumed,
 }: EcologyTerrainSectionProps = {}) {
   const [form, setForm] = useState(INITIAL_FORM);
@@ -3366,6 +3410,12 @@ function EcologyTerrainSection({
   const [aiResult, setAiResult] = useState<TerrainPromptResult | null>(null);
   const [report, setReport] = useState<EcosystemReport | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState<DemoRunMode>("auto");
+  const [offlineDisclosure, setOfflineDisclosure] = useState<string | null>(null);
+  const [fallbackScenarioId, setFallbackScenarioId] = useState<DemoScenarioId | null>(null);
+  const presentationMode = useUiStore((state) => state.presentationMode);
+  const performanceProfile = useUiStore((state) => state.performanceProfile);
+  const setPerformanceProfile = useUiStore((state) => state.setPerformanceProfile);
   // Macro relief shaping (oceano/montanha/polar) preservado entre regenerações manuais.
   const [terrainShape, setTerrainShape] = useState<{
     reliefStyle?: ReliefStyle;
@@ -3373,6 +3423,36 @@ function EcologyTerrainSection({
   }>({});
   const simulatedTimeRef = useRef(12);
   const reportFormations = report?.formations ?? EMPTY_FORMATIONS;
+  const ecosystemDemos = DEMO_SCENARIOS.filter((scenario) => scenario.kind === "ecosystem");
+
+  const applyOfflineSnapshot = useCallback((scenarioId: DemoScenarioId) => {
+    if (scenarioId === "invasao-javali-cerrado") return;
+    const snapshot = getOfflineEcosystemSnapshot(scenarioId);
+    const result = snapshot.result;
+    setAiResult(result);
+    setReport(result.report);
+    setForm({
+      width: String(result.terrainParams.width),
+      height: String(result.terrainParams.height),
+      seed: String(result.terrainParams.seed),
+      baseTemperatureC: String(result.terrainParams.baseTemperatureC),
+      basePrecipitationMm: String(result.terrainParams.basePrecipitationMm),
+      baseHumidityPct: String(result.terrainParams.baseHumidityPct),
+    });
+    setTerrainShape({
+      reliefStyle: result.terrainParams.reliefStyle,
+      seaLevel: result.terrainParams.seaLevel,
+    });
+    setGrid(result.terrain);
+    setFaunaSpecies(result.species);
+    setFaunaLiveCount(0);
+    setFaunaError(null);
+    setError(null);
+    setAiError(null);
+    setOfflineDisclosure(snapshot.meta.disclosure);
+    setFallbackScenarioId(null);
+    saveLastScenario({ scenarioId, mode: "offline", ecosystemResult: result });
+  }, []);
 
   function field(key: keyof TerrainForm) {
     return {
@@ -3400,9 +3480,25 @@ function EcologyTerrainSection({
     setIsFaunaLoading(false);
 
     try {
+      if (demoMode === "offline") {
+        applyOfflineSnapshot("cerrado-predador-presa");
+        return;
+      }
+      if (demoMode === "auto" && !(await checkApiHealth())) {
+        setFallbackScenarioId("cerrado-predador-presa");
+        setError("Backend indisponivel no momento. Tente novamente ou abra uma demonstracao offline precomputada.");
+        return;
+      }
+      const manualProfile = PERFORMANCE_PROFILES[performanceProfile];
       const response = await ecologyApi.simulateTerrain({
-        width: Math.min(64, Math.max(4, numberOr(form.width, 24))),
-        height: Math.min(48, Math.max(4, numberOr(form.height, 18))),
+        width: Math.min(
+          performanceProfile === "light" ? manualProfile.terrainSize.width : 64,
+          Math.max(4, numberOr(form.width, manualProfile.terrainSize.width)),
+        ),
+        height: Math.min(
+          performanceProfile === "light" ? manualProfile.terrainSize.height : 48,
+          Math.max(4, numberOr(form.height, manualProfile.terrainSize.height)),
+        ),
         seed: numberOr(form.seed, 42),
         baseTemperatureC: numberOr(form.baseTemperatureC, 18),
         basePrecipitationMm: numberOr(form.basePrecipitationMm, 1200),
@@ -3411,6 +3507,7 @@ function EcologyTerrainSection({
         seaLevel: terrainShape.seaLevel,
       });
       setGrid(response.data);
+      setOfflineDisclosure(null);
 
       setIsFaunaLoading(true);
       try {
@@ -3426,6 +3523,7 @@ function EcologyTerrainSection({
       }
     } catch (requestError) {
       setError(getApiErrorMessage(requestError));
+      setFallbackScenarioId("cerrado-predador-presa");
     } finally {
       setIsLoading(false);
     }
@@ -3443,6 +3541,17 @@ function EcologyTerrainSection({
 
     try {
       // Uma única chamada: bioma + terreno + fauna + relatório estruturado.
+      const matchingScenario = ecosystemDemos.find((scenario) => scenario.prompt === effectivePrompt);
+      const scenarioId = (matchingScenario?.id ?? "amazonia-coerente") as DemoScenarioId;
+      if (demoMode === "offline") {
+        applyOfflineSnapshot(scenarioId);
+        return;
+      }
+      if (demoMode === "auto" && !(await checkApiHealth())) {
+        setFallbackScenarioId(scenarioId);
+        setAiError("Backend indisponivel. Nenhum resultado ao vivo foi substituido; escolha tentar novamente ou demo offline.");
+        return;
+      }
       const response = await ecologyApi.ecosystemReport({ prompt: effectivePrompt });
       const result = response.data;
       setAiResult(result);
@@ -3467,8 +3576,11 @@ function EcologyTerrainSection({
       setIsFaunaLoading(false);
       setGrid(result.terrain);
       setFaunaSpecies(result.species);
+      setOfflineDisclosure(null);
+      saveLastScenario({ scenarioId, mode: "live", ecosystemResult: result });
     } catch (requestError) {
       setAiError(getApiErrorMessage(requestError));
+      setFallbackScenarioId("amazonia-coerente");
     } finally {
       setIsAiLoading(false);
     }
@@ -3485,6 +3597,23 @@ function EcologyTerrainSection({
     void promptAndGenerate(incoming);
     onInitialPromptConsumed?.();
   }, [initialPrompt]);
+
+  useEffect(() => {
+    const incoming = initialOfflineScenarioId?.trim() as DemoScenarioId | undefined;
+    if (!incoming || incoming === "invasao-javali-cerrado") return;
+    applyOfflineSnapshot(incoming);
+    onInitialPromptConsumed?.();
+  }, [initialOfflineScenarioId, applyOfflineSnapshot, onInitialPromptConsumed]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const alreadySuggested = window.localStorage.getItem("sara-core.light-mode-suggested") === "true";
+    if (alreadySuggested || performanceProfile !== "balanced") return;
+    if (window.matchMedia("(max-width: 720px), (pointer: coarse)").matches) {
+      setPerformanceProfile("light");
+      window.localStorage.setItem("sara-core.light-mode-suggested", "true");
+    }
+  }, [performanceProfile, setPerformanceProfile]);
 
   useEffect(() => {
     const syncDisplayTime = () => {
@@ -3522,7 +3651,7 @@ function EcologyTerrainSection({
   }, [setRainEnabled, setRainIntensity]);
 
   return (
-    <div className="page-stack">
+    <div className={`page-stack${presentationMode ? " presentation-terrain" : ""}`}>
       <style>{`
         @import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;700&display=swap");
 
@@ -3825,6 +3954,45 @@ function EcologyTerrainSection({
         }
 
         .terrain-inspector__action:hover { background: rgba(124, 88, 56, 0.2); }
+
+        .terrain-help-chip {
+          position: absolute;
+          right: 0.75rem;
+          bottom: 0.75rem;
+          pointer-events: auto;
+          border: 1px solid rgba(88, 59, 38, 0.18);
+          border-radius: 999px;
+          background: rgba(255, 249, 240, 0.92);
+          color: #5d3d28;
+          padding: 0.45rem 0.75rem;
+          cursor: pointer;
+          box-shadow: 0 10px 24px rgba(78, 50, 28, 0.16);
+        }
+
+        .terrain-gesture-help {
+          position: absolute;
+          right: 0.75rem;
+          bottom: 3.4rem;
+          width: min(18rem, calc(100% - 1.5rem));
+          pointer-events: auto;
+          display: grid;
+          gap: 0.35rem;
+          padding: 0.85rem;
+          border-radius: 0.55rem;
+          border: 1px solid rgba(88, 59, 38, 0.16);
+          background: rgba(255, 249, 240, 0.95);
+          color: #513521;
+          box-shadow: 0 16px 34px rgba(78, 50, 28, 0.18);
+        }
+
+        .terrain-gesture-help button {
+          justify-self: end;
+          border: 1px solid rgba(107, 75, 50, 0.22);
+          border-radius: 0.4rem;
+          background: rgba(255, 255, 255, 0.52);
+          color: #5d3d28;
+          cursor: pointer;
+        }
 
         .terrain-events {
           top: 0.75rem;
@@ -4590,8 +4758,9 @@ function EcologyTerrainSection({
             left: 0.55rem;
             right: 0.55rem;
             width: auto;
-            top: 0.55rem;
-            max-height: 44%;
+            top: auto;
+            bottom: 0.55rem;
+            max-height: 58%;
           }
 
           .terrain-eventhub {
@@ -4601,7 +4770,25 @@ function EcologyTerrainSection({
           }
 
           .terrain-layers__panel {
-            width: min(15.5rem, calc(100vw - 1.6rem));
+            position: fixed;
+            left: 0.55rem;
+            right: 0.55rem;
+            bottom: 0.55rem;
+            width: auto;
+            max-height: 70vh;
+            overflow: auto;
+          }
+
+          .terrain-animals,
+          .terrain-eventhub,
+          .terrain-gesture-help {
+            position: fixed;
+            left: 0.55rem;
+            right: 0.55rem;
+            bottom: 0.55rem;
+            width: auto;
+            max-height: 70vh;
+            overflow: auto;
           }
 
           .terrain-stage__tooltip {
@@ -4627,6 +4814,42 @@ function EcologyTerrainSection({
             </p>
           </div>
         </div>
+
+        <div className="demo-mode-bar" data-testid="demo-mode-bar">
+          <label>
+            Modo
+            <select className="ui-select" value={demoMode} onChange={(event) => setDemoMode(event.target.value as DemoRunMode)}>
+              <option value="auto">Automatico: ao vivo, depois oferecer offline</option>
+              <option value="live">Ao vivo</option>
+              <option value="offline">Demonstracao offline</option>
+            </select>
+          </label>
+          <label>
+            Desempenho
+            <select
+              className="ui-select"
+              value={performanceProfile}
+              onChange={(event) => setPerformanceProfile(event.target.value as typeof performanceProfile)}
+            >
+              {Object.entries(PERFORMANCE_PROFILES).map(([key, profile]) => (
+                <option key={key} value={key}>
+                  {profile.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span>{PERFORMANCE_PROFILES[performanceProfile].description}</span>
+        </div>
+
+        {offlineDisclosure ? (
+          <div className="signal-message signal-message--warning" data-testid="offline-disclosure">
+            <WarningCircle weight="duotone" />
+            <div>
+              <strong>Demonstracao offline</strong>
+              <span>{offlineDisclosure}</span>
+            </div>
+          </div>
+        ) : null}
 
         <div className="terrain-ai-prompt">
           <div className="terrain-ai-prompt__row">
@@ -4662,6 +4885,27 @@ function EcologyTerrainSection({
             </Button>
           </div>
 
+          <div className="demo-scenario-row">
+            {ecosystemDemos.map((scenario) => (
+              <Button
+                key={scenario.id}
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setAiPrompt(scenario.prompt);
+                  if (demoMode === "offline") {
+                    applyOfflineSnapshot(scenario.id);
+                  } else {
+                    void promptAndGenerate(scenario.prompt);
+                  }
+                }}
+                title={`${scenario.purpose} Visual: ${scenario.expectedVisualFocus}`}
+              >
+                {scenario.title}
+              </Button>
+            ))}
+          </div>
+
           {aiResult && !isAiLoading ? (
             <div className="terrain-ai-badge">
               <strong>{aiResult.biomeName}</strong>
@@ -4673,10 +4917,19 @@ function EcologyTerrainSection({
           ) : null}
 
           {aiError ? (
-            <p className="terrain-ai-error">{aiError}</p>
+            <div className="terrain-ai-error">
+              <p>{aiError}</p>
+              {fallbackScenarioId ? (
+                <Button variant="secondary" size="sm" onClick={() => applyOfflineSnapshot(fallbackScenarioId)}>
+                  Abrir demo offline
+                </Button>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
+        <details className="advanced-controls">
+          <summary>Configuracoes avancadas</summary>
         <div className="ecology-form-grid">
           <div className="ui-input-field">
             <label className="ui-input-field__label">Largura (4-64)</label>
@@ -4820,6 +5073,7 @@ function EcologyTerrainSection({
             </div>
           </div>
         </div>
+        </details>
 
         <div className="form-actions">
           <Button
@@ -4831,26 +5085,49 @@ function EcologyTerrainSection({
             <Mountains weight="duotone" />
             {isLoading ? "Gerando ecossistema..." : "Gerar ecossistema 3D"}
           </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              const last = readLastScenario();
+              if (last?.ecosystemResult) {
+                setAiResult(last.ecosystemResult);
+                setReport(last.ecosystemResult.report);
+                setGrid(last.ecosystemResult.terrain);
+                setFaunaSpecies(last.ecosystemResult.species);
+                setOfflineDisclosure(last.mode === "offline" ? "Cenario restaurado do armazenamento local offline." : null);
+              }
+            }}
+          >
+            Reabrir ultimo cenario
+          </Button>
+          <Button variant="ghost" onClick={() => { clearLocalDemoData(); setOfflineDisclosure(null); }}>
+            Limpar dados locais
+          </Button>
         </div>
       </section>
 
       {isLoading ? <LoadingBlock label="Gerando relevo, agua e biomas..." /> : null}
 
       {error && !isLoading ? (
-        <ErrorState
-          title="Erro na simulacao"
-          message={error}
-          onRetry={() => void generate()}
-        />
+        <div className="stack-sm">
+          <ErrorState
+            title="Erro na simulacao"
+            message={error}
+            onRetry={() => void generate()}
+          />
+          {fallbackScenarioId ? (
+            <Button variant="secondary" onClick={() => applyOfflineSnapshot(fallbackScenarioId)}>
+              Abrir demonstracao offline
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       {!grid && !error && !isLoading ? (
         <EmptyState
           icon={<Mountains weight="duotone" />}
-          title="Nenhum ecossistema gerado"
-          description="Defina os parametros e gere um grid para abrir o visualizador 3D."
-          actionLabel="Gerar ecossistema 3D"
-          onAction={() => void generate()}
+          title="Nenhum ecossistema gerado ainda"
+          description="Defina os parâmetros no formulário acima e gere um grid para abrir o visualizador 3D."
         />
       ) : null}
 
@@ -4892,6 +5169,7 @@ function EcologyTerrainSection({
             setFaunaEvents={setFaunaEvents}
             selectedFaunaEventId={selectedFaunaEventId}
             setSelectedFaunaEventId={setSelectedFaunaEventId}
+            performanceProfile={performanceProfile}
           />
 
           {faunaError ? (
@@ -4934,10 +5212,10 @@ function EcologyTerrainSection({
               margin-top: 0.5rem;
             }
             .ecosystem-report__card {
-              border: 1px solid rgba(148, 163, 184, 0.25);
+              border: 1px solid var(--color-border-base);
               border-radius: 0.6rem;
               padding: 0.8rem 0.9rem;
-              background: rgba(148, 163, 184, 0.06);
+              background: var(--color-surface-elevated);
             }
             .ecosystem-report__card h4 {
               margin: 0 0 0.5rem;
@@ -4948,9 +5226,33 @@ function EcologyTerrainSection({
             }
             .ecosystem-report__card ul { margin: 0; padding-left: 1rem; }
             .ecosystem-report__card li { margin: 0.15rem 0; font-size: 0.9rem; }
+            .ecosystem-report__summary {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+              gap: 0.65rem;
+              margin: 0.8rem 0;
+            }
+            .ecosystem-report__summary-card {
+              border: 1px solid var(--color-border-base);
+              border-radius: 0.6rem;
+              padding: 0.75rem;
+              background: var(--color-surface-base);
+            }
+            .ecosystem-report__summary-card span {
+              display: block;
+              font-size: 0.72rem;
+              text-transform: uppercase;
+              color: var(--color-text-muted);
+              font-weight: 700;
+            }
+            .ecosystem-report__summary-card strong {
+              display: block;
+              margin-top: 0.25rem;
+              font-size: 1rem;
+            }
             .ecosystem-report__facts { margin-top: 1rem; }
             .ecosystem-report__fact {
-              border-left: 3px solid rgba(56, 189, 248, 0.6);
+              border-left: 3px solid rgba(47, 111, 143, 0.6);
               padding: 0.2rem 0 0.2rem 0.7rem;
               margin: 0.5rem 0;
             }
@@ -4969,11 +5271,12 @@ function EcologyTerrainSection({
             .ecosystem-report__tag--warn { background: rgba(234, 179, 8, 0.18); }
 
             .plausibility {
-              border: 1px solid rgba(56, 189, 248, 0.3);
+              border: 1px solid rgba(47, 111, 143, 0.3);
+              border-left: 3px solid var(--color-brand-secondary);
               border-radius: 0.6rem;
               padding: 0.85rem 0.95rem;
               margin: 0.5rem 0 0.25rem;
-              background: rgba(56, 189, 248, 0.05);
+              background: rgba(47, 111, 143, 0.06);
             }
             .plausibility__head {
               display: flex;
@@ -5020,6 +5323,39 @@ function EcologyTerrainSection({
                 clima, relevo, vegetacao, fauna, base de recurso, rede trofica, validacao
                 deterministica e base cientifica.
               </p>
+            </div>
+          </div>
+
+          {report.validation?.blockingContradictions.length ? (
+            <div className="signal-message signal-message--error">
+              <WarningCircle weight="duotone" />
+              <div>
+                <strong>Contradicoes bloqueantes</strong>
+                <span>{report.validation.blockingContradictions.join(" ")}</span>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="ecosystem-report__summary" data-testid="report-summary">
+            <div className="ecosystem-report__summary-card">
+              <span>Perfil</span>
+              <strong>{report.ecosystemProfile?.profile?.displayName ?? aiResult?.biomeName ?? "Ecossistema"}</strong>
+            </div>
+            <div className="ecosystem-report__summary-card">
+              <span>Validacao deterministica</span>
+              <strong>{report.validation ? `${report.validation.score}/100 - ${report.validation.label}` : "indisponivel"}</strong>
+            </div>
+            <div className="ecosystem-report__summary-card">
+              <span>Fauna</span>
+              <strong>{report.fauna.totalSpecies} especies</strong>
+            </div>
+            <div className="ecosystem-report__summary-card">
+              <span>Base de recurso</span>
+              <strong>{report.resourceBase?.unsupportedConsumers.length ? "com alertas" : "suporte presente"}</strong>
+            </div>
+            <div className="ecosystem-report__summary-card">
+              <span>Rede trofica</span>
+              <strong>{report.trophicNetwork?.pyramidConsistent ? "consistente" : "com alertas"}</strong>
             </div>
           </div>
 
