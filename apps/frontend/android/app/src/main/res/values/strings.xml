@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sara Core</string>
+    <string name="title_activity_main">Sara Core</string>
+    <string name="package_name">com.saracore.app</string>
+    <string name="custom_url_scheme">com.saracore.app</string>
+</resources>

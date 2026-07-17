@@ -3,7 +3,7 @@ export const tokens = {
     family:
       "\"Instrument Sans\", \"Avenir Next\", \"Segoe UI\", sans-serif",
     displayFamily:
-      "\"Syne\", \"Arial Narrow\", sans-serif",
+      "\"Fraunces\", \"Iowan Old Style\", Georgia, serif",
     monoFamily:
       "\"IBM Plex Mono\", \"SFMono-Regular\", Consolas, monospace",
     size: {
@@ -45,9 +45,9 @@ export const tokens = {
     full: "9999px"
   },
   shadow: {
-    sm: "0 8px 24px rgba(5, 10, 26, 0.26)",
-    md: "0 18px 42px rgba(4, 8, 22, 0.32)",
-    lg: "0 24px 56px rgba(2, 6, 18, 0.4)"
+    sm: "0 1px 2px rgba(31, 42, 36, 0.05), 0 2px 8px rgba(31, 42, 36, 0.05)",
+    md: "0 4px 16px rgba(31, 42, 36, 0.08)",
+    lg: "0 14px 34px rgba(31, 42, 36, 0.12)"
   },
   transition: {
     default: "180ms ease",

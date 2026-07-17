@@ -5,12 +5,21 @@
   "description": "Dashboard/admin panel frontend for Sara Core.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.json && vite build",
+    "build": "tsc -p tsconfig.json && vite build && node ../../scripts/prune-dist.mjs && node ../../scripts/check-pwa-budget.mjs",
     "lint": "eslint src vite.config.ts --ext .ts,.tsx",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "cap:sync": "npm run build && cap sync android",
+    "cap:open": "cap open android",
+    "apk:debug": "npm run cap:sync && cd android && gradlew assembleDebug",
+    "apk:copy": "node ../../scripts/copy-apk.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/core": "^6.2.1",
     "@phosphor-icons/react": "^2.1.10",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
@@ -22,12 +31,16 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.38.0",
+    "jsdom": "^25.0.1",
     "typescript": "^5.7.3",
-    "vite": "^6.2.1"
+    "vite": "^6.2.1",
+    "vitest": "^2.1.9"
   }
 }

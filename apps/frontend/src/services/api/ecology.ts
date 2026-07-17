@@ -1,5 +1,5 @@
 import type { ApiErrorResponse } from "@sara/shared-types";
-import { buildApiUrl, buildApiHeaders, ApiClientError } from "./client";
+import { buildApiUrl, buildApiHeaders, fetchWithTimeout, ApiClientError } from "./client";
 
 // ─── Response envelope ────────────────────────────────────────────────────────
 
@@ -733,7 +733,7 @@ async function ecologyRequest<T>(
   endpoint: string,
   options: { method?: "GET" | "POST"; body?: unknown } = {}
 ): Promise<T> {
-  const response = await fetch(buildApiUrl(endpoint), {
+  const response = await fetchWithTimeout(buildApiUrl(endpoint), {
     method: options.method ?? "GET",
     headers:
       options.body !== undefined

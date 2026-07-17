@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bug, WarningCircle } from "@phosphor-icons/react";
 import { Button, EmptyState, ErrorState, LoadingBlock, StatusPill } from "../../components/ui";
 import { getApiErrorMessage } from "../../services/api/client";
@@ -11,6 +11,7 @@ import type {
 } from "../../services/api/ecology";
 import { TerrainView } from "./EcologyTerrainSection";
 import type { FaunaEvent } from "./FaunaLayer";
+import { getOfflineInvasiveSnapshot, saveLastScenario } from "../../demo/offline";
 
 const RATING_LABEL: Record<PlausibilityRating, string> = {
   alto: "Alto",
@@ -33,7 +34,7 @@ const EFFECT_LABEL: Record<string, string> = {
   none: "Sem impacto direto",
 };
 
-export function EcologyInvasiveSection() {
+export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOfflineScenarioId?: string | null } = {}) {
   const [speciesText, setSpeciesText] = useState("leao");
   const [locationText, setLocationText] = useState("floresta amazonica");
   const [result, setResult] = useState<InvasiveScenarioResult | null>(null);
@@ -41,6 +42,7 @@ export function EcologyInvasiveSection() {
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offlineDisclosure, setOfflineDisclosure] = useState<string | null>(null);
   const simulatedTimeRef = useRef(12);
   const [inspected, setInspected] = useState<TerrainCell | null>(null);
   const [faunaEvents, setFaunaEvents] = useState<FaunaEvent[]>([]);
@@ -63,6 +65,8 @@ export function EcologyInvasiveSection() {
       });
       const data = response.data;
       setResult(data);
+      setOfflineDisclosure(null);
+      saveLastScenario({ scenarioId: "invasao-javali-cerrado", mode: "live", invasiveResult: data });
 
       let natives: SpeciesDefinition[] = [];
       try {
@@ -78,6 +82,22 @@ export function EcologyInvasiveSection() {
       setIsLoading(false);
     }
   };
+
+  const openOfflineJavali = () => {
+    const snapshot = getOfflineInvasiveSnapshot();
+    setSpeciesText("javali");
+    setLocationText("cerrado brasileiro");
+    setResult(snapshot.result);
+    setFaunaSpecies([snapshot.result.invader]);
+    setPhaseIndex(0);
+    setError(null);
+    setOfflineDisclosure(snapshot.meta.disclosure);
+    saveLastScenario({ scenarioId: "invasao-javali-cerrado", mode: "offline", invasiveResult: snapshot.result });
+  };
+
+  useEffect(() => {
+    if (initialOfflineScenarioId === "invasao-javali-cerrado") openOfflineJavali();
+  }, [initialOfflineScenarioId]);
 
   const phase = result?.phases[phaseIndex];
   const nameById = useMemo(() => {
@@ -143,8 +163,21 @@ export function EcologyInvasiveSection() {
             <Bug weight="duotone" />
             {isLoading ? "Simulando..." : "Simular invasao"}
           </Button>
+          <Button variant="secondary" onClick={openOfflineJavali} disabled={isLoading}>
+            Demo offline: javali no Cerrado
+          </Button>
         </div>
       </section>
+
+      {offlineDisclosure ? (
+        <div className="signal-message signal-message--warning">
+          <WarningCircle weight="duotone" />
+          <div>
+            <strong>Modo de demonstracao offline</strong>
+            <span>{offlineDisclosure}</span>
+          </div>
+        </div>
+      ) : null}
 
       {isLoading ? <LoadingBlock label="Avaliando a invasao..." /> : null}
 
@@ -155,10 +188,8 @@ export function EcologyInvasiveSection() {
       {!result && !error && !isLoading ? (
         <EmptyState
           icon={<Bug weight="duotone" />}
-          title="Nenhuma simulacao ainda"
-          description="Informe uma especie e um local e simule a invasao."
-          actionLabel="Simular invasao"
-          onAction={() => void submit()}
+          title="Nenhuma simulação ainda"
+          description="Informe uma espécie e um local no formulário acima para avaliar a invasão."
         />
       ) : null}
 
