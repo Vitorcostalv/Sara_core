@@ -44,3 +44,8 @@ tmp-*.log
 # Local/private documentation — never commit
 docs/private/
 *.local.md
+
+# System reference — descreve o sistema inteiro; manter fora do versionamento público.
+# NOTA: já existe em commits anteriores; para apagar do histórico é preciso reescrevê-lo
+# (git filter-repo/BFG) e dar push --force.
+/System.md
