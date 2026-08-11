@@ -158,6 +158,29 @@ function GlyphBadge({
   );
 }
 
+function InvasiveMarker({ positionY, phaseOffset }: { positionY: number; phaseOffset: number }) {
+  const markerRef = useRef<THREE.Group>(null);
+
+  useFrame(({ clock }) => {
+    if (!markerRef.current) return;
+    markerRef.current.position.y = positionY + Math.sin(clock.elapsedTime * 3.2 + phaseOffset) * 0.08;
+    markerRef.current.rotation.y = clock.elapsedTime * 0.8;
+  });
+
+  return (
+    <group ref={markerRef} position={[0, positionY, 0]}>
+      <mesh rotation={[Math.PI, 0, 0]} renderOrder={20}>
+        <coneGeometry args={[0.16, 0.34, 4]} />
+        <meshBasicMaterial color={0xff8a3d} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 0.2, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={20}>
+        <ringGeometry args={[0.11, 0.18, 18]} />
+        <meshBasicMaterial color={0xffc061} transparent opacity={0.9} depthTest={false} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
 function FallbackShapeMesh({
   shape,
   bodyRef,
@@ -334,6 +357,7 @@ function AnimalBillboard({
 
   return (
     <group ref={groupRef}>
+      {isInvasive ? <InvasiveMarker positionY={1.05} phaseOffset={agent.flapOffset} /> : null}
       <mesh
         ref={haloRef}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -474,10 +498,13 @@ export function AnimalEntity({
   return (
     <group ref={groupRef}>
       {isInvasive ? (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.18, 0]}>
-          <ringGeometry args={[0.22, 0.34, 18]} />
-          <meshBasicMaterial color={0xf0b146} transparent opacity={0.45} depthWrite={false} />
-        </mesh>
+        <>
+          <InvasiveMarker positionY={1.15} phaseOffset={agent.flapOffset} />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.18, 0]}>
+            <ringGeometry args={[0.22, 0.34, 18]} />
+            <meshBasicMaterial color={0xf0b146} transparent opacity={0.45} depthWrite={false} />
+          </mesh>
+        </>
       ) : null}
       <GlyphBadge feedingStrategy={feedingStrategy} material={materials.glyph} positionY={kind === "ground" ? 0.66 : 0.28} />
       <FallbackShapeMesh

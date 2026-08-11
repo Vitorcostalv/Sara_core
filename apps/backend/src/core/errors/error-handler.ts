@@ -4,6 +4,18 @@ import { env } from "../../config/env";
 import { AppError } from "./app-error";
 import { logger } from "../../logging/logger";
 
+interface HttpParserError {
+  status?: number;
+  statusCode?: number;
+  type?: string;
+}
+
+function isHttpParserError(error: unknown): error is HttpParserError {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as HttpParserError;
+  return candidate.type === "entity.too.large" || candidate.type === "entity.parse.failed";
+}
+
 export function errorHandler(error: unknown, req: Request, res: Response, _next: NextFunction): void {
   if (error instanceof AppError) {
     if (error.statusCode >= 500) {
@@ -43,6 +55,18 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
         details: error.flatten()
       }
     });
+    return;
+  }
+
+  if (isHttpParserError(error)) {
+    const payloadTooLarge = error.type === "entity.too.large";
+    const statusCode = payloadTooLarge ? 413 : 400;
+    const code = payloadTooLarge ? "PAYLOAD_TOO_LARGE" : "INVALID_JSON";
+    const message = payloadTooLarge
+      ? "Request body exceeds the configured JSON size limit"
+      : "Request body contains invalid JSON";
+    logger.warn({ code, statusCode, path: req.path }, message);
+    res.status(statusCode).json({ error: { code, message } });
     return;
   }
 

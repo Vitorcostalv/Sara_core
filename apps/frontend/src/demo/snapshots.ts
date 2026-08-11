@@ -427,8 +427,8 @@ export const OFFLINE_INVASIVE_SNAPSHOT: OfflineInvasiveSnapshot = {
       survives: true,
     },
     nativeImpacts: [
-      { speciesId: "veado-campeiro", commonName: "Veado-campeiro", effect: "competition", populationDelta: -4 },
-      { speciesId: "onca-pintada", commonName: "Onca-pintada", effect: "resource-pressure", populationDelta: -1 },
+      { speciesId: "veado-campeiro", commonName: "Veado-campeiro", effect: "competition", populationDelta: -4, baselinePopulation: 18, reason: "Compartilha recursos de pastagem e frutos." },
+      { speciesId: "onca-pintada", commonName: "Onca-pintada", effect: "resource-pressure", populationDelta: -1, baselinePopulation: 3, reason: "Pressão indireta sobre a rede trófica do cenário demonstrativo." },
     ],
     phases: [
       { label: "Introducao", tSeconds: 0, invaderPop: 3, nativeDeltas: {} },

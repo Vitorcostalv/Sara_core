@@ -37,8 +37,7 @@ export async function fetchWithTimeout(
 
 export async function checkApiHealth(timeoutMs = 3000): Promise<boolean> {
   try {
-    const apiRoot = getApiBaseUrl().replace(/\/api\/v1\/?$/, "");
-    const response = await fetchWithTimeout(`${apiRoot}/health`, {}, timeoutMs);
+    const response = await fetchWithTimeout(buildApiUrl("/health"), {}, timeoutMs);
     return response.ok;
   } catch {
     return false;

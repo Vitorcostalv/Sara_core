@@ -13,8 +13,10 @@ import {
   type EcosystemPlausibilityInput,
 } from "./simulation/ecological-plausibility.service";
 import {
+  buildPhases,
   buildImpactMechanisms,
   establishmentPlausibilityScore,
+  projectNativeImpacts,
   resolveProfile,
   spreadPressureFor,
 } from "./simulation/invasive-scenario.service";
@@ -207,6 +209,34 @@ test("Invasive: an established generalist herbivore exposes named plant-pressure
   }
 });
 
+test("Invasive: competition requires a shared resource instead of a broad fauna category", () => {
+  const grid = terrainGeneratorService.generate({
+    width: 24,
+    height: 18,
+    seed: 42,
+    baseTemperatureC: 24,
+    basePrecipitationMm: 1050,
+    baseHumidityPct: 52,
+  });
+  const natives = faunaDefinitionService.resolve(grid).species;
+  const javali = resolveProfile("javali");
+  const invaderNeeds = resourceNeedsFor({
+    category: javali.category,
+    feedingStrategy: javali.feedingStrategy,
+    habitableBiomes: ["cerrado"],
+  });
+  const impacts = projectNativeImpacts(javali, natives, true, invaderNeeds);
+
+  assert.ok(!natives.some((native) => native.id === "pinguim"), "cerrado grid must reject penguins");
+  for (const impact of impacts.filter((entry) => entry.effect === "competition")) {
+    const native = natives.find((entry) => entry.id === impact.speciesId)!;
+    assert.ok(
+      native.resourceNeeds.some((resource) => invaderNeeds.includes(resource)),
+      `${native.commonName} was marked as competitor without a shared resource`,
+    );
+  }
+});
+
 test("Invasive: an established predator's predation mechanism targets predated natives", () => {
   const lion = resolveProfile("leão");
   const impacts: NativeImpact[] = [
@@ -227,4 +257,23 @@ test("Invasive: establishment score and spread pressure fall when habitat is inc
   const fails = establishmentPlausibilityScore(false, lion, 2, noGrounding);
   assert.ok(establishes > fails, "an unestablished invader must score lower");
   assert.equal(spreadPressureFor(false, lion), "baixa", "no establishment → no spread");
+});
+
+test("Invasive: timeline exposes invader growth and a visible native change in every active phase", () => {
+  const impacts: NativeImpact[] = [
+    {
+      speciesId: "veado-campeiro",
+      commonName: "Veado-campeiro",
+      effect: "competition",
+      populationDelta: -1,
+      baselinePopulation: 4,
+    },
+  ];
+  const phases = buildPhases(true, impacts);
+
+  assert.deepEqual(phases.map((phase) => phase.invaderPop), [2, 6, 12, 18]);
+  assert.equal(phases[0]!.nativeDeltas["veado-campeiro"], 0);
+  for (const phase of phases.slice(1)) {
+    assert.equal(phase.nativeDeltas["veado-campeiro"], -1);
+  }
 });

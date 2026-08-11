@@ -70,10 +70,11 @@ Pipeline completo: interpreta a descrição, gera o terreno + fauna e devolve um
 - Response: `TerrainPromptResult` + `{ species, report }`, onde `report` traz `climate`, `relief`, `vegetation`, `fauna`, `abioticFactors`, `scientificExplanation` (grounded, com cobertura e fontes), `plausibility` (avaliação por critério: clima/vegetação/fauna/abióticos/grounding + nota geral) e `limitations`.
 
 ### POST `/ecology/invasive`
-Simula a introdução de uma espécie invasora num local e avalia (com grounding) se ela é plausível e como afeta os nativos.
+Simula a introdução de uma espécie invasora — ou, quando explicitamente classificado, um cenário hipotético de introdução — e avalia (com grounding) se o estabelecimento é plausível e como afeta os nativos.
 - Request: `{ "speciesText": string, "locationText": string, "width"?: number, "height"?: number, "seed"?: number }`
-- Response: `{ terrain, resolvedBiomes[], invader (SpeciesDefinition), invaderProfile, nativeImpacts[] (effect: "predation"|"competition"|"none" + populationDelta), phases[] (introdução→dispersão→equilíbrio/colapso, com invaderPop e nativeDeltas), plausibility (mesmo formato do ecosystem-report), explanation { text, facts[], sources[] }, limitations[] }`.
+- Response: `{ terrain, resolvedBiomes[], invader (SpeciesDefinition), invaderProfile { ..., scenarioType: "documented-invasive"|"hypothetical-introduction" }, consequences { summary, causalChains[][], impactVectors[] }, nativeImpacts[] (effect: "predation"|"competition"|"none" + populationDelta), phases[] (introdução→dispersão→equilíbrio/colapso, com invaderPop e nativeDeltas), plausibility (mesmo formato do ecosystem-report), explanation { text, facts[], sources[] }, limitations[] }`.
 - Notes: a compatibilidade de habitat é avaliada contra o **bioma pretendido** do local (ex.: leão na Amazônia → implausível, população decai; tigre na Amazônia → plausível). Se o grounding for insuficiente, a explicação é honesta quanto à limitação.
+- `impactVectors[].value` é um índice educacional relativo entre `-100` e `+100`, não uma medição de campo nem uma estimativa probabilística validada.
 
 ### POST `/ecology/fauna`
 Resolve a fauna compatível para um conjunto de biomas ou para um grid de terreno.
