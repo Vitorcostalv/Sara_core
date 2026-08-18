@@ -17,13 +17,31 @@ const presentationKey = "sara-core.presentation-mode";
 const demoFlowKey = "sara-core.demo-flow-dismissed";
 const performanceKey = "sara-core.performance-profile";
 
+const apiPathPrefix = "/api/v1";
+
+// Todos os endpoints vivem sob /api/v1. Se alguém salvar só a origem
+// (http://localhost:3333), completamos o prefixo em vez de bater 404 em /health.
+export function normalizeApiBaseUrl(value: string): string {
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (trimmed.length === 0) {
+    return defaultApiBaseUrl;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.pathname === "/" ? `${parsed.origin}${apiPathPrefix}` : trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
 function getInitialApiBaseUrl(): string {
   if (typeof window === "undefined") {
     return defaultApiBaseUrl;
   }
 
   const saved = window.localStorage.getItem(storageKey);
-  return saved && saved.trim().length > 0 ? saved : defaultApiBaseUrl;
+  return saved && saved.trim().length > 0 ? normalizeApiBaseUrl(saved) : defaultApiBaseUrl;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -38,7 +56,7 @@ export const useUiStore = create<UiState>((set) => ({
       ? (window.localStorage.getItem(performanceKey) as UiState["performanceProfile"])
       : "balanced",
   setApiBaseUrl: (value) => {
-    const nextValue = value.trim() || defaultApiBaseUrl;
+    const nextValue = normalizeApiBaseUrl(value);
 
     if (typeof window !== "undefined") {
       window.localStorage.setItem(storageKey, nextValue);
