@@ -15,6 +15,7 @@ import { ecologicalPlausibilityEvaluator } from "./simulation/ecological-plausib
 import { trophicNetworkResolver } from "./simulation/trophic-network.service";
 import {
   INVADER_PROFILES,
+  INVADER_CONSEQUENCES,
   buildImpactMechanisms,
   resolveProfile,
   type InvasiveMechanismKind,
@@ -119,13 +120,30 @@ test("Curated: a predator is pruned when none of its prey is present in the reso
 
 // ─── Invasive profiles ───────────────────────────────────────────────────────────
 
-test("Curated: at least 10 invasive/introduced profiles exist with named mechanisms", () => {
-  assert.ok(INVADER_PROFILES.length >= 10, `expected >= 10 invaders, got ${INVADER_PROFILES.length}`);
+test("Curated: at least 20 invasive/introduced profiles exist with named mechanisms", () => {
+  assert.ok(INVADER_PROFILES.length >= 20, `expected >= 20 invaders, got ${INVADER_PROFILES.length}`);
   for (const profile of INVADER_PROFILES) {
     assert.ok(profile.mechanisms.length > 0, `${profile.displayName} must declare mechanisms`);
     for (const kind of profile.mechanisms) {
       assert.ok(MECHANISM_KINDS.has(kind), `${profile.displayName} has unknown mechanism ${kind}`);
     }
+  }
+});
+
+test("Curated: expanded invader menu resolves each new profile instead of the generic fallback", () => {
+  const expected = new Map([
+    ["gato feral", "Felis catus"],
+    ["cão feral", "Canis lupus familiaris"],
+    ["rato-preto", "Rattus rattus"],
+    ["peixe-leão", "Pterois volitans"],
+    ["carpa-comum", "Cyprinus carpio"],
+    ["esquilo-cinzento", "Sciurus carolinensis"],
+    ["vison-americano", "Neogale vison"],
+    ["pardal-doméstico", "Passer domesticus"],
+  ]);
+
+  for (const [query, scientificName] of expected) {
+    assert.equal(resolveProfile(query).scientificName, scientificName);
   }
 });
 
@@ -144,11 +162,37 @@ test("Curated: invasive mechanisms are named objects, not generic 'damage'", () 
   }
 });
 
-test("Curated: invaders cover diverse taxa (mammal, fish, amphibian, invertebrate)", () => {
+test("Curated: invaders cover diverse taxa (mammal, bird, fish, amphibian, invertebrate)", () => {
   const taxa = new Set(INVADER_PROFILES.map((p) => p.taxonGroup ?? "mamífero"));
+  assert.ok(taxa.has("ave"), "expected a bird invader");
   assert.ok(taxa.has("peixe"), "expected a fish invader");
   assert.ok(taxa.has("anfíbio"), "expected an amphibian invader");
   assert.ok(taxa.has("invertebrado"), "expected an invertebrate invader");
+});
+
+test("Curated: every invader has a species-specific consequence chain", () => {
+  for (const profile of INVADER_PROFILES) {
+    const consequence = INVADER_CONSEQUENCES[profile.scientificName];
+    assert.ok(consequence, `${profile.displayName} must have curated consequences`);
+    assert.ok(consequence!.summary.length > 20, `${profile.displayName} needs a meaningful summary`);
+    assert.ok(consequence!.causalChains.some((chain) => chain.length >= 3), `${profile.displayName} needs a causal chain`);
+  }
+});
+
+test("Curated: hypothetical predators are distinguished from documented invaders", () => {
+  for (const scientificName of ["Panthera leo", "Canis lupus", "Panthera tigris"]) {
+    assert.equal(INVADER_CONSEQUENCES[scientificName]?.scenarioType, "hypothetical-introduction");
+  }
+  assert.equal(INVADER_CONSEQUENCES["Sus scrofa"]?.scenarioType, "documented-invasive");
+});
+
+test("Curated: wild boar models omnivory, soil disturbance and disease risk", () => {
+  const boar = resolveProfile("javali");
+  assert.ok(boar.preyCategories.includes("bird"));
+  assert.ok(boar.preyCategories.includes("herbivore-small"));
+  assert.ok(boar.mechanisms.includes("engenharia-habitat"));
+  assert.ok(boar.mechanisms.includes("transmissao-doenca"));
+  assert.ok((INVADER_CONSEQUENCES["Sus scrofa"]?.impactVectors.length ?? 0) >= 7);
 });
 
 // ─── Resource catalog ─────────────────────────────────────────────────────────────

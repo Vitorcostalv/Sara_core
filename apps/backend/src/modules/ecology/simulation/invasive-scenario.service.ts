@@ -44,6 +44,10 @@ export interface NativeImpact {
   commonName: string;
   effect: InvasionEffect;
   populationDelta: number;
+  /** Population target before the invasion phase is applied. */
+  baselinePopulation?: number;
+  /** Human-readable ecological basis for the projected interaction. */
+  reason?: string;
 }
 
 export interface InvasionPhase {
@@ -51,6 +55,23 @@ export interface InvasionPhase {
   tSeconds: number;
   invaderPop: number;
   nativeDeltas: Record<string, number>;
+}
+
+export type InvasiveScenarioType = "documented-invasive" | "hypothetical-introduction";
+
+export interface InvasiveImpactVector {
+  key: string;
+  label: string;
+  /** Relative educational index: negative reduces a component, positive increases a pressure. */
+  value: number;
+  detail: string;
+}
+
+export interface InvaderConsequences {
+  scenarioType: InvasiveScenarioType;
+  summary: string;
+  causalChains: string[][];
+  impactVectors: InvasiveImpactVector[];
 }
 
 // Named impact mechanisms, so an invasion is described by *how* it harms the ecosystem
@@ -92,7 +113,9 @@ export interface InvasiveScenarioResult {
     scientificName: string;
     nativeBiomes: string[];
     survives: boolean;
+    scenarioType: InvasiveScenarioType;
   };
+  consequences: InvaderConsequences;
   nativeImpacts: NativeImpact[];
   phases: InvasionPhase[];
   /** Named ecological mechanisms through which the invader would act (empty if it can't establish). */
@@ -181,7 +204,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     displayName: "Javali",
     scientificName: "Sus scrofa",
     category: "herbivore-large",
-    trophicLevel: "herbivore",
+    trophicLevel: "mesopredator",
     feedingStrategy: "omnivore",
     compatiblePresets: [
       "cerrado",
@@ -194,9 +217,9 @@ export const INVADER_PROFILES: InvaderProfile[] = [
       "mediterraneo",
       "amazonia",
     ],
-    preyCategories: [],
+    preyCategories: ["bird", "herbivore-small"],
     competesCategories: ["herbivore-large", "herbivore-small"],
-    mechanisms: ["sobrepastejo", "supressao-vegetal", "competicao-alimentar", "engenharia-habitat"],
+    mechanisms: ["predacao", "sobrepastejo", "supressao-vegetal", "competicao-alimentar", "engenharia-habitat", "transmissao-doenca"],
     keywords: ["javali", "porco selvagem", "porco-do-mato", "wild boar", "sus scrofa"],
   },
   {
@@ -208,7 +231,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     compatiblePresets: ["pradaria", "cerrado", "mediterraneo", "caatinga", "mata-atlantica", "pampa"],
     preyCategories: [],
     competesCategories: ["herbivore-small"],
-    mechanisms: ["sobrepastejo", "competicao-alimentar", "deplecao-recursos"],
+    mechanisms: ["sobrepastejo", "supressao-vegetal", "competicao-alimentar", "deplecao-recursos", "engenharia-habitat"],
     keywords: ["coelho", "rabbit", "oryctolagus", "coelho europeu"],
   },
   {
@@ -220,7 +243,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     compatiblePresets: ["pantanal", "mangue", "amazonia", "floresta-tropical"],
     preyCategories: [],
     competesCategories: ["fish"],
-    mechanisms: ["alteracao-aquatica", "competicao-alimentar", "deplecao-recursos"],
+    mechanisms: ["alteracao-aquatica", "competicao-alimentar", "deplecao-recursos", "engenharia-habitat"],
     keywords: ["tilápia", "tilapia", "oreochromis"],
     establishmentNote: "Estabelece-se em águas quentes e eutróficas; tolera baixa oxigenação.",
     uncertaintyNotes: ["Impacto depende de conectividade hídrica e manejo de tanques."],
@@ -234,7 +257,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     compatiblePresets: ["pantanal", "amazonia", "pradaria", "mata-atlantica"],
     preyCategories: [],
     competesCategories: ["herbivore-large"],
-    mechanisms: ["sobrepastejo", "engenharia-habitat", "supressao-vegetal", "competicao-alimentar"],
+    mechanisms: ["sobrepastejo", "engenharia-habitat", "supressao-vegetal", "competicao-alimentar", "alteracao-aquatica"],
     keywords: ["bufalo", "búfalo", "bubalus", "bufalo asiatico"],
     establishmentNote: "Prospera em planícies alagáveis; pisoteio altera margens e macrófitas.",
     uncertaintyNotes: ["Densidade e dano dependem de manejo pecuário local."],
@@ -248,7 +271,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     compatiblePresets: ["caatinga", "cerrado", "pradaria", "deserto", "mediterraneo"],
     preyCategories: [],
     competesCategories: ["herbivore-large", "herbivore-small"],
-    mechanisms: ["sobrepastejo", "supressao-vegetal", "deplecao-recursos", "competicao-alimentar"],
+    mechanisms: ["sobrepastejo", "supressao-vegetal", "deplecao-recursos", "competicao-alimentar", "engenharia-habitat"],
     keywords: ["cabra", "bode", "capra hircus", "caprino"],
     establishmentNote: "Generalista resistente à seca; sobrepastejo severo em semiárido.",
     uncertaintyNotes: ["Ferala vs. manejada muda muito a pressão sobre a vegetação."],
@@ -326,7 +349,283 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     establishmentNote: "Bivalve filtrador que incrusta substratos e altera a teia planctônica.",
     uncertaintyNotes: ["Dispersão por hidrovias e cascos é difícil de conter."],
   },
+  {
+    displayName: "Gato-doméstico feral",
+    scientificName: "Felis catus",
+    category: "predator-medium",
+    trophicLevel: "mesopredator",
+    feedingStrategy: "carnivore",
+    compatiblePresets: ["cerrado", "caatinga", "mata-atlantica", "pampa", "pradaria", "floresta-temperada", "floresta-tropical", "mediterraneo", "montanha"],
+    preyCategories: ["herbivore-small", "bird"],
+    competesCategories: ["predator-medium"],
+    mechanisms: ["predacao", "competicao-espaco", "cascata-trofica"],
+    keywords: ["gato feral", "gato asselvajado", "gato domestico", "felis catus"],
+    establishmentNote: "Predador generalista associado a ambientes naturais próximos de ocupação humana.",
+    uncertaintyNotes: ["O impacto depende da densidade de gatos e do acesso à fauna silvestre."],
+  },
+  {
+    displayName: "Cão feral",
+    scientificName: "Canis lupus familiaris",
+    category: "predator-medium",
+    trophicLevel: "mesopredator",
+    feedingStrategy: "carnivore",
+    compatiblePresets: ["cerrado", "caatinga", "mata-atlantica", "pampa", "pradaria", "floresta-temperada", "floresta-tropical", "pantanal", "montanha"],
+    preyCategories: ["herbivore-small", "herbivore-large"],
+    competesCategories: ["predator-medium", "predator-large"],
+    mechanisms: ["predacao", "competicao-espaco", "transmissao-doenca"],
+    keywords: ["cao feral", "cão feral", "cachorro feral", "cao asselvajado", "canis lupus familiaris"],
+    establishmentNote: "Pode formar grupos livres e explorar áreas naturais próximas a assentamentos.",
+    uncertaintyNotes: ["A distinção entre indivíduo errante e população feral estabelecida exige dados locais."],
+  },
+  {
+    displayName: "Rato-preto",
+    scientificName: "Rattus rattus",
+    category: "herbivore-small",
+    trophicLevel: "mesopredator",
+    feedingStrategy: "omnivore",
+    compatiblePresets: ["cerrado", "caatinga", "amazonia", "mata-atlantica", "pantanal", "pampa", "mangue", "pradaria", "floresta-temperada", "floresta-tropical", "mediterraneo"],
+    preyCategories: ["bird", "herbivore-small"],
+    competesCategories: ["herbivore-small"],
+    mechanisms: ["predacao", "competicao-alimentar", "transmissao-doenca", "deplecao-recursos"],
+    keywords: ["rato-preto", "rato preto", "rattus rattus", "rato de telhado"],
+    establishmentNote: "Onívoro oportunista com alta associação a transporte, construções e ilhas.",
+    uncertaintyNotes: ["A pressão sobre ninhos e sementes varia com a oferta de alimento antrópico."],
+  },
+  {
+    displayName: "Peixe-leão",
+    scientificName: "Pterois volitans",
+    category: "fish",
+    trophicLevel: "mesopredator",
+    feedingStrategy: "carnivore",
+    compatiblePresets: ["oceano", "mangue"],
+    preyCategories: ["fish"],
+    competesCategories: ["fish"],
+    mechanisms: ["predacao", "competicao-alimentar", "cascata-trofica"],
+    keywords: ["peixe-leao", "peixe-leão", "pterois", "lionfish"],
+    taxonGroup: "peixe",
+    establishmentNote: "Predador marinho associado a recifes, costões e habitats costeiros quentes.",
+    uncertaintyNotes: ["O MVP representa oceano e manguezal, mas não resolve a estrutura fina de recifes."],
+  },
+  {
+    displayName: "Carpa-comum",
+    scientificName: "Cyprinus carpio",
+    category: "fish",
+    trophicLevel: "herbivore",
+    feedingStrategy: "omnivore",
+    compatiblePresets: ["pantanal", "amazonia", "floresta-tropical", "floresta-temperada"],
+    preyCategories: [],
+    competesCategories: ["fish"],
+    mechanisms: ["alteracao-aquatica", "engenharia-habitat", "competicao-alimentar", "deplecao-recursos"],
+    keywords: ["carpa", "carpa-comum", "carpa comum", "cyprinus carpio"],
+    taxonGroup: "peixe",
+    establishmentNote: "Peixe bentívoro capaz de aumentar turbidez e ressuspender sedimentos.",
+    uncertaintyNotes: ["A alteração do habitat depende da profundidade, densidade e tipo de sedimento."],
+  },
+  {
+    displayName: "Esquilo-cinzento",
+    scientificName: "Sciurus carolinensis",
+    category: "herbivore-small",
+    trophicLevel: "herbivore",
+    feedingStrategy: "omnivore",
+    compatiblePresets: ["floresta-temperada", "mata-atlantica", "mediterraneo"],
+    preyCategories: [],
+    competesCategories: ["herbivore-small"],
+    mechanisms: ["competicao-alimentar", "deplecao-recursos", "transmissao-doenca", "supressao-vegetal"],
+    keywords: ["esquilo-cinzento", "esquilo cinzento", "sciurus carolinensis", "grey squirrel"],
+    establishmentNote: "Generalista arborícola favorecido por florestas fragmentadas e áreas verdes.",
+    uncertaintyNotes: ["A competição depende da presença de esquilos nativos com nicho semelhante."],
+  },
+  {
+    displayName: "Vison-americano",
+    scientificName: "Neogale vison",
+    category: "predator-medium",
+    trophicLevel: "mesopredator",
+    feedingStrategy: "carnivore",
+    compatiblePresets: ["taiga", "tundra", "floresta-temperada", "pantanal", "pampa", "montanha"],
+    preyCategories: ["fish", "bird", "herbivore-small"],
+    competesCategories: ["predator-medium"],
+    mechanisms: ["predacao", "competicao-espaco", "cascata-trofica"],
+    keywords: ["vison", "vison-americano", "vison americano", "neogale vison", "american mink"],
+    establishmentNote: "Predador semiaquático associado a rios, lagos e áreas úmidas.",
+    uncertaintyNotes: ["A conectividade entre corpos d'água controla dispersão e persistência."],
+  },
+  {
+    displayName: "Pardal-doméstico",
+    scientificName: "Passer domesticus",
+    category: "bird",
+    trophicLevel: "herbivore",
+    feedingStrategy: "omnivore",
+    compatiblePresets: ["cerrado", "caatinga", "pampa", "pradaria", "floresta-temperada", "mediterraneo", "montanha"],
+    preyCategories: [],
+    competesCategories: ["bird", "herbivore-small"],
+    mechanisms: ["competicao-alimentar", "competicao-espaco", "transmissao-doenca"],
+    keywords: ["pardal", "pardal-domestico", "pardal-doméstico", "passer domesticus", "house sparrow"],
+    taxonGroup: "ave",
+    establishmentNote: "Ave sinantrópica generalista que ocupa áreas abertas e construídas.",
+    uncertaintyNotes: ["O terreno natural do MVP não representa diretamente estruturas urbanas usadas para nidificação."],
+  },
 ];
+
+export const INVADER_CONSEQUENCES: Record<string, InvaderConsequences> = {
+  "Sus scrofa": {
+    scenarioType: "documented-invasive",
+    summary: "Revolve o solo, reduz plântulas, favorece erosão, compete por alimento e também consome ovos e pequenos vertebrados.",
+    causalChains: [
+      ["Javalis aumentam", "solo é revolvido", "plântulas diminuem", "regeneração vegetal cai", "erosão aumenta"],
+      ["Busca oportunista por alimento", "ovos e pequenos vertebrados são consumidos", "recrutamento da fauna diminui"],
+    ],
+    impactVectors: [
+      { key: "vegetacao", label: "Vegetação", value: -35, detail: "Redução relativa da cobertura rasteira." },
+      { key: "regeneracao", label: "Regeneração vegetal", value: -40, detail: "Consumo e destruição de plântulas." },
+      { key: "disturbio-solo", label: "Distúrbio do solo", value: 60, detail: "Revolvimento durante o forrageamento." },
+      { key: "erosao", label: "Pressão de erosão", value: 25, detail: "Solo exposto fica mais vulnerável." },
+      { key: "predacao-ovos", label: "Predação de ovos", value: 20, detail: "Consumo oportunista de ninhos e ovos." },
+      { key: "competicao", label: "Competição alimentar", value: 20, detail: "Sobreposição com consumidores nativos." },
+      { key: "doenca", label: "Risco de doença", value: 25, detail: "Potencial de transmissão de patógenos." },
+    ],
+  },
+  "Panthera leo": {
+    scenarioType: "hypothetical-introduction",
+    summary: "Predador introduzido hipoteticamente: pressiona herbívoros médios e grandes e compete com grandes carnívoros nativos.",
+    causalChains: [["Leões são introduzidos", "mortalidade de herbívoros aumenta", "herbivoria muda", "vegetação responde indiretamente"]],
+    impactVectors: [],
+  },
+  "Canis lupus": {
+    scenarioType: "hypothetical-introduction",
+    summary: "Introdução hipotética de predador; altera mortalidade e comportamento das presas sem pressupor colapso automático.",
+    causalChains: [["Lobos são introduzidos", "ungulados mudam abundância e comportamento", "pressão de herbivoria se redistribui", "surge uma cascata trófica incerta"]],
+    impactVectors: [],
+  },
+  "Panthera tigris": {
+    scenarioType: "hypothetical-introduction",
+    summary: "Introdução hipotética com forte predação de mamíferos médios e grandes e competição com predadores nativos.",
+    causalChains: [["Tigres são introduzidos", "presas pouco adaptadas sofrem predação", "populações vulneráveis diminuem", "a rede de predadores se reorganiza"]],
+    impactVectors: [],
+  },
+  "Oryctolagus cuniculus": {
+    scenarioType: "documented-invasive",
+    summary: "Sobrepastejo, consumo de brotos e plântulas, competição com herbívoros e aumento de solo exposto.",
+    causalChains: [["Coelhos aumentam", "brotos e plântulas diminuem", "regeneração cai", "solo exposto aumenta", "erosão cresce"]],
+    impactVectors: [],
+  },
+  "Oreochromis niloticus": {
+    scenarioType: "documented-invasive",
+    summary: "Compete com peixes nativos, altera a rede trófica e pode modificar substratos de áreas rasas durante a reprodução.",
+    causalChains: [["Tilápias aumentam", "competição por alimento e espaço cresce", "peixes nativos perdem recursos", "comunidade aquática se reorganiza"]],
+    impactVectors: [],
+  },
+  "Bubalus bubalis": {
+    scenarioType: "documented-invasive",
+    summary: "Pastejo e pisoteio compactam o solo, degradam margens úmidas, aumentam turbidez e alteram habitats reprodutivos.",
+    causalChains: [["Búfalos ferais aumentam", "pisoteio de margens cresce", "solo compacta e erode", "turbidez aumenta", "habitats de aves diminuem"]],
+    impactVectors: [],
+  },
+  "Capra hircus": {
+    scenarioType: "documented-invasive",
+    summary: "Consome folhas, arbustos e plântulas, impede regeneração e favorece erosão, sobretudo em ilhas e ambientes secos.",
+    causalChains: [["Cabras aumentam", "plântulas diminuem", "regeneração florestal cai", "cobertura vegetal diminui", "erosão aumenta"]],
+    impactVectors: [],
+  },
+  "Lepus europaeus": {
+    scenarioType: "documented-invasive",
+    summary: "Aumenta herbivoria sobre gramíneas, brotos e mudas e compete com herbívoros nativos em altas densidades.",
+    causalChains: [["Lebres aumentam", "consumo de brotos e gramíneas cresce", "recursos para herbívoros nativos diminuem", "competição aumenta"]],
+    impactVectors: [],
+  },
+  "Cichla ocellaris": {
+    scenarioType: "documented-invasive",
+    summary: "Preda intensamente peixes menores, compete com predadores nativos e reorganiza a rede trófica fora de sua bacia natural.",
+    causalChains: [["Tucunarés aumentam", "peixes pequenos diminuem", "presas desses peixes podem aumentar", "rede trófica se reorganiza"]],
+    impactVectors: [],
+  },
+  "Lithobates catesbeianus": {
+    scenarioType: "documented-invasive",
+    summary: "Preda anfíbios, peixes e pequenos vertebrados, compete com anfíbios nativos e pode disseminar patógenos.",
+    causalChains: [["Rãs-touro aumentam", "predação e competição sobre anfíbios crescem", "anfíbios nativos diminuem", "risco de disseminação de patógenos aumenta"]],
+    impactVectors: [],
+  },
+  "Lissachatina fulica": {
+    scenarioType: "documented-invasive",
+    summary: "Causa herbivoria intensa, compete com moluscos nativos e pode transportar organismos de importância sanitária.",
+    causalChains: [["Caramujos aumentam", "consumo de plantas e plântulas cresce", "regeneração diminui", "competição com moluscos nativos aumenta"]],
+    impactVectors: [],
+  },
+  "Limnoperna fortunei": {
+    scenarioType: "documented-invasive",
+    summary: "Forma colônias densas, altera filtração, plâncton e nutrientes e causa bioincrustação em estruturas humanas.",
+    causalChains: [["Mexilhões se adensam", "filtração da água aumenta", "plâncton disponível muda", "ciclagem de nutrientes e cadeia alimentar se alteram"]],
+    impactVectors: [],
+  },
+  "Felis catus": {
+    scenarioType: "documented-invasive",
+    summary: "Preda aves, pequenos mamíferos e répteis, com efeitos especialmente severos em ilhas e fauna sem predadores semelhantes.",
+    causalChains: [["Gatos ferais aumentam", "predação de pequenos vertebrados cresce", "recrutamento das populações cai", "risco de extinção local aumenta"]],
+    impactVectors: [],
+  },
+  "Canis lupus familiaris": {
+    scenarioType: "documented-invasive",
+    summary: "Persegue e preda fauna silvestre, interfere com carnívoros nativos e pode transmitir doenças.",
+    causalChains: [["Cães ferais aumentam", "perseguição e predação crescem", "fauna evita áreas ocupadas", "uso do habitat e sobrevivência diminuem"]],
+    impactVectors: [],
+  },
+  "Rattus rattus": {
+    scenarioType: "documented-invasive",
+    summary: "Preda ovos e filhotes, consome sementes e frutos e ameaça especialmente ilhas e áreas de nidificação.",
+    causalChains: [["Ratos aumentam", "ovos, filhotes e sementes diminuem", "recrutamento de aves e plantas cai", "comunidade insular se empobrece"]],
+    impactVectors: [],
+  },
+  "Pterois volitans": {
+    scenarioType: "documented-invasive",
+    summary: "Consome peixes pequenos e juvenis, reduz recrutamento em recifes e compete com predadores nativos.",
+    causalChains: [["Peixes-leão aumentam", "juvenis de peixes diminuem", "recrutamento do recife cai", "comunidade recifal se reorganiza"]],
+    impactVectors: [
+      { key: "peixes-pequenos", label: "Peixes pequenos", value: -55, detail: "Redução relativa por predação." },
+      { key: "juvenis", label: "Juvenis de peixes", value: -65, detail: "Pressão elevada sobre o recrutamento." },
+      { key: "competicao", label: "Competição entre predadores", value: 30, detail: "Sobreposição de alimento com predadores nativos." },
+      { key: "predacao", label: "Pressão de predação", value: 70, detail: "Intensificação da mortalidade de presas." },
+      { key: "rede-trofica", label: "Alteração da rede trófica", value: 55, detail: "Efeito propagado pela comunidade recifal." },
+    ],
+  },
+  "Cyprinus carpio": {
+    scenarioType: "documented-invasive",
+    summary: "Revolve sedimentos, eleva turbidez e nutrientes e prejudica plantas aquáticas e a qualidade do habitat.",
+    causalChains: [["Carpas aumentam", "sedimento é revolvido", "turbidez aumenta", "plantas aquáticas diminuem", "abrigo de pequenos peixes diminui"]],
+    impactVectors: [
+      { key: "turbidez", label: "Turbidez", value: 55, detail: "Ressuspensão de sedimentos." },
+      { key: "vegetacao-aquatica", label: "Vegetação aquática", value: -45, detail: "Menor entrada de luz e perturbação física." },
+      { key: "sedimento", label: "Distúrbio do sedimento", value: 65, detail: "Forrageamento no fundo." },
+      { key: "nutrientes", label: "Nutrientes na água", value: 30, detail: "Liberação a partir do sedimento." },
+      { key: "habitat", label: "Qualidade do habitat", value: -35, detail: "Perda de vegetação e água mais turva." },
+    ],
+  },
+  "Sciurus carolinensis": {
+    scenarioType: "documented-invasive",
+    summary: "Compete por alimento e espaço, danifica árvores ao retirar casca e altera a dinâmica de sementes.",
+    causalChains: [["Esquilos-cinzentos aumentam", "competição e retirada de casca crescem", "árvores sofrem danos", "regeneração e dinâmica de sementes mudam"]],
+    impactVectors: [],
+  },
+  "Neogale vison": {
+    scenarioType: "documented-invasive",
+    summary: "Predador semiaquático de aves aquáticas, pequenos mamíferos, anfíbios e peixes, sobretudo próximo à água.",
+    causalChains: [["Visons aumentam", "predação em margens e ninhos cresce", "aves aquáticas e pequenos mamíferos diminuem", "comunidade ribeirinha se altera"]],
+    impactVectors: [],
+  },
+  "Passer domesticus": {
+    scenarioType: "documented-invasive",
+    summary: "Compete por alimento e principalmente por cavidades de nidificação, reduzindo oportunidades reprodutivas de aves nativas.",
+    causalChains: [["Pardais aumentam", "ocupação de cavidades cresce", "aves nativas perdem locais de ninho", "sucesso reprodutivo diminui"]],
+    impactVectors: [],
+  },
+};
+
+function consequencesFor(profile: InvaderProfile): InvaderConsequences {
+  return INVADER_CONSEQUENCES[profile.scientificName] ?? {
+    scenarioType: "hypothetical-introduction",
+    summary: "Consequências específicas ainda não foram cadastradas para esta espécie.",
+    causalChains: [],
+    impactVectors: [],
+  };
+}
 
 const GENERIC_PROFILE: InvaderProfile = {
   displayName: "Espécie invasora",
@@ -364,6 +663,59 @@ export function resolveProfile(speciesText: string): InvaderProfile {
   if (best) return best;
   // Fall back to the literal text as a generic invader (display only).
   return { ...GENERIC_PROFILE, displayName: speciesText.trim() || GENERIC_PROFILE.displayName };
+}
+
+export function projectNativeImpacts(
+  profile: InvaderProfile,
+  natives: SpeciesDefinition[],
+  survives: boolean,
+  invaderResourceNeeds: ResourceType[],
+): NativeImpact[] {
+  return natives.map((native) => {
+    if (survives && profile.preyCategories.includes(native.category)) {
+      return {
+        speciesId: native.id,
+        commonName: native.commonName,
+        effect: "predation",
+        populationDelta: -Math.max(1, Math.round(native.populationTarget * 0.55)),
+        baselinePopulation: native.populationTarget,
+        reason: `Presa compatível com a estratégia alimentar de ${profile.displayName}.`,
+      };
+    }
+
+    const sharedResources = native.resourceNeeds.filter((resource) =>
+      invaderResourceNeeds.includes(resource),
+    );
+    const sharesFoodBase =
+      profile.feedingStrategy === "carnivore"
+        ? native.feedingStrategy === "carnivore"
+        : sharedResources.length > 0;
+
+    if (survives && profile.competesCategories.includes(native.category) && sharesFoodBase) {
+      return {
+        speciesId: native.id,
+        commonName: native.commonName,
+        effect: "competition",
+        populationDelta: -Math.max(1, Math.round(native.populationTarget * 0.3)),
+        baselinePopulation: native.populationTarget,
+        reason:
+          sharedResources.length > 0
+            ? `Compartilha recursos: ${sharedResources.map((resource) => RESOURCE_LABELS[resource]).join(", ")}.`
+            : `Compartilha a base de presas com ${profile.displayName}.`,
+      };
+    }
+
+    return {
+      speciesId: native.id,
+      commonName: native.commonName,
+      effect: "none",
+      populationDelta: 0,
+      baselinePopulation: native.populationTarget,
+      reason: survives
+        ? "Sem predação ou sobreposição de recursos modelada."
+        : "A invasora não se estabelece neste cenário.",
+    };
+  });
 }
 
 // ─── Movement defaults by category (mirror the catalog) ──────────────────────
@@ -473,31 +825,26 @@ export class InvasiveScenarioService {
     // 2. Classifica o invasor (heurística determinística por palavra-chave) e avalia se o bioma
     //    pretendido do local (intenção do usuário) é compatível com o habitat de origem.
     const profile = resolveProfile(input.speciesText);
+    const consequences = consequencesFor(profile);
     const intendedBiome = terrainResult.biomeSlug;
     const survives =
       profile.compatiblePresets.length > 0 && profile.compatiblePresets.includes(intendedBiome);
 
     // 3. Impactos sobre os nativos.
     const preyNatives = natives.filter((n) => profile.preyCategories.includes(n.category));
-    const nativeImpacts: NativeImpact[] = natives.map((n) => {
-      if (survives && profile.preyCategories.includes(n.category)) {
-        return {
-          speciesId: n.id,
-          commonName: n.commonName,
-          effect: "predation",
-          populationDelta: -Math.max(1, Math.round(n.populationTarget * 0.55)),
-        };
-      }
-      if (survives && profile.competesCategories.includes(n.category)) {
-        return {
-          speciesId: n.id,
-          commonName: n.commonName,
-          effect: "competition",
-          populationDelta: -Math.max(1, Math.round(n.populationTarget * 0.3)),
-        };
-      }
-      return { speciesId: n.id, commonName: n.commonName, effect: "none", populationDelta: 0 };
+    const invaderResourceNeeds = resourceNeedsFor({
+      category: profile.category,
+      feedingStrategy: profile.feedingStrategy,
+      // Basal needs follow the intended scenario, not residual cells in the generated grid.
+      // Otherwise a small forest patch in the Cerrado can incorrectly add canopy resources.
+      habitableBiomes: [intendedBiome],
     });
+    const nativeImpacts = projectNativeImpacts(
+      profile,
+      natives,
+      survives,
+      invaderResourceNeeds,
+    );
 
     // 4. Espécie invasora sintética (entra na cadeia do FaunaLayer).
     const predatedIds = nativeImpacts.filter((i) => i.effect === "predation").map((i) => i.speciesId);
@@ -517,11 +864,7 @@ export class InvasiveScenarioService {
       populationTarget: survives ? 8 : 2,
       taxonGroup: profile.taxonGroup ?? taxonGroupFor(profile.category),
       nativeStatus: "introduced",
-      resourceNeeds: resourceNeedsFor({
-        category: profile.category,
-        feedingStrategy: profile.feedingStrategy,
-        habitableBiomes: resolvedBiomes,
-      }),
+      resourceNeeds: invaderResourceNeeds,
       confidence: profile.compatiblePresets.length > 0 ? 0.6 : 0.3,
       movementProfile: movementFor(profile.category),
       flockProfile: flockFor(profile.category),
@@ -548,7 +891,9 @@ export class InvasiveScenarioService {
     const phases = buildPhases(survives, nativeImpacts);
 
     // 6. Grounding científico.
-    const ecosystemSlugs = [terrainResult.biomeSlug, ...resolvedBiomes];
+    // Ground the explanation in the scenario explicitly selected by the user. Residual
+    // render biomes are useful for terrain variation, but must not inject unrelated facts.
+    const ecosystemSlugs = [terrainResult.biomeSlug];
     const context = await ecologicalContextBuilderService.buildContext({
       prompt: `Espécie invasora "${profile.displayName}" em ${terrainResult.biomeName}. ${input.speciesText} ${input.locationText}`,
       ecosystems: Array.from(new Set(ecosystemSlugs)),
@@ -597,7 +942,9 @@ export class InvasiveScenarioService {
         scientificName: profile.scientificName,
         nativeBiomes: profile.compatiblePresets,
         survives,
+        scenarioType: consequences.scenarioType,
       },
+      consequences,
       nativeImpacts,
       phases,
       impactMechanisms,
@@ -767,7 +1114,7 @@ function buildUncertainties(
   return uncertainties;
 }
 
-function buildPhases(survives: boolean, impacts: NativeImpact[]): InvasionPhase[] {
+export function buildPhases(survives: boolean, impacts: NativeImpact[]): InvasionPhase[] {
   const impacted = impacts.filter((i) => i.effect !== "none");
 
   if (!survives) {
@@ -783,7 +1130,14 @@ function buildPhases(survives: boolean, impacts: NativeImpact[]): InvasionPhase[
 
   const fractionDeltas = (fraction: number): Record<string, number> => {
     const out: Record<string, number> = {};
-    for (const i of impacted) out[i.speciesId] = Math.round(i.populationDelta * fraction);
+    for (const i of impacted) {
+      if (fraction === 0 || i.populationDelta === 0) {
+        out[i.speciesId] = 0;
+        continue;
+      }
+      const magnitude = Math.max(1, Math.round(Math.abs(i.populationDelta) * fraction));
+      out[i.speciesId] = Math.sign(i.populationDelta) * magnitude;
+    }
     return out;
   };
 

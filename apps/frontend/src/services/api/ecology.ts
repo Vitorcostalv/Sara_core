@@ -380,6 +380,8 @@ export interface NativeImpact {
   commonName: string;
   effect: InvasionEffect;
   populationDelta: number;
+  baselinePopulation?: number;
+  reason?: string;
 }
 
 export interface InvasionPhase {
@@ -417,6 +419,20 @@ export interface AffectedResource {
   detail: string;
 }
 
+export interface InvasiveImpactVector {
+  key: string;
+  label: string;
+  value: number;
+  detail: string;
+}
+
+export interface InvaderConsequences {
+  scenarioType: "documented-invasive" | "hypothetical-introduction";
+  summary: string;
+  causalChains: string[][];
+  impactVectors: InvasiveImpactVector[];
+}
+
 export interface InvasiveScenarioResult {
   terrain: TerrainGrid;
   resolvedBiomes: string[];
@@ -426,7 +442,9 @@ export interface InvasiveScenarioResult {
     scientificName: string;
     nativeBiomes: string[];
     survives: boolean;
+    scenarioType?: InvaderConsequences["scenarioType"];
   };
+  consequences?: InvaderConsequences;
   nativeImpacts: NativeImpact[];
   phases: InvasionPhase[];
   /** Named ecological mechanisms (empty when the invader cannot establish). */
@@ -885,7 +903,7 @@ export const ecologyApi = {
       body: payload,
     }),
 
-  fauna: (payload: { ecosystemSlug?: string; biomes: string[]; grid?: TerrainGrid }) =>
+  fauna: (payload: { ecosystemSlug?: string; biomes?: string[]; grid?: TerrainGrid }) =>
     ecologyRequest<ApiSingle<FaunaResult>>("/ecology/fauna", {
       method: "POST",
       body: payload,

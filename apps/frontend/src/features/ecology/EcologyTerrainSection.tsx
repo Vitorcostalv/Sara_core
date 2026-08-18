@@ -15,7 +15,7 @@ import {
   OrbitControls,
   useTexture,
 } from "@react-three/drei";
-import { Mountains, Sparkle, WarningCircle } from "@phosphor-icons/react";
+import { Moon, Mountains, Sparkle, Sun, WarningCircle } from "@phosphor-icons/react";
 import { Button, EmptyState, ErrorState, LoadingBlock } from "../../components/ui";
 import { checkApiHealth, getApiErrorMessage } from "../../services/api/client";
 import { ecologyApi } from "../../services/api/ecology";
@@ -286,6 +286,7 @@ interface InvasiveOverlayData {
   invaderSpeciesId: string;
   invaderName: string;
   invaderScientificName?: string;
+  scenarioType?: "documented-invasive" | "hypothetical-introduction";
   phaseLabel?: string;
   impactMechanisms?: string[];
   affectedSpecies?: Array<{
@@ -296,6 +297,27 @@ interface InvasiveOverlayData {
   }>;
   simulatedNotes?: string[];
   explanationOnlyNotes?: string[];
+}
+
+// Quando o app está publicado como estático (ex: PWA no Netlify aberto no celular) e nenhum
+// backend remoto foi configurado, "Ao vivo"/"auto" só teria como alvo o localhost do dev — que
+// não existe no dispositivo. Nesses casos entramos em "offline" (cenários precomputados) por
+// padrão, para a apresentação funcionar sem rede. Em localhost/LAN de dev mantemos "auto".
+function getDefaultDemoMode(): DemoRunMode {
+  if (typeof window === "undefined") return "auto";
+  const host = window.location.hostname;
+  const isLocalHost =
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "" ||
+    host.startsWith("192.168.") ||
+    host.startsWith("10.") ||
+    host.endsWith(".local");
+  const configuredBackend = window.localStorage.getItem("sara-core.api-base-url") ?? "";
+  const hasRemoteBackend =
+    configuredBackend.trim().length > 0 && !/localhost|127\.0\.0\.1/.test(configuredBackend);
+  if (!isLocalHost && !hasRemoteBackend) return "offline";
+  return "auto";
 }
 
 function instancedArgs(count: number): [undefined, undefined, number] {
@@ -360,38 +382,58 @@ function collectBiomes(grid: TerrainGrid) {
   return Array.from(biomes);
 }
 
-function buildCompactFaunaGrid(grid: TerrainGrid): TerrainGrid {
-  const biomeCells = new Map<string, TerrainCell>();
+function compactFaunaCell(cell: TerrainCell, x: number, y: number): TerrainCell {
+  return {
+    x,
+    y,
+    elevation: cell.elevation,
+    temperatureC: cell.temperatureC,
+    humidityPct: cell.humidityPct,
+    precipitationMmYear: cell.precipitationMmYear,
+    salinityPsu: cell.salinityPsu,
+    climateCode: cell.climateCode,
+    biomeSuggestion: cell.biomeSuggestion,
+    isWater: cell.isWater,
+    slope: cell.slope,
+    rockiness: cell.rockiness,
+    altitudeBand: cell.altitudeBand,
+    waterFlow: cell.waterFlow,
+    riverDistance: cell.riverDistance,
+    cave: cell.cave
+      ? {
+          type: cell.cave.type,
+          depth: cell.cave.depth,
+          openness: cell.cave.openness,
+          humidity: cell.cave.humidity,
+          darkness: cell.cave.darkness,
+          systemId: cell.cave.systemId,
+        }
+      : undefined,
+  };
+}
 
-  for (const row of grid.cells) {
-    for (const cell of row) {
-      if (!biomeCells.has(cell.biomeSuggestion)) {
-        biomeCells.set(cell.biomeSuggestion, cell);
-      }
-    }
-  }
+export function buildCompactFaunaGrid(grid: TerrainGrid): TerrainGrid {
+  // A grade visual pode ter milhares de celulas e objetos. Para a resolucao de fauna,
+  // uma amostra espacial de ate 16x16 preserva proporcoes, clima e salinidade sem
+  // ultrapassar o limite do corpo JSON da API.
+  const width = Math.max(4, Math.min(16, grid.width));
+  const height = Math.max(4, Math.min(16, grid.height));
+  const cells: TerrainCell[][] = Array.from({ length: height }, (_, row) =>
+    Array.from({ length: width }, (_, column) => {
+      const sourceY = Math.min(grid.cells.length - 1, Math.floor(((row + 0.5) * grid.cells.length) / height));
+      const sourceRow = grid.cells[sourceY]!;
+      const sourceX = Math.min(sourceRow.length - 1, Math.floor(((column + 0.5) * sourceRow.length) / width));
+      return compactFaunaCell(sourceRow[sourceX]!, column, row);
+    }),
+  );
 
-  const sourceCells = Array.from(biomeCells.values());
-  const minWidth = 4;
-  const minHeight = 4;
-  const width = Math.max(minWidth, Math.ceil(Math.sqrt(sourceCells.length || 1)));
-  const height = Math.max(minHeight, Math.ceil((sourceCells.length || 1) / width));
-  const cells: TerrainCell[][] = [];
-
-  for (let row = 0; row < height; row += 1) {
-    const terrainRow: TerrainCell[] = [];
-
-    for (let column = 0; column < width; column += 1) {
-      const flatIndex = row * width + column;
-      const template = sourceCells[flatIndex % sourceCells.length]!;
-      terrainRow.push({
-        ...template,
-        x: column,
-        y: row,
-      });
-    }
-
-    cells.push(terrainRow);
+  // Cavernas sao raras e uma amostra regular pode nao acerta-las. Preserve duas
+  // celulas quando ha um sistema real para manter a fauna cavernicola detectavel.
+  const caveCells = grid.cells.flat().filter((cell) => cell.cave && cell.cave.type !== "none");
+  const sampledCaves = cells.flat().filter((cell) => cell.cave && cell.cave.type !== "none").length;
+  for (let index = sampledCaves; index < Math.min(2, caveCells.length); index += 1) {
+    const targetColumn = width - 1 - index;
+    cells[height - 1]![targetColumn] = compactFaunaCell(caveCells[index]!, targetColumn, height - 1);
   }
 
   return {
@@ -401,7 +443,7 @@ function buildCompactFaunaGrid(grid: TerrainGrid): TerrainGrid {
     baseTemperatureC: grid.baseTemperatureC,
     basePrecipitationMm: grid.basePrecipitationMm,
     cells,
-    simulationNote: "compact fauna payload",
+    simulationNote: "Amostra espacial compacta para resolucao de fauna.",
   };
 }
 
@@ -2343,8 +2385,13 @@ export function TerrainView({
   }, [sceneData.worldRadius]);
   const profile = PERFORMANCE_PROFILES[performanceProfile];
   const [eventsExpanded, setEventsExpanded] = useState(false);
+  const [invasivePanelExpanded, setInvasivePanelExpanded] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
   const [animalsOpen, setAnimalsOpen] = useState(false);
+  const [isNightTime, setIsNightTime] = useState(() => {
+    const hour = ((simulatedTimeRef.current % 24) + 24) % 24;
+    return hour < 6 || hour >= 18;
+  });
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [locator, setLocator] = useState<LocatorTarget | null>(null);
   const [highlightSystemId, setHighlightSystemId] = useState<string | null>(null);
@@ -2416,6 +2463,23 @@ export function TerrainView({
     },
     [],
   );
+
+  useEffect(() => {
+    const syncPeriod = () => {
+      const hour = ((simulatedTimeRef.current % 24) + 24) % 24;
+      setIsNightTime(hour < 6 || hour >= 18);
+    };
+
+    syncPeriod();
+    const intervalId = window.setInterval(syncPeriod, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [simulatedTimeRef]);
+
+  const toggleDayNight = useCallback(() => {
+    const nextHour = isNightTime ? 12 : 22;
+    simulatedTimeRef.current = nextHour;
+    setIsNightTime(!isNightTime);
+  }, [isNightTime, simulatedTimeRef]);
 
   return (
     <div className="terrain-stage">
@@ -2533,7 +2597,13 @@ export function TerrainView({
                 simulatedTimeRef={simulatedTimeRef}
                 onLightningObserved={onLightningObserved}
                 onFaunaCountUpdate={onFaunaCountUpdate}
-                onInspect={(cell) => setInspectedState(cell)}
+                onInspect={(cell) => {
+                  setLayersOpen(false);
+                  setAnimalsOpen(false);
+                  setEventsExpanded(false);
+                  setGestureHelpOpen(false);
+                  setInspectedState(cell);
+                }}
                 invasiveSpeciesIds={invasiveSpeciesIds}
                 onFaunaEvent={(event) => {
                   setFaunaEventsState((state) => [event, ...state].slice(0, 24));
@@ -2547,6 +2617,71 @@ export function TerrainView({
         </CanvasErrorBoundary>
 
         <div className="terrain-overlay">
+          <div className="terrain-primary-controls" aria-label="Controles do visualizador">
+            {onToggleLayer ? (
+              <LayersControl
+                open={layersOpen}
+                onToggleOpen={() => {
+                  setLayersOpen((value) => !value);
+                  setAnimalsOpen(false);
+                  setEventsExpanded(false);
+                  setGestureHelpOpen(false);
+                  setInspectedState(null);
+                }}
+                onClose={() => setLayersOpen(false)}
+                activePreset={activePreset}
+                state={{
+                  objects: showObjects,
+                  rivers: showRivers,
+                  caves: showCaves,
+                  relief: showRelief,
+                  fauna: showFauna,
+                  carcasses: showCarcasses,
+                  events: showEvents,
+                  predation: showPredationHighlights,
+                  markers: showCaveMarkers,
+                  xray: caveXRay,
+                  subsoil,
+                }}
+                onToggle={onToggleLayer}
+                onApplyPreset={(preset) => onApplyPreset?.(preset)}
+                vegetationOpacity={vegetationOpacity}
+                onVegetationChange={(value) => onVegetationOpacityChange?.(value)}
+                caveSummary={caveSummary}
+              />
+            ) : null}
+
+            <button
+              type="button"
+              className={`terrain-time-toggle${isNightTime ? " is-night" : " is-day"}`}
+              onClick={toggleDayNight}
+              aria-label={isNightTime ? "Mudar o ecossistema para dia" : "Mudar o ecossistema para noite"}
+              title={isNightTime ? "Mudar para dia" : "Mudar para noite"}
+            >
+              <span className="terrain-time-toggle__icon" aria-hidden="true">
+                {isNightTime ? <Moon weight="fill" /> : <Sun weight="fill" />}
+              </span>
+              <span className="terrain-time-toggle__copy">
+                <strong>{isNightTime ? "Noite" : "Dia"}</strong>
+                <small>{isNightTime ? "Mudar para dia" : "Mudar para noite"}</small>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className="terrain-help-chip"
+              onClick={() => {
+                setGestureHelpOpen(true);
+                setLayersOpen(false);
+                setAnimalsOpen(false);
+                setEventsExpanded(false);
+                setInspectedState(null);
+              }}
+            >
+              Gestos
+            </button>
+          </div>
+
           {inspectedState ? (
             <CellInspectorPanel
               cell={inspectedState}
@@ -2558,59 +2693,53 @@ export function TerrainView({
             />
           ) : null}
 
-          {onToggleLayer ? (
-            <LayersControl
-              open={layersOpen}
-              onToggleOpen={() => setLayersOpen((value) => !value)}
-              onClose={() => setLayersOpen(false)}
-              activePreset={activePreset}
-              state={{
-                objects: showObjects,
-                rivers: showRivers,
-                caves: showCaves,
-                relief: showRelief,
-                fauna: showFauna,
-                carcasses: showCarcasses,
-                events: showEvents,
-                predation: showPredationHighlights,
-                markers: showCaveMarkers,
-                xray: caveXRay,
-                subsoil,
-              }}
-              onToggle={onToggleLayer}
-              onApplyPreset={(preset) => onApplyPreset?.(preset)}
-              vegetationOpacity={vegetationOpacity}
-              onVegetationChange={(value) => onVegetationOpacityChange?.(value)}
-              caveSummary={caveSummary}
-            />
-          ) : null}
-
           {faunaSpecies.length > 0 ? (
             <AnimalsPanel
               species={faunaSpecies}
               open={animalsOpen}
-              onToggleOpen={() => setAnimalsOpen((value) => !value)}
+              onToggleOpen={() => {
+                setAnimalsOpen((value) => !value);
+                setLayersOpen(false);
+                setEventsExpanded(false);
+                setGestureHelpOpen(false);
+                setInspectedState(null);
+              }}
               onClose={() => setAnimalsOpen(false)}
               invasiveSpeciesIds={invasiveSpeciesIds}
             />
           ) : null}
 
-          {invasiveOverlay ? <InvasiveImpactOverlay overlay={invasiveOverlay} /> : null}
+          {invasiveOverlay && !inspectedState ? (
+            <InvasiveImpactOverlay
+              overlay={invasiveOverlay}
+              expanded={invasivePanelExpanded}
+              onToggle={() => {
+                setInvasivePanelExpanded((value) => !value);
+                setLayersOpen(false);
+                setAnimalsOpen(false);
+                setEventsExpanded(false);
+                setGestureHelpOpen(false);
+              }}
+            />
+          ) : null}
 
-          {showEvents && faunaEventsState.length > 0 ? (
+          {showEvents ? (
             <EventHub
               events={faunaEventsState}
               selectedId={selectedEventId}
               expanded={eventsExpanded}
-              onToggleExpanded={() => setEventsExpanded((value) => !value)}
+              onToggleExpanded={() => {
+                setEventsExpanded((value) => !value);
+                setLayersOpen(false);
+                setAnimalsOpen(false);
+                setGestureHelpOpen(false);
+                setInspectedState(null);
+              }}
               onSelect={focusEvent}
             />
           ) : null}
 
           {showEvents ? <ToastStack toasts={toasts} /> : null}
-          <button type="button" className="terrain-help-chip" onClick={() => setGestureHelpOpen(true)}>
-            Gestos
-          </button>
           {gestureHelpOpen ? (
             <section className="terrain-gesture-help" aria-label="Ajuda de gestos">
               <button
@@ -2889,16 +3018,50 @@ function invasiveEffectLabel(effect: string) {
   }
 }
 
-function InvasiveImpactOverlay({ overlay }: { overlay: InvasiveOverlayData }) {
-  const affected = overlay.affectedSpecies?.slice(0, 4) ?? [];
+function InvasiveImpactOverlay({
+  overlay,
+  expanded,
+  onToggle,
+}: {
+  overlay: InvasiveOverlayData;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const affected = overlay.affectedSpecies?.slice(0, 3) ?? [];
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        className="terrain-invasive__chip"
+        onClick={onToggle}
+        aria-label={`Ver impacto da invasora ${overlay.invaderName}`}
+        aria-expanded="false"
+      >
+        <span className="terrain-invasive__chip-marker" aria-hidden="true" />
+        <span className="terrain-invasive__chip-copy">
+          <small>{overlay.scenarioType === "hypothetical-introduction" ? "Introduzida no mapa" : "Invasora no mapa"}</small>
+          <strong>{overlay.invaderName}</strong>
+        </span>
+        <span className="terrain-invasive__chip-action">Ver detalhes</span>
+      </button>
+    );
+  }
+
   return (
     <section className="terrain-invasive" aria-label="Leitura da invasao">
       <div className="terrain-invasive__header">
-        <strong>Foco invasora</strong>
-        <span className="terrain-invasive__phase">{overlay.phaseLabel ?? "fase nao informada"}</span>
+        <div>
+          <strong>Impacto da invasora</strong>
+          <span className="terrain-invasive__phase">{overlay.phaseLabel ?? "fase nao informada"}</span>
+        </div>
+        <button type="button" className="terrain-invasive__collapse" onClick={onToggle} aria-label="Recolher detalhes da invasora">
+          Recolher
+        </button>
       </div>
       <div className="terrain-invasive__species">
-        <span className="terrain-invasive__badge">Invasora</span>
+        <span className="terrain-invasive__badge">
+          {overlay.scenarioType === "hypothetical-introduction" ? "Introduzida" : "Invasora"}
+        </span>
         <div>
           <strong>{overlay.invaderName}</strong>
           <small>{overlay.invaderScientificName ?? "nome cientifico indisponivel"}</small>
@@ -2906,7 +3069,11 @@ function InvasiveImpactOverlay({ overlay }: { overlay: InvasiveOverlayData }) {
       </div>
       <div className="terrain-invasive__section">
         <span>Mecanismos</span>
-        <p>{overlay.impactMechanisms?.join(", ") || "detalhes de impacto indisponiveis"}</p>
+        {overlay.impactMechanisms?.length ? (
+          <div className="terrain-invasive__mechanisms">
+            {overlay.impactMechanisms.map((mechanism) => <span key={mechanism}>{mechanism}</span>)}
+          </div>
+        ) : <p>Detalhes de impacto indisponiveis.</p>}
       </div>
       <div className="terrain-invasive__section">
         <span>Nativas afetadas</span>
@@ -2926,13 +3093,11 @@ function InvasiveImpactOverlay({ overlay }: { overlay: InvasiveOverlayData }) {
           <p>Sem especies afetadas listadas pelo backend.</p>
         )}
       </div>
-      <div className="terrain-invasive__section">
-        <span>Escopo</span>
+      <details className="terrain-invasive__scope">
+        <summary>Escopo da simulacao</summary>
         <p>{overlay.simulatedNotes?.join(", ") || "A simulacao visual mostra presenca e convivencia da invasora."}</p>
-        {overlay.explanationOnlyNotes?.length ? (
-          <p className="terrain-invasive__muted">Explicacao apenas: {overlay.explanationOnlyNotes.join(", ")}</p>
-        ) : null}
-      </div>
+        {overlay.explanationOnlyNotes?.length ? <p className="terrain-invasive__muted">Explicacao apenas: {overlay.explanationOnlyNotes.join(", ")}</p> : null}
+      </details>
     </section>
   );
 }
@@ -3145,7 +3310,8 @@ function LayersControl({
         aria-label="Camadas do mapa"
       >
         <span className="terrain-layers__button-icon" aria-hidden="true">▣</span>
-        Camadas · {PRESET_LABELS[activePreset]}
+        <span>Camadas</span>
+        <span className="terrain-layers__button-mode">· {PRESET_LABELS[activePreset]}</span>
       </button>
       {open ? (
         <div className="terrain-layers__panel" role="menu">
@@ -3410,7 +3576,7 @@ function EcologyTerrainSection({
   const [aiResult, setAiResult] = useState<TerrainPromptResult | null>(null);
   const [report, setReport] = useState<EcosystemReport | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [demoMode, setDemoMode] = useState<DemoRunMode>("auto");
+  const [demoMode, setDemoMode] = useState<DemoRunMode>(getDefaultDemoMode);
   const [offlineDisclosure, setOfflineDisclosure] = useState<string | null>(null);
   const [fallbackScenarioId, setFallbackScenarioId] = useState<DemoScenarioId | null>(null);
   const presentationMode = useUiStore((state) => state.presentationMode);
@@ -3837,6 +4003,99 @@ function EcologyTerrainSection({
           pointer-events: none;
         }
 
+        .terrain-primary-controls {
+          position: absolute;
+          top: 0.75rem;
+          left: 0.75rem;
+          z-index: 4;
+          display: flex;
+          align-items: flex-start;
+          gap: 0.45rem;
+          max-width: calc(100% - 1.5rem);
+          pointer-events: none;
+        }
+
+        .terrain-time-toggle {
+          position: static;
+          pointer-events: auto;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.6rem;
+          min-height: 2.85rem;
+          padding: 0.38rem 0.7rem 0.38rem 0.42rem;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          border-radius: 0.55rem;
+          color: #fff8e8;
+          font: inherit;
+          text-align: left;
+          cursor: pointer;
+          box-shadow: 0 10px 28px rgba(20, 12, 6, 0.28);
+          backdrop-filter: blur(10px);
+          transition:
+            transform 160ms ease,
+            background-color 240ms ease,
+            border-color 240ms ease,
+            box-shadow 240ms ease;
+        }
+
+        .terrain-time-toggle.is-day {
+          background: rgba(111, 69, 25, 0.82);
+          border-color: rgba(255, 218, 134, 0.38);
+        }
+
+        .terrain-time-toggle.is-night {
+          background: rgba(12, 23, 47, 0.88);
+          border-color: rgba(150, 183, 255, 0.35);
+          box-shadow: 0 10px 28px rgba(4, 10, 28, 0.4);
+        }
+
+        .terrain-time-toggle:hover {
+          transform: translateY(-1px);
+          border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .terrain-time-toggle:active { transform: translateY(0); }
+
+        .terrain-time-toggle:focus-visible {
+          outline: 3px solid rgba(255, 232, 165, 0.72);
+          outline-offset: 3px;
+        }
+
+        .terrain-time-toggle__icon {
+          display: grid;
+          place-items: center;
+          width: 2rem;
+          height: 2rem;
+          flex: 0 0 auto;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.12);
+        }
+
+        .terrain-time-toggle__icon svg {
+          width: 1.16rem;
+          height: 1.16rem;
+        }
+
+        .terrain-time-toggle.is-day .terrain-time-toggle__icon { color: #ffd978; }
+        .terrain-time-toggle.is-night .terrain-time-toggle__icon { color: #bfd3ff; }
+
+        .terrain-time-toggle__copy {
+          display: grid;
+          gap: 0.02rem;
+        }
+
+        .terrain-time-toggle__copy strong {
+          color: inherit;
+          font-size: 0.78rem;
+          line-height: 1.15;
+        }
+
+        .terrain-time-toggle__copy small {
+          color: rgba(255, 248, 232, 0.72);
+          font-size: 0.62rem;
+          line-height: 1.2;
+        }
+
         .terrain-inspector,
         .terrain-events {
           position: absolute;
@@ -3956,24 +4215,34 @@ function EcologyTerrainSection({
         .terrain-inspector__action:hover { background: rgba(124, 88, 56, 0.2); }
 
         .terrain-help-chip {
-          position: absolute;
-          right: 0.75rem;
-          bottom: 0.75rem;
+          position: static;
           pointer-events: auto;
-          border: 1px solid rgba(88, 59, 38, 0.18);
-          border-radius: 999px;
-          background: rgba(255, 249, 240, 0.92);
-          color: #5d3d28;
-          padding: 0.45rem 0.75rem;
+          min-height: 2.85rem;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 0.55rem;
+          background: rgba(26, 22, 18, 0.82);
+          color: #f4ead9;
+          padding: 0.45rem 0.72rem;
+          font: inherit;
+          font-size: 0.78rem;
           cursor: pointer;
-          box-shadow: 0 10px 24px rgba(78, 50, 28, 0.16);
+          box-shadow: 0 10px 24px rgba(20, 12, 6, 0.3);
+          backdrop-filter: blur(8px);
+        }
+
+        .terrain-help-chip:hover { border-color: rgba(255, 255, 255, 0.38); }
+
+        .terrain-help-chip:focus-visible {
+          outline: 3px solid rgba(255, 232, 165, 0.72);
+          outline-offset: 3px;
         }
 
         .terrain-gesture-help {
           position: absolute;
-          right: 0.75rem;
-          bottom: 3.4rem;
+          top: 4.4rem;
+          left: 0.75rem;
           width: min(18rem, calc(100% - 1.5rem));
+          z-index: 5;
           pointer-events: auto;
           display: grid;
           gap: 0.35rem;
@@ -4231,13 +4500,10 @@ function EcologyTerrainSection({
 
         /* ─── Compact layer switcher (top-left) ──────────────────────────────── */
         .terrain-layers {
-          position: absolute;
-          top: 0.75rem;
-          left: 0.75rem;
+          position: static;
           pointer-events: auto;
           display: grid;
           gap: 0.5rem;
-          z-index: 3;
         }
 
         .terrain-layers__button {
@@ -4245,6 +4511,7 @@ function EcologyTerrainSection({
           align-items: center;
           gap: 0.45rem;
           width: max-content;
+          min-height: 2.85rem;
           padding: 0.5rem 0.72rem;
           border-radius: 0.55rem;
           border: 1px solid rgba(255, 255, 255, 0.12);
@@ -4754,6 +5021,13 @@ function EcologyTerrainSection({
             min-height: 25rem;
           }
 
+          .terrain-primary-controls {
+            top: 0.55rem;
+            left: 0.55rem;
+            gap: 0.35rem;
+            max-width: calc(100% - 1.1rem);
+          }
+
           .terrain-inspector {
             left: 0.55rem;
             right: 0.55rem;
@@ -4799,6 +5073,31 @@ function EcologyTerrainSection({
           .terrain-stage__legend-item {
             padding: 0.42rem 0.62rem;
           }
+
+          .terrain-time-toggle {
+            min-height: 2.45rem;
+            padding: 0.28rem 0.55rem 0.28rem 0.3rem;
+          }
+
+          .terrain-layers__button,
+          .terrain-help-chip { min-height: 2.45rem; }
+
+          .terrain-time-toggle__icon {
+            width: 1.75rem;
+            height: 1.75rem;
+          }
+
+          .terrain-time-toggle__copy small { display: none; }
+
+          .terrain-gesture-help { top: auto; }
+        }
+
+        @media (max-width: 380px) {
+          .terrain-layers__button-mode { display: none; }
+
+          .terrain-time-toggle,
+          .terrain-layers__button,
+          .terrain-help-chip { font-size: 0.72rem; }
         }
       `}</style>
 

@@ -84,3 +84,26 @@ test("HTTP integration: health stays public while ecology.generate requires the 
     ecologicalLlmService.generate = originalGenerate;
   }
 });
+
+test("HTTP integration: oversized JSON returns 413 instead of a generic 500", async () => {
+  const originalAuthMode = env.authMode;
+  const originalMaxBytes = env.apiJsonMaxBytes;
+  env.authMode = "disabled";
+  env.apiJsonMaxBytes = 128;
+
+  try {
+    await withTestServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/ecology/fauna`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ biomes: ["cerrado"], padding: "x".repeat(256) }),
+      });
+      assert.equal(response.status, 413);
+      const payload = (await response.json()) as { error: { code: string } };
+      assert.equal(payload.error.code, "PAYLOAD_TOO_LARGE");
+    });
+  } finally {
+    env.authMode = originalAuthMode;
+    env.apiJsonMaxBytes = originalMaxBytes;
+  }
+});
