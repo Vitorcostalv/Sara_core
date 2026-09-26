@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { getLanInfo } from "../pwa/lan";
 
 interface UiState {
   apiBaseUrl: string;
@@ -38,6 +39,13 @@ export function normalizeApiBaseUrl(value: string): string {
 function getInitialApiBaseUrl(): string {
   if (typeof window === "undefined") {
     return defaultApiBaseUrl;
+  }
+
+  // Servido pela rede local: a API está na mesma origem, e "localhost" no celular
+  // apontaria para o próprio celular. Vence qualquer endereço salvo.
+  const lan = getLanInfo();
+  if (lan) {
+    return lan.apiBaseUrl;
   }
 
   const saved = window.localStorage.getItem(storageKey);

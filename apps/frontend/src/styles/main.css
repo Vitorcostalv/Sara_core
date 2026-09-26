@@ -228,6 +228,62 @@ code {
   line-height: 1.5;
 }
 
+.app-dialog__panel--phone {
+  width: min(26rem, 100%);
+  text-align: center;
+}
+
+.phone-qr svg {
+  display: block;
+  width: min(18rem, 100%);
+  height: auto;
+  margin: 1rem auto;
+  border-radius: var(--token-radius-md);
+}
+
+.phone-qr__url {
+  display: inline-block;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem;
+  background: var(--color-surface-base, rgba(47, 107, 79, 0.08));
+  word-break: break-all;
+}
+
+.phone-qr__step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  font-weight: 600;
+}
+
+.phone-qr__step b {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--color-brand-primary, #2f6b4f);
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+/* Com dois códigos no diálogo, cada um encolhe para caber na tela do celular. */
+.phone-qr__step ~ .phone-qr svg {
+  width: min(13rem, 100%);
+}
+
+.app-dialog__panel--phone {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+
+.phone-qr__alternatives {
+  margin-top: 0.9rem;
+  text-align: left;
+}
+
 .app-dialog__close {
   position: absolute;
   top: 0.75rem;

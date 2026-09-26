@@ -1,10 +1,13 @@
 import { useEffect, useState, type PropsWithChildren } from "react";
-import { DownloadSimple, Info, Leaf, PresentationChart, X } from "@phosphor-icons/react";
+import { DeviceMobile, DownloadSimple, Info, Leaf, PresentationChart, X } from "@phosphor-icons/react";
 import { useUiStore } from "../state/ui.store";
+import { getLanInfo } from "../pwa/lan";
 import { useAndroidBackButton, useCloseOnAndroidBack } from "../pwa/androidBack";
 
 export function AppShell({ children }: PropsWithChildren) {
   const [infoOpen, setInfoOpen] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const lanInfo = getLanInfo();
   const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
   const [updateReady, setUpdateReady] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
@@ -15,7 +18,8 @@ export function AppShell({ children }: PropsWithChildren) {
   // dismissible surface claim the press (info dialog first, then presentation mode).
   useAndroidBackButton();
   useCloseOnAndroidBack(infoOpen, () => setInfoOpen(false));
-  useCloseOnAndroidBack(!infoOpen && presentationMode, () => setPresentationMode(false));
+  useCloseOnAndroidBack(phoneOpen, () => setPhoneOpen(false));
+  useCloseOnAndroidBack(!infoOpen && !phoneOpen && presentationMode, () => setPresentationMode(false));
 
   useEffect(() => {
     const syncOnline = () => setOnline(navigator.onLine);
@@ -78,6 +82,17 @@ export function AppShell({ children }: PropsWithChildren) {
               Atualizar app
             </button>
           ) : null}
+          {lanInfo ? (
+            <button
+              type="button"
+              className="status-chip status-chip--button status-chip--quiet"
+              onClick={() => setPhoneOpen(true)}
+              title="Mostrar QR code para abrir no celular"
+            >
+              <DeviceMobile weight="duotone" />
+              Abrir no celular
+            </button>
+          ) : null}
           <button
             type="button"
             className="status-chip status-chip--button status-chip--quiet"
@@ -121,6 +136,53 @@ export function AppShell({ children }: PropsWithChildren) {
               <li>A visualização 3D representa o resultado gerado.</li>
               <li>Os scores são heurísticos e educacionais, não previsões ecológicas formais.</li>
             </ol>
+          </section>
+        </div>
+      ) : null}
+
+      {phoneOpen && lanInfo ? (
+        <div className="app-dialog" role="dialog" aria-modal="true" aria-label="Abrir no celular">
+          <section className="app-dialog__panel app-dialog__panel--phone">
+            <button
+              type="button"
+              className="app-dialog__close"
+              onClick={() => setPhoneOpen(false)}
+              aria-label="Fechar"
+            >
+              <X weight="bold" />
+            </button>
+            <h2>Abrir no celular</h2>
+            {lanInfo.wifi ? (
+              <>
+                <p className="phone-qr__step">
+                  <b>1</b> Conecte no Wi-Fi do PC
+                </p>
+                <div className="phone-qr" dangerouslySetInnerHTML={{ __html: lanInfo.wifi.qrSvg }} />
+                <p>
+                  Rede <code>{lanInfo.wifi.ssid}</code> · senha <code>{lanInfo.wifi.passphrase}</code>
+                </p>
+                <p className="phone-qr__step">
+                  <b>2</b> Abra o app
+                </p>
+              </>
+            ) : (
+              <p>Aponte a câmera do celular para o código. Ele precisa estar no mesmo Wi-Fi que o PC.</p>
+            )}
+            {/* SVGs gerados localmente pelo serve-lan.mjs a partir do IP do próprio PC. */}
+            <div className="phone-qr" dangerouslySetInnerHTML={{ __html: lanInfo.qrSvg }} />
+            <code className="phone-qr__url">{lanInfo.url}</code>
+            {lanInfo.urls.length > 1 ? (
+              <details className="phone-qr__alternatives">
+                <summary>Não abriu? Tente outro endereço</summary>
+                <ul>
+                  {lanInfo.urls.slice(1).map((item) => (
+                    <li key={item.url}>
+                      <code>{item.url}</code> <small>({item.name})</small>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
           </section>
         </div>
       ) : null}
