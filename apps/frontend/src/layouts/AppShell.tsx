@@ -1,5 +1,5 @@
 import { useEffect, useState, type PropsWithChildren } from "react";
-import { Info, Leaf, PresentationChart, X } from "@phosphor-icons/react";
+import { DownloadSimple, Info, Leaf, PresentationChart, X } from "@phosphor-icons/react";
 import { useUiStore } from "../state/ui.store";
 import { useAndroidBackButton, useCloseOnAndroidBack } from "../pwa/androidBack";
 
@@ -53,17 +53,24 @@ export function AppShell({ children }: PropsWithChildren) {
           </div>
           <div className="app-header__titles">
             <strong>Sara Core</strong>
-            <span>Simulacao ecologica assistida por IA e validada por regras deterministicas</span>
+            <span>Simulação ecológica assistida por IA e validada por regras determinísticas</span>
           </div>
         </div>
 
-        <div className="app-header__status" aria-label="Acoes do sistema">
-          <span className={`status-chip ${online ? "" : "status-chip--offline"}`}>
+        <div className="app-header__status" aria-label="Ações do sistema">
+          <span
+            className={`status-chip status-chip--quiet status-chip--network${online ? "" : " status-chip--offline"}`}
+          >
             {online ? "Online" : "Offline"}
           </span>
           {installPrompt ? (
-            <button type="button" className="status-chip status-chip--button" onClick={() => void installApp()}>
-              Instalar PWA
+            <button
+              type="button"
+              className="status-chip status-chip--button status-chip--quiet"
+              onClick={() => void installApp()}
+            >
+              <DownloadSimple weight="duotone" />
+              Instalar
             </button>
           ) : null}
           {updateReady ? (
@@ -71,9 +78,14 @@ export function AppShell({ children }: PropsWithChildren) {
               Atualizar app
             </button>
           ) : null}
-          <button type="button" className="status-chip status-chip--button" onClick={() => setInfoOpen(true)}>
+          <button
+            type="button"
+            className="status-chip status-chip--button status-chip--quiet"
+            onClick={() => setInfoOpen(true)}
+            title="Como o Sara Core funciona"
+          >
             <Info weight="duotone" />
-            Como o Sara Core funciona
+            Como funciona
           </button>
           <button
             type="button"
@@ -81,7 +93,7 @@ export function AppShell({ children }: PropsWithChildren) {
             onClick={() => setPresentationMode(!presentationMode)}
           >
             <PresentationChart weight="duotone" />
-            {presentationMode ? "Sair do modo apresentacao" : "Iniciar apresentacao"}
+            {presentationMode ? "Sair da apresentação" : "Iniciar apresentação"}
           </button>
         </div>
       </header>
@@ -104,10 +116,10 @@ export function AppShell({ children }: PropsWithChildren) {
             <h2>Como o Sara Core funciona</h2>
             <ol>
               <li>A IA interpreta o pedido em linguagem natural.</li>
-              <li>Dados curados fundamentam o contexto e limitam a explicacao.</li>
-              <li>Servicos deterministicos validam clima, recursos, fauna e rede trofica no backend.</li>
-              <li>A visualizacao 3D representa o resultado gerado.</li>
-              <li>Os scores sao heuristicos e educacionais, nao previsoes ecologicas formais.</li>
+              <li>Dados curados fundamentam o contexto e limitam a explicação.</li>
+              <li>Serviços determinísticos validam clima, recursos, fauna e rede trófica no backend.</li>
+              <li>A visualização 3D representa o resultado gerado.</li>
+              <li>Os scores são heurísticos e educacionais, não previsões ecológicas formais.</li>
             </ol>
           </section>
         </div>

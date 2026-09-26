@@ -63,13 +63,13 @@ export function isApiClientError(error: unknown): error is ApiClientError {
 export function getApiErrorMessage(error: unknown): string {
   if (isApiClientError(error)) {
     if (error.status === 401) {
-      return "Acesso negado pela API. Verifique a chave de integracao configurada para este ambiente.";
+      return "Acesso negado pela API. Verifique a chave de integração configurada para este ambiente.";
     }
 
     if (error.status === 429) {
       return error.retryAfterSeconds
-        ? `Limite temporario atingido. Tente novamente em cerca de ${error.retryAfterSeconds}s.`
-        : "Limite temporario atingido. Aguarde um pouco antes de tentar novamente.";
+        ? `Limite temporário atingido. Tente novamente em cerca de ${error.retryAfterSeconds}s.`
+        : "Limite temporário atingido. Aguarde um pouco antes de tentar novamente.";
     }
 
     return error.payload?.error.message ?? error.message;

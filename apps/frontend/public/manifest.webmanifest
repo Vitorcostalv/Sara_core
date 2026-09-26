@@ -1,7 +1,7 @@
 {
   "name": "Sara Core",
   "short_name": "Sara Core",
-  "description": "Simulacao ecologica assistida por IA e validada por regras deterministicas.",
+  "description": "Simulação ecológica assistida por IA e validada por regras determinísticas.",
   "start_url": "/ecology",
   "scope": "/",
   "display": "standalone",
@@ -27,7 +27,7 @@
     {
       "name": "Simular ambiente",
       "url": "/ecology",
-      "description": "Abrir o fluxo de simulacao ecologica."
+      "description": "Abrir o fluxo de simulação ecológica."
     }
   ]
 }

@@ -20,6 +20,10 @@ import {
 } from "./resource-base";
 import { plausibilityBand, type PlausibilityBand } from "./ecological-plausibility.service";
 import type { TerrainGrid } from "./terrain-generator.service";
+import {
+  invasionCommunityService,
+  type InvasionCommunityResult,
+} from "./invasion-community.service";
 import type {
   PlausibilityAssessment,
   PlausibilityCriterion,
@@ -108,12 +112,16 @@ export interface InvasiveScenarioResult {
   terrain: TerrainGrid;
   resolvedBiomes: string[];
   invader: SpeciesDefinition;
+  nativeSpecies: SpeciesDefinition[];
+  community: Omit<InvasionCommunityResult, "nativeSpecies">;
   invaderProfile: {
     displayName: string;
     scientificName: string;
     nativeBiomes: string[];
     survives: boolean;
     scenarioType: InvasiveScenarioType;
+    functionalRole: InvasiveFunctionalRole;
+    functionalRoleLabel: string;
   };
   consequences: InvaderConsequences;
   nativeImpacts: NativeImpact[];
@@ -137,6 +145,32 @@ export interface InvasiveScenarioResult {
 
 // ─── Invader profiles (deterministic backbone; LLM-independent) ───────────────
 
+/** Classificação funcional dos invasores do catálogo. */
+export type InvasiveFunctionalRole =
+  | "grande-predador"
+  | "predador-de-pequenos-vertebrados"
+  | "predador-aquatico"
+  | "herbivoro-de-forte-impacto"
+  | "onivoro-terrestre"
+  | "peixe-generalista"
+  | "predador-anfibio-generalista"
+  | "consumidor-de-vegetacao"
+  | "filtrador-aquatico"
+  | "competidor-generalista";
+
+export const INVASIVE_FUNCTIONAL_ROLE_LABELS: Record<InvasiveFunctionalRole, string> = {
+  "grande-predador": "Grande predador",
+  "predador-de-pequenos-vertebrados": "Predador de pequenos vertebrados",
+  "predador-aquatico": "Predador aquático",
+  "herbivoro-de-forte-impacto": "Herbívoro de forte impacto",
+  "onivoro-terrestre": "Onívoro terrestre",
+  "peixe-generalista": "Peixe generalista",
+  "predador-anfibio-generalista": "Predador anfíbio generalista",
+  "consumidor-de-vegetacao": "Consumidor de vegetação",
+  "filtrador-aquatico": "Filtrador aquático",
+  "competidor-generalista": "Competidor generalista",
+};
+
 export interface InvaderProfile {
   displayName: string;
   scientificName: string;
@@ -154,6 +188,11 @@ export interface InvaderProfile {
   /** Named impact mechanisms this invader is known/expected to drive when established. */
   mechanisms: InvasiveMechanismKind[];
   keywords: string[];
+  /**
+   * Função ecológica dominante do invasor. Agrupa espécies pelo modo como agem
+   * sobre a comunidade — é o que explica o impacto, mais do que o táxon.
+   */
+  functionalRole: InvasiveFunctionalRole;
   /** Coarse taxon for non-mammal invaders (fish, amphibian, invertebrate). */
   taxonGroup?: TaxonGroup;
   /** Short note on what the establishment depends on (curated). */
@@ -175,6 +214,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["predator-large", "predator-medium"],
     mechanisms: ["predacao", "competicao-espaco", "cascata-trofica"],
     keywords: ["leão", "leao", "lion", "panthera leo"],
+    functionalRole: "grande-predador",
   },
   {
     displayName: "Lobo-cinzento",
@@ -187,6 +227,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["predator-medium"],
     mechanisms: ["predacao", "competicao-espaco", "cascata-trofica"],
     keywords: ["lobo", "wolf", "canis lupus", "lobo cinzento"],
+    functionalRole: "grande-predador",
   },
   {
     displayName: "Tigre",
@@ -194,11 +235,12 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     category: "predator-large",
     trophicLevel: "apex",
     feedingStrategy: "carnivore",
-    compatiblePresets: ["amazonia", "floresta-tropical", "mata-atlantica", "floresta-temperada", "pantanal"],
+    compatiblePresets: ["amazonia", "floresta-tropical", "mata-atlantica", "floresta-temperada", "pantanal", "mangue"],
     preyCategories: ["herbivore-large", "herbivore-small"],
     competesCategories: ["predator-large", "predator-medium"],
     mechanisms: ["predacao", "competicao-espaco", "cascata-trofica"],
     keywords: ["tigre", "tiger", "panthera tigris"],
+    functionalRole: "grande-predador",
   },
   {
     displayName: "Javali",
@@ -221,6 +263,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["herbivore-large", "herbivore-small"],
     mechanisms: ["predacao", "sobrepastejo", "supressao-vegetal", "competicao-alimentar", "engenharia-habitat", "transmissao-doenca"],
     keywords: ["javali", "porco selvagem", "porco-do-mato", "wild boar", "sus scrofa"],
+    functionalRole: "onivoro-terrestre",
   },
   {
     displayName: "Coelho-europeu",
@@ -233,6 +276,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["herbivore-small"],
     mechanisms: ["sobrepastejo", "supressao-vegetal", "competicao-alimentar", "deplecao-recursos", "engenharia-habitat"],
     keywords: ["coelho", "rabbit", "oryctolagus", "coelho europeu"],
+    functionalRole: "herbivoro-de-forte-impacto",
   },
   {
     displayName: "Tilápia-do-nilo",
@@ -245,6 +289,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["fish"],
     mechanisms: ["alteracao-aquatica", "competicao-alimentar", "deplecao-recursos", "engenharia-habitat"],
     keywords: ["tilápia", "tilapia", "oreochromis"],
+    functionalRole: "peixe-generalista",
     establishmentNote: "Estabelece-se em águas quentes e eutróficas; tolera baixa oxigenação.",
     uncertaintyNotes: ["Impacto depende de conectividade hídrica e manejo de tanques."],
   },
@@ -259,6 +304,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["herbivore-large"],
     mechanisms: ["sobrepastejo", "engenharia-habitat", "supressao-vegetal", "competicao-alimentar", "alteracao-aquatica"],
     keywords: ["bufalo", "búfalo", "bubalus", "bufalo asiatico"],
+    functionalRole: "herbivoro-de-forte-impacto",
     establishmentNote: "Prospera em planícies alagáveis; pisoteio altera margens e macrófitas.",
     uncertaintyNotes: ["Densidade e dano dependem de manejo pecuário local."],
   },
@@ -268,11 +314,12 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     category: "herbivore-large",
     trophicLevel: "herbivore",
     feedingStrategy: "herbivore",
-    compatiblePresets: ["caatinga", "cerrado", "pradaria", "deserto", "mediterraneo"],
+    compatiblePresets: ["caatinga", "cerrado", "pradaria", "deserto", "mediterraneo", "montanha"],
     preyCategories: [],
     competesCategories: ["herbivore-large", "herbivore-small"],
     mechanisms: ["sobrepastejo", "supressao-vegetal", "deplecao-recursos", "competicao-alimentar", "engenharia-habitat"],
     keywords: ["cabra", "bode", "capra hircus", "caprino"],
+    functionalRole: "herbivoro-de-forte-impacto",
     establishmentNote: "Generalista resistente à seca; sobrepastejo severo em semiárido.",
     uncertaintyNotes: ["Ferala vs. manejada muda muito a pressão sobre a vegetação."],
   },
@@ -287,6 +334,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["herbivore-small"],
     mechanisms: ["sobrepastejo", "competicao-alimentar", "deplecao-recursos"],
     keywords: ["lebre", "lebre europeia", "lepus"],
+    functionalRole: "herbivoro-de-forte-impacto",
     establishmentNote: "Estabelece-se em campos abertos temperados/subtropicais.",
   },
   {
@@ -300,6 +348,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["fish"],
     mechanisms: ["predacao", "competicao-alimentar", "cascata-trofica"],
     keywords: ["tucunare", "tucunaré", "cichla"],
+    functionalRole: "predador-aquatico",
     taxonGroup: "peixe",
     establishmentNote: "Predador voraz introduzido fora da bacia amazônica em reservatórios.",
     uncertaintyNotes: ["Efeito de cascata depende da comunidade de peixes nativos."],
@@ -315,6 +364,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["herbivore-small"],
     mechanisms: ["predacao", "competicao-alimentar", "transmissao-doenca"],
     keywords: ["ra-touro", "rã-touro", "lithobates", "bullfrog"],
+    functionalRole: "predador-anfibio-generalista",
     taxonGroup: "anfíbio",
     establishmentNote: "Escapa de ranários; predador/competidor de anfíbios nativos.",
     uncertaintyNotes: ["Vetor potencial de quitridiomicose (Bd) — risco sanitário incerto."],
@@ -330,6 +380,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["herbivore-small"],
     mechanisms: ["supressao-vegetal", "competicao-alimentar", "transmissao-doenca", "deplecao-recursos"],
     keywords: ["caramujo", "caramujo gigante", "achatina", "lissachatina"],
+    functionalRole: "consumidor-de-vegetacao",
     taxonGroup: "invertebrado",
     establishmentNote: "Prospera em áreas úmidas e antropizadas; alta prolificidade.",
     uncertaintyNotes: ["Hospedeiro de Angiostrongylus — risco à saúde humana."],
@@ -345,6 +396,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["fish"],
     mechanisms: ["alteracao-aquatica", "competicao-espaco", "engenharia-habitat", "deplecao-recursos"],
     keywords: ["mexilhao dourado", "mexilhão-dourado", "limnoperna"],
+    functionalRole: "filtrador-aquatico",
     taxonGroup: "invertebrado",
     establishmentNote: "Bivalve filtrador que incrusta substratos e altera a teia planctônica.",
     uncertaintyNotes: ["Dispersão por hidrovias e cascos é difícil de conter."],
@@ -360,6 +412,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["predator-medium"],
     mechanisms: ["predacao", "competicao-espaco", "cascata-trofica"],
     keywords: ["gato feral", "gato asselvajado", "gato domestico", "felis catus"],
+    functionalRole: "predador-de-pequenos-vertebrados",
     establishmentNote: "Predador generalista associado a ambientes naturais próximos de ocupação humana.",
     uncertaintyNotes: ["O impacto depende da densidade de gatos e do acesso à fauna silvestre."],
   },
@@ -374,6 +427,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["predator-medium", "predator-large"],
     mechanisms: ["predacao", "competicao-espaco", "transmissao-doenca"],
     keywords: ["cao feral", "cão feral", "cachorro feral", "cao asselvajado", "canis lupus familiaris"],
+    functionalRole: "predador-de-pequenos-vertebrados",
     establishmentNote: "Pode formar grupos livres e explorar áreas naturais próximas a assentamentos.",
     uncertaintyNotes: ["A distinção entre indivíduo errante e população feral estabelecida exige dados locais."],
   },
@@ -388,6 +442,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["herbivore-small"],
     mechanisms: ["predacao", "competicao-alimentar", "transmissao-doenca", "deplecao-recursos"],
     keywords: ["rato-preto", "rato preto", "rattus rattus", "rato de telhado"],
+    functionalRole: "onivoro-terrestre",
     establishmentNote: "Onívoro oportunista com alta associação a transporte, construções e ilhas.",
     uncertaintyNotes: ["A pressão sobre ninhos e sementes varia com a oferta de alimento antrópico."],
   },
@@ -402,6 +457,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["fish"],
     mechanisms: ["predacao", "competicao-alimentar", "cascata-trofica"],
     keywords: ["peixe-leao", "peixe-leão", "pterois", "lionfish"],
+    functionalRole: "predador-aquatico",
     taxonGroup: "peixe",
     establishmentNote: "Predador marinho associado a recifes, costões e habitats costeiros quentes.",
     uncertaintyNotes: ["O MVP representa oceano e manguezal, mas não resolve a estrutura fina de recifes."],
@@ -417,6 +473,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["fish"],
     mechanisms: ["alteracao-aquatica", "engenharia-habitat", "competicao-alimentar", "deplecao-recursos"],
     keywords: ["carpa", "carpa-comum", "carpa comum", "cyprinus carpio"],
+    functionalRole: "peixe-generalista",
     taxonGroup: "peixe",
     establishmentNote: "Peixe bentívoro capaz de aumentar turbidez e ressuspender sedimentos.",
     uncertaintyNotes: ["A alteração do habitat depende da profundidade, densidade e tipo de sedimento."],
@@ -432,6 +489,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["herbivore-small"],
     mechanisms: ["competicao-alimentar", "deplecao-recursos", "transmissao-doenca", "supressao-vegetal"],
     keywords: ["esquilo-cinzento", "esquilo cinzento", "sciurus carolinensis", "grey squirrel"],
+    functionalRole: "competidor-generalista",
     establishmentNote: "Generalista arborícola favorecido por florestas fragmentadas e áreas verdes.",
     uncertaintyNotes: ["A competição depende da presença de esquilos nativos com nicho semelhante."],
   },
@@ -446,6 +504,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["predator-medium"],
     mechanisms: ["predacao", "competicao-espaco", "cascata-trofica"],
     keywords: ["vison", "vison-americano", "vison americano", "neogale vison", "american mink"],
+    functionalRole: "predador-de-pequenos-vertebrados",
     establishmentNote: "Predador semiaquático associado a rios, lagos e áreas úmidas.",
     uncertaintyNotes: ["A conectividade entre corpos d'água controla dispersão e persistência."],
   },
@@ -460,6 +519,7 @@ export const INVADER_PROFILES: InvaderProfile[] = [
     competesCategories: ["bird", "herbivore-small"],
     mechanisms: ["competicao-alimentar", "competicao-espaco", "transmissao-doenca"],
     keywords: ["pardal", "pardal-domestico", "pardal-doméstico", "passer domesticus", "house sparrow"],
+    functionalRole: "competidor-generalista",
     taxonGroup: "ave",
     establishmentNote: "Ave sinantrópica generalista que ocupa áreas abertas e construídas.",
     uncertaintyNotes: ["O terreno natural do MVP não representa diretamente estruturas urbanas usadas para nidificação."],
@@ -638,6 +698,9 @@ const GENERIC_PROFILE: InvaderProfile = {
   competesCategories: ["herbivore-large", "herbivore-small"],
   mechanisms: ["competicao-alimentar"],
   keywords: [],
+  // Espécie fora do catálogo: sem função ecológica conhecida, assume-se apenas
+  // competição generalista, coerente com o resto do perfil genérico.
+  functionalRole: "competidor-generalista",
 };
 
 function normalize(text: string): string {
@@ -839,7 +902,7 @@ export class InvasiveScenarioService {
       // Otherwise a small forest patch in the Cerrado can incorrectly add canopy resources.
       habitableBiomes: [intendedBiome],
     });
-    const nativeImpacts = projectNativeImpacts(
+    let nativeImpacts = projectNativeImpacts(
       profile,
       natives,
       survives,
@@ -848,7 +911,7 @@ export class InvasiveScenarioService {
 
     // 4. Espécie invasora sintética (entra na cadeia do FaunaLayer).
     const predatedIds = nativeImpacts.filter((i) => i.effect === "predation").map((i) => i.speciesId);
-    const invader: SpeciesDefinition = {
+    let invader: SpeciesDefinition = {
       id: `invasor-${normalize(profile.displayName).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "especie"}`,
       commonName: profile.displayName,
       scientificName: profile.scientificName,
@@ -888,14 +951,33 @@ export class InvasiveScenarioService {
     };
 
     // 5. Linha do tempo determinística (introdução → dispersão → equilíbrio/colapso).
+    const community = invasionCommunityService.consolidate({
+      terrain: terrainResult.terrain,
+      intendedBiome,
+      natives,
+      invader,
+      survives,
+    });
+    nativeImpacts = projectNativeImpacts(profile, community.nativeSpecies, survives, invaderResourceNeeds);
+    const consolidatedPredatedIds = nativeImpacts
+      .filter((impact) => impact.effect === "predation")
+      .map((impact) => impact.speciesId);
+    invader = {
+      ...invader,
+      diet: consolidatedPredatedIds,
+      preySpeciesIds: consolidatedPredatedIds,
+      predation: predationFor(profile.category, consolidatedPredatedIds),
+    };
+
     const phases = buildPhases(survives, nativeImpacts);
 
     // 6. Grounding científico.
     // Ground the explanation in the scenario explicitly selected by the user. Residual
     // render biomes are useful for terrain variation, but must not inject unrelated facts.
     const ecosystemSlugs = [terrainResult.biomeSlug];
+    const scenarioEcologyContext = `Flora local: ${community.baseline.flora} Fauna de referencia: ${community.baseline.fauna.join(", ")}. Regra estrutural: ${community.baseline.structuralRule}.`;
     const context = await ecologicalContextBuilderService.buildContext({
-      prompt: `Espécie invasora "${profile.displayName}" em ${terrainResult.biomeName}. ${input.speciesText} ${input.locationText}`,
+      prompt: `Espécie invasora "${profile.displayName}" em ${terrainResult.biomeName}. ${scenarioEcologyContext} ${input.speciesText} ${input.locationText}`,
       ecosystems: Array.from(new Set(ecosystemSlugs)),
       maxFacts: 10,
     });
@@ -925,8 +1007,7 @@ export class InvasiveScenarioService {
     );
 
     // 7. Impacto ecológico nomeado (só é ativo quando o invasor consegue se estabelecer).
-    const resourceAssessment = resourceAvailabilityEvaluator.assessFromGrid(terrainResult.terrain, natives);
-    const affectedResources = buildAffectedResources(invader.resourceNeeds, resourceAssessment);
+    const affectedResources = buildAffectedResources(invader.resourceNeeds, community.resourceBase);
     const impactMechanisms = survives
       ? buildImpactMechanisms(profile, nativeImpacts, affectedResources)
       : [];
@@ -937,12 +1018,21 @@ export class InvasiveScenarioService {
       terrain: terrainResult.terrain,
       resolvedBiomes,
       invader,
+      nativeSpecies: community.nativeSpecies,
+      community: {
+        resourceBase: community.resourceBase,
+        defenses: community.defenses,
+        warnings: community.warnings,
+        baseline: community.baseline,
+      },
       invaderProfile: {
         displayName: profile.displayName,
         scientificName: profile.scientificName,
         nativeBiomes: profile.compatiblePresets,
         survives,
         scenarioType: consequences.scenarioType,
+        functionalRole: profile.functionalRole,
+        functionalRoleLabel: INVASIVE_FUNCTIONAL_ROLE_LABELS[profile.functionalRole],
       },
       consequences,
       nativeImpacts,

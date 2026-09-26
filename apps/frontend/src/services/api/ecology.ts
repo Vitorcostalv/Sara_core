@@ -437,12 +437,33 @@ export interface InvasiveScenarioResult {
   terrain: TerrainGrid;
   resolvedBiomes: string[];
   invader: SpeciesDefinition;
+  nativeSpecies?: SpeciesDefinition[];
+  community?: {
+    resourceBase: ResourceBaseAssessment;
+    defenses: Array<{
+      speciesId: string;
+      commonName: string;
+      response: "predation" | "competition" | "avoidance";
+      strength: "low" | "moderate" | "high";
+      reason: string;
+    }>;
+    warnings: string[];
+    baseline: {
+      flora: string;
+      fauna: string[];
+      structuralRule: string;
+      keyResources: ResourceType[];
+    };
+  };
   invaderProfile: {
     displayName: string;
     scientificName: string;
     nativeBiomes: string[];
     survives: boolean;
     scenarioType?: InvaderConsequences["scenarioType"];
+    /** Função ecológica dominante (grande predador, filtrador aquático, ...). */
+    functionalRole?: string;
+    functionalRoleLabel?: string;
   };
   consequences?: InvaderConsequences;
   nativeImpacts: NativeImpact[];

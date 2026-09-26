@@ -15,7 +15,7 @@ import { getOfflineInvasiveSnapshot, saveLastScenario } from "../../demo/offline
 
 const RATING_LABEL: Record<PlausibilityRating, string> = {
   alto: "Alto",
-  medio: "Medio",
+  medio: "Médio",
   baixo: "Baixo",
 };
 
@@ -26,11 +26,11 @@ const RATING_TONE: Record<PlausibilityRating, "success" | "warning" | "error"> =
 };
 
 const EFFECT_LABEL: Record<string, string> = {
-  predation: "Predacao",
-  competition: "Competicao",
-  "habitat-alteration": "Alteracao de habitat",
-  disease: "Doenca",
-  "resource-pressure": "Pressao sobre recursos",
+  predation: "Predação",
+  competition: "Competição",
+  "habitat-alteration": "Alteração de habitat",
+  disease: "Doença",
+  "resource-pressure": "Pressão sobre recursos",
   none: "Sem impacto direto",
 };
 
@@ -163,21 +163,16 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
       setOfflineDisclosure(null);
       saveLastScenario({ scenarioId: "invasao-javali-cerrado", mode: "live", invasiveResult: data });
 
-      let natives: SpeciesDefinition[] = [];
-      try {
-        // Use the complete grid so the backend can discard residual biomes and enforce
-        // climate/salinity constraints. Passing only the raw biome list can reintroduce
-        // incompatible fauna from a handful of outlier cells (for example, polar species).
+      let natives = data.nativeSpecies;
+      // Transitional compatibility for a frontend updated before its backend process restarts.
+      // Current responses already contain the consolidated community and skip this request.
+      if (!natives) {
         const faunaResponse = await ecologyApi.fauna({ grid: buildCompactFaunaGrid(data.terrain) });
         natives = faunaResponse.data.species;
-      } catch (faunaRequestError) {
-        setFaunaSpecies([]);
-        setError(`O cenário foi gerado, mas a fauna nativa não pôde ser carregada: ${getApiErrorMessage(faunaRequestError)}`);
-        return;
       }
       if (natives.length === 0) {
         setFaunaSpecies([]);
-        setError("O cenário foi gerado, mas nenhuma fauna nativa compatível foi encontrada. A invasora não será exibida sozinha.");
+        setError("O cenário foi gerado, mas o consolidador não encontrou uma comunidade nativa funcional. A invasora não será exibida sozinha.");
         return;
       }
       setFaunaSpecies([...natives, data.invader]);
@@ -193,7 +188,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
     setSelectedSpeciesId("javali");
     setSelectedLocationId("cerrado");
     setResult(snapshot.result);
-    setFaunaSpecies([snapshot.result.invader]);
+    setFaunaSpecies([...(snapshot.result.nativeSpecies ?? []), snapshot.result.invader]);
     setPhaseIndex(0);
     setError(null);
     setOfflineDisclosure(snapshot.meta.disclosure);
@@ -364,7 +359,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
       <section className="signal-panel signal-panel--llm">
         <div className="signal-panel__header">
           <div>
-            <h3>Especie introduzida ou invasora</h3>
+            <h3>Espécie introduzida ou invasora</h3>
             <p>
               Combine livremente qualquer espécie catalogada com qualquer cenário. O sistema
               avalia se a invasão é plausível — inclusive quando a combinação é incompatível — e
@@ -375,12 +370,16 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
             <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
               {result.invaderProfile.scenarioType ? (
                 <StatusPill tone={result.invaderProfile.scenarioType === "hypothetical-introduction" ? "neutral" : "warning"}>
-                  {result.invaderProfile.scenarioType === "hypothetical-introduction" ? "Introducao hipotetica" : "Invasora documentada"}
+                  {result.invaderProfile.scenarioType === "hypothetical-introduction" ? "Introdução hipotética" : "Invasora documentada"}
                 </StatusPill>
               ) : null}
               <StatusPill tone={result.invaderProfile.survives ? "warning" : "neutral"}>
-                {result.invaderProfile.survives ? "Estabelecimento plausivel" : "Estabelecimento improvavel"}
+                {result.invaderProfile.survives ? "Estabelecimento plausível" : "Estabelecimento improvável"}
               </StatusPill>
+              {/* Função ecológica: explica o impacto melhor do que o táxon. */}
+              {result.invaderProfile.functionalRoleLabel ? (
+                <StatusPill tone="info">{result.invaderProfile.functionalRoleLabel}</StatusPill>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -461,16 +460,16 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
         <div className="signal-message signal-message--warning">
           <WarningCircle weight="duotone" />
           <div>
-            <strong>Modo de demonstracao offline</strong>
+            <strong>Modo de demonstração offline</strong>
             <span>{offlineDisclosure}</span>
           </div>
         </div>
       ) : null}
 
-      {isLoading ? <LoadingBlock label="Avaliando a invasao..." /> : null}
+      {isLoading ? <LoadingBlock label="Avaliando a invasão..." /> : null}
 
       {error && !isLoading ? (
-        <ErrorState title="Falha na simulacao" message={error} onRetry={() => void submit()} />
+        <ErrorState title="Falha na simulação" message={error} onRetry={() => void submit()} />
       ) : null}
 
       {!result && !error && !isLoading ? (
@@ -525,9 +524,9 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
                 })),
                 simulatedNotes:
                   result.simulationScope?.simulated ?? [
-                    "presenca visual da invasora",
-                    "interacao local com fauna nativa",
-                    "eventos de predacao e fuga",
+                    "presença visual da invasora",
+                    "interação local com fauna nativa",
+                    "eventos de predação e fuga",
                   ],
                 explanationOnlyNotes:
                   result.simulationScope?.explanationOnly ?? [
@@ -553,7 +552,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
               <table className="invasive-table">
                 <thead>
                   <tr>
-                    <th>Criterio</th>
+                    <th>Critério</th>
                     <th>Nota</th>
                     <th>Detalhe</th>
                   </tr>
@@ -578,7 +577,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
             <section className="signal-panel">
               <div className="signal-panel__header">
                 <div>
-                  <h3>Linha do tempo do cenario</h3>
+                  <h3>Linha do tempo do cenário</h3>
                   <p>Selecione uma fase para comparar as populações projetadas.</p>
                 </div>
               </div>
@@ -656,11 +655,59 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
             </section>
           </div>
 
+          {result.community ? (
+            <section className="signal-panel" aria-label="Comunidade nativa consolidada">
+              <div className="signal-panel__header">
+                <div>
+                  <h3>Fauna e flora do terreno</h3>
+                  <p>Base determinística usada para sustentar a comunidade e reagir à invasão.</p>
+                </div>
+                <StatusPill tone={result.community.warnings.length > 0 ? "warning" : "success"}>
+                  {result.nativeSpecies?.length ?? 0} espécies nativas
+                </StatusPill>
+              </div>
+              <div className="summary-list">
+                <div>
+                  <strong>Flora e produtores</strong>
+                  <span>{result.community.baseline.flora}</span>
+                  <small className="invasive-impact-reason">Regra: {result.community.baseline.structuralRule}</small>
+                </div>
+                <div>
+                  <strong>Base de alimento</strong>
+                  <span>
+                    {result.community.resourceBase.resourceBase
+                      .map((resource) => `${resource.label} (${Math.round(resource.availability * 100)}%)`)
+                      .join(", ")}
+                  </span>
+                  <small className="invasive-impact-reason">
+                    Pressão de herbivoria: {result.community.resourceBase.herbivorePressure.level}
+                  </small>
+                </div>
+                <div>
+                  <strong>Respostas da fauna nativa</strong>
+                  <span>
+                    {result.community.defenses.length > 0
+                      ? result.community.defenses
+                          .map((defense) => `${defense.commonName}: ${defense.response}`)
+                          .join(" · ")
+                      : "Nenhuma defesa direta foi resolvida para esta combinação."}
+                  </span>
+                </div>
+                {result.community.warnings.length > 0 ? (
+                  <div>
+                    <strong>Limites da comunidade</strong>
+                    <span>{result.community.warnings.join(" ")}</span>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+
           <section className="signal-panel">
             <div className="signal-panel__header">
               <div>
                 <h3>Impacto sobre os nativos</h3>
-                <p>Efeito do invasor sobre cada especie nativa do local.</p>
+                <p>Efeito do invasor sobre cada espécie nativa do local.</p>
               </div>
             </div>
             {impactedNatives.length === 0 ? (
@@ -676,7 +723,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
                   <div key={impact.speciesId}>
                     <strong>{impact.commonName}</strong>
                     <span>
-                      {EFFECT_LABEL[impact.effect] ?? impact.effect} · delta populacao {impact.populationDelta}
+                      {EFFECT_LABEL[impact.effect] ?? impact.effect} · delta população {impact.populationDelta}
                     </span>
                     {impact.reason ? (
                       <small className="invasive-impact-reason">Base da projeção: {impact.reason}</small>
@@ -691,7 +738,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
             <div className="signal-panel__header">
               <div>
                 <h3>Mecanismos de impacto</h3>
-                <p>Mecanismos ecologicos nomeados, definidos por servicos deterministicos (nao pela IA).</p>
+                <p>Mecanismos ecológicos nomeados, definidos por serviços determinísticos (não pela IA).</p>
               </div>
               <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
                 {result.establishmentPlausibility ? (
@@ -717,7 +764,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
                           : "neutral"
                     }
                   >
-                    Dispersao: {result.spreadPressure}
+                    Dispersão: {result.spreadPressure}
                   </StatusPill>
                 ) : null}
               </div>
@@ -744,7 +791,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
                 <WarningCircle weight="duotone" />
                 <div>
                   <span>
-                    Nenhum mecanismo de impacto identificado — a especie provavelmente nao se
+                    Nenhum mecanismo de impacto identificado — a espécie provavelmente não se
                     estabelece neste bioma.
                   </span>
                 </div>
@@ -753,7 +800,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
 
             {result.consequences ? (
               <div style={{ marginTop: "1rem" }}>
-                <h4 style={{ marginBottom: "0.35rem" }}>Consequencias em cadeia</h4>
+                <h4 style={{ marginBottom: "0.35rem" }}>Consequências em cadeia</h4>
                 <p className="invasive-consequence-intro">{result.consequences.summary}</p>
                 {result.consequences.causalChains.length > 0 ? (
                   <div className="invasive-chains">
@@ -770,7 +817,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
                   </div>
                 ) : null}
                 {result.consequences.impactVectors.length > 0 ? (
-                  <div className="invasive-vector-grid" aria-label="Indices relativos de impacto">
+                  <div className="invasive-vector-grid" aria-label="Índices relativos de impacto">
                     {result.consequences.impactVectors.map((vector) => (
                       <div className="invasive-vector" key={vector.key} title={vector.detail}>
                         <div className="invasive-vector__head">
@@ -822,8 +869,8 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
           <section className="signal-panel">
             <div className="signal-panel__header">
               <div>
-                <h3>Explicacao cientifica</h3>
-                <p>Avaliacao grounded nos fatos do banco.</p>
+                <h3>Explicação científica</h3>
+                <p>Avaliação grounded nos fatos do banco.</p>
               </div>
               <StatusPill tone={result.explanation.coverage === "sufficient" ? "success" : "warning"}>
                 {result.explanation.coverage === "sufficient" ? "Cobertura suficiente" : "Cobertura limitada"}

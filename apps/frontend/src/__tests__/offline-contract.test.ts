@@ -36,12 +36,44 @@ const REQUIRED_REPORT_SECTIONS = [
 ] as const;
 
 describe("offline scenario contract", () => {
-  it("exposes exactly the four demo scenarios wired in the catalog", () => {
-    expect(DEMO_SCENARIOS).toHaveLength(4);
+  it("exposes exactly the demo scenarios wired in the catalog", () => {
     const ids = DEMO_SCENARIOS.map((s) => s.id).sort();
     expect(ids).toEqual(
-      ["amazonia-coerente", "cerrado-predador-presa", "invasao-javali-cerrado", "manguezal-incoerente"].sort(),
+      [
+        "amazonia-coerente",
+        "antartida-cadeia-polar",
+        "cerrado-predador-presa",
+        "invasao-javali-cerrado",
+        "manguezal-incoerente",
+        "montanha-nevada-alpina",
+        "oceano-pelagico-tropical",
+      ].sort(),
     );
+  });
+
+  it("every ecosystem scenario in the catalog has an offline snapshot", () => {
+    // Um cenário sem snapshot quebra a demo offline só no clique, durante a apresentação.
+    for (const scenario of DEMO_SCENARIOS.filter((s) => s.kind === "ecosystem")) {
+      expect(
+        Object.keys(OFFLINE_ECOSYSTEM_SNAPSHOTS),
+        `cenário ${scenario.id} sem snapshot offline`,
+      ).toContain(scenario.id);
+    }
+  });
+
+  it("each ecosystem snapshot resolves fauna that can live in its own grid biomes", () => {
+    // Regressão do "pinguim no oceano tropical": a fauna do snapshot precisa
+    // intersectar os biomas do próprio terreno. Cenários deliberadamente
+    // incoerentes (manguezal seco) ficam de fora — neles o descasamento é o ponto.
+    for (const id of ECOSYSTEM_IDS) {
+      const { result } = getOfflineEcosystemSnapshot(id);
+      if (result.report.validation.blockingContradictions.length > 0) continue;
+      const gridBiomes = new Set(result.terrain.cells.flat().map((c) => c.biomeSuggestion));
+      for (const species of result.species) {
+        const fits = species.habitableBiomes.some((b) => gridBiomes.has(b));
+        expect(fits, `${species.id} não habita nenhum bioma do cenário ${id}`).toBe(true);
+      }
+    }
   });
 
   it("every ecosystem snapshot is valid and precomputed", () => {

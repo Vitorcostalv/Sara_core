@@ -380,7 +380,11 @@ function round(value: number, decimals = 2): number {
  * /fauna biome-only path).
  */
 export class ResourceAvailabilityEvaluator {
-  assessFromGrid(grid: TerrainGrid, species: SupportSpecies[]): ResourceBaseAssessment {
+  assessFromGrid(
+    grid: TerrainGrid,
+    species: SupportSpecies[],
+    resourceFloors: Partial<Record<ResourceType, number>> = {},
+  ): ResourceBaseAssessment {
     const coverage = new Map<string, number>();
     let total = 0;
     let caveCells = 0;
@@ -400,7 +404,7 @@ export class ResourceAvailabilityEvaluator {
     // fraction — otherwise cave herbivores are always flagged unsupported (the demo's 64/100 bug).
     if (caveCells >= 2) fractions.set("caverna", Math.max(fractions.get("caverna") ?? 0, 0.5));
 
-    return this.assess(fractions, species);
+    return this.assess(fractions, species, resourceFloors);
   }
 
   assessFromBiomes(biomes: string[], species: SupportSpecies[]): ResourceBaseAssessment {
@@ -411,7 +415,11 @@ export class ResourceAvailabilityEvaluator {
     return this.assess(fractions, species);
   }
 
-  private assess(biomeFractions: Map<string, number>, species: SupportSpecies[]): ResourceBaseAssessment {
+  private assess(
+    biomeFractions: Map<string, number>,
+    species: SupportSpecies[],
+    resourceFloors: Partial<Record<ResourceType, number>> = {},
+  ): ResourceBaseAssessment {
     const totals = new Map<ResourceType, number>();
     const sources = new Map<ResourceType, Set<string>>();
 
@@ -423,6 +431,13 @@ export class ResourceAvailabilityEvaluator {
         if (!sources.has(resource)) sources.set(resource, new Set());
         sources.get(resource)!.add(family);
       }
+    }
+
+    for (const [resource, floor] of Object.entries(resourceFloors) as Array<[ResourceType, number]>) {
+      if (!Number.isFinite(floor) || floor <= 0) continue;
+      totals.set(resource, Math.max(totals.get(resource) ?? 0, Math.min(1, floor)));
+      if (!sources.has(resource)) sources.set(resource, new Set());
+      sources.get(resource)!.add("curated-scenario");
     }
 
     const resourceBase: ResourceAvailability[] = RESOURCE_TYPES.map((type) => ({

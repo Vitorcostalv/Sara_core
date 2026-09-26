@@ -27,6 +27,12 @@ export interface FaunaAgent {
   /** Stable prey key kept briefly so hunting steering does not retarget every frame. */
   huntTargetKey: string | null;
   huntTargetUntil: number;
+  /** Deterministic habitat waypoint; prevents periodic wander steering from becoming an orbit. */
+  roamTarget: THREE.Vector3;
+  roamTargetUntil: number;
+  roamRevision: number;
+  progressAnchor: THREE.Vector3;
+  progressCheckAt: number;
 }
 
 export type AnimalKind = "ground" | "bird" | "fish";

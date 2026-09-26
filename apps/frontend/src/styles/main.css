@@ -128,35 +128,74 @@ code {
   justify-content: flex-end;
 }
 
+/* Barra superior: um único elemento com peso (iniciar apresentação); o resto é
+   informação de apoio e fica em nível "quiet" para não competir por atenção. */
 .status-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  min-height: 1.85rem;
-  padding: 0 0.7rem;
+  min-height: 2.1rem;
+  padding: 0 0.85rem;
   border-radius: 999px;
-  font-size: 0.76rem;
+  font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--color-text-secondary);
   background: rgba(47, 107, 79, 0.08);
   border: 1px solid var(--color-border-base);
+  transition:
+    color var(--token-transition-default),
+    background-color var(--token-transition-default),
+    border-color var(--token-transition-default);
 }
 
 .status-chip--button {
   cursor: pointer;
 }
 
+/* Nível terciário: só texto/ícone, sem moldura. */
+.status-chip--quiet {
+  padding: 0 0.4rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border-color: transparent;
+}
+
+.status-chip--button.status-chip--quiet:hover {
+  color: var(--color-text-primary);
+  background: var(--color-state-hover);
+}
+
+/* Indicador de rede: um ponto, não um badge. */
+.status-chip--network::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--color-semantic-success);
+}
+
 .status-chip--primary {
   color: #fffaf0;
   background: var(--color-brand-primary);
   border-color: var(--color-brand-primary);
+  box-shadow: var(--token-shadow-sm);
+}
+
+.status-chip--primary:hover {
+  background: #24543f;
+  border-color: #24543f;
 }
 
 .status-chip--offline {
   color: #8d3527;
   background: rgba(184, 74, 58, 0.14);
   border-color: rgba(184, 74, 58, 0.32);
+}
+
+.status-chip--offline.status-chip--network::before {
+  background: var(--color-semantic-error);
 }
 
 .app-dialog {
@@ -221,6 +260,11 @@ code {
   font-size: 0.95rem;
 }
 
+.status-chip--primary svg,
+.status-chip--quiet svg {
+  color: currentColor;
+}
+
 .app-content {
   /* Respect side/bottom safe areas (gesture bar, rounded corners) in the Android wrapper. */
   padding: 1.6rem calc(1.6rem + env(safe-area-inset-right, 0px))
@@ -236,7 +280,7 @@ code {
 
 .page-stack {
   display: grid;
-  gap: 1.25rem;
+  gap: 1.75rem;
 }
 
 .stack-lg {
@@ -337,14 +381,16 @@ code {
 
 /* ── Cards ─────────────────────────────────────────────────────────────────── */
 
+/* Cartões: a elevação vem da sombra, não de uma borda dura. Uma única receita
+   para todos os painéis mantém a página coerente. */
 .signal-panel,
 .ui-card {
   position: relative;
-  padding: 1.4rem;
+  padding: 1.65rem;
   border-radius: var(--token-radius-lg);
-  border: 1px solid var(--color-border-base);
+  border: 1px solid rgba(56, 76, 62, 0.1);
   background: var(--color-surface-elevated);
-  box-shadow: var(--token-shadow-sm);
+  box-shadow: var(--token-shadow-md);
 }
 
 .signal-panel__header,
@@ -1117,12 +1163,11 @@ code {
 
 .demo-mode-bar label {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.3rem;
   min-width: min(18rem, 100%);
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
 }
 
 .demo-mode-bar span {
@@ -1139,11 +1184,22 @@ code {
 .advanced-controls summary {
   padding: 0.85rem 1rem;
   cursor: pointer;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--color-text-secondary);
 }
 
-.advanced-controls .ecology-form-grid {
-  padding: 0 1rem 1rem;
+.advanced-controls summary:hover {
+  color: var(--color-text-primary);
+}
+
+.advanced-controls .ecology-form-grid,
+.advanced-controls .demo-mode-bar,
+.advanced-controls .form-actions {
+  margin: 0 1rem 1rem;
+}
+
+.advanced-controls .form-actions {
+  padding-top: 0.25rem;
 }
 
 .presentation-terrain .terrain-stage__viewport {
@@ -1231,10 +1287,12 @@ code {
   background: var(--color-state-hover);
 }
 
+/* O âmbar é a cor de acento: aparece só no que está ativo agora, nunca em massa. */
 .ecology-tab-btn.is-active {
   color: #21503c;
   background: var(--color-surface-elevated);
   border-color: var(--color-border-base);
+  border-bottom: 2px solid var(--color-brand-accent);
   box-shadow: var(--token-shadow-sm);
 }
 
@@ -1730,11 +1788,13 @@ code {
    TerrainView is reused by both the terrain and invasive-species pages. These
    structural styles must stay global; page-local styles may refine them. */
 
+/* Tipografia: serifada só nos títulos, sans no corpo/controles. A monoespaçada
+   fica reservada a leituras numéricas (coordenadas, medições), nunca à interface. */
 .terrain-stage {
   display: grid;
   gap: 0.85rem;
   min-width: 0;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--token-typography-family);
 }
 
 .terrain-stage__chrome {
@@ -1754,7 +1814,7 @@ code {
 .terrain-stage h4 {
   margin: 0;
   color: #5f3826;
-  font-family: "Fraunces", serif;
+  font-family: var(--token-typography-displayFamily);
   font-size: clamp(1.45rem, 2vw, 2.15rem);
 }
 
@@ -1797,10 +1857,12 @@ code {
   transform: rotate(45deg);
 }
 
+/* O visualizador é o protagonista da tela: cresce com a janela, com piso de 32rem
+   para continuar utilizável fora da página de terreno. */
 .terrain-stage__viewport {
   position: relative;
   width: 100%;
-  min-height: 32rem;
+  min-height: clamp(32rem, 68vh, 50rem);
   overflow: hidden;
   border: 1px solid rgba(123, 86, 54, 0.18);
   border-radius: 0.9rem;

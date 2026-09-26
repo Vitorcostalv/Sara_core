@@ -40,36 +40,36 @@ const TABS: TabDef[] = [
   },
   {
     id: "invasora",
-    label: "Bioinvasao",
-    subtitle: "Especie invasora",
+    label: "Bioinvasão",
+    subtitle: "Espécie invasora",
     icon: <Bug weight="duotone" />,
     group: "primary",
   },
   {
     id: "consulta",
     label: "Perguntar",
-    subtitle: "Consulta cientifica",
+    subtitle: "Consulta científica",
     icon: <Leaf weight="duotone" />,
     group: "secondary",
   },
   {
     id: "catalogo",
     label: "Dados",
-    subtitle: "Catalogo do dominio",
+    subtitle: "Catálogo do domínio",
     icon: <Stack weight="duotone" />,
     group: "secondary",
   },
   {
     id: "cenario",
-    label: "Risco climatico",
-    subtitle: "Cenario",
+    label: "Risco climático",
+    subtitle: "Cenário",
     icon: <Thermometer weight="duotone" />,
     group: "secondary",
   },
   {
     id: "evolucao",
-    label: "Sucessao",
-    subtitle: "Evolucao do ecossistema",
+    label: "Sucessão",
+    subtitle: "Evolução do ecossistema",
     icon: <Plant weight="duotone" />,
     group: "secondary",
   },
@@ -77,10 +77,10 @@ const TABS: TabDef[] = [
 
 const DEMO_FLOW = [
   "Descreva o ecossistema",
-  "Gere a simulacao",
+  "Gere a simulação",
   "Inspecione terreno e fauna",
-  "Leia a validacao deterministica",
-  "Teste uma especie invasora",
+  "Leia a validação determinística",
+  "Teste uma espécie invasora",
 ];
 
 export function EcologyPage() {
@@ -114,9 +114,9 @@ export function EcologyPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="Observatorio ecologico"
-        title="Ecossistemas sinteticos"
-        description="Fluxo compacto para o TCC: gerar, visualizar e defender a validacao deterministica sem esconder que a IA interpreta, enquanto o backend valida clima, recursos, fauna e rede trofica."
+        eyebrow="Observatório ecológico"
+        title="Ecossistemas sintéticos"
+        description="A IA interpreta a descrição; o backend valida clima, recursos, fauna e rede trófica de forma determinística."
         icon={<Leaf weight="duotone" />}
       />
 
@@ -137,14 +137,14 @@ export function EcologyPage() {
       {showFlow ? (
         <section className="demo-flow-card">
           <div className="demo-flow-card__header">
-            <strong>Roteiro de demonstracao</strong>
+            <strong>Roteiro de demonstração</strong>
             {!presentationMode ? (
               <Button variant="ghost" size="sm" onClick={() => setDemoFlowDismissed(true)}>
                 Ocultar
               </Button>
             ) : null}
           </div>
-          <ol className="demo-flow" aria-label="Fluxo de demonstracao">
+          <ol className="demo-flow" aria-label="Fluxo de demonstração">
             {DEMO_FLOW.map((step, index) => (
               <li key={step} className="demo-flow__step">
                 <b>{String.fromCharCode(65 + index)}</b>
@@ -158,11 +158,11 @@ export function EcologyPage() {
         </section>
       ) : (
         <Button variant="ghost" size="sm" onClick={() => setDemoFlowDismissed(false)}>
-          Mostrar roteiro de demonstracao
+          Mostrar roteiro de demonstração
         </Button>
       )}
 
-      <nav className="ecology-nav" aria-label="Secoes de ecologia">
+      <nav className="ecology-nav" aria-label="Seções de ecologia">
         <div className="ecology-tabs ecology-tabs--primary">
           {TABS.filter((tab) => tab.group === "primary").map((tab) => (
             <button

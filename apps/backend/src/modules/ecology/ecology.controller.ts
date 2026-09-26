@@ -206,10 +206,13 @@ export class EcologyController {
   // POST /ecology/fauna
   async fauna(req: Request, res: Response): Promise<void> {
     const payload = req.body as EcologyFaunaInput;
-    const result =
-      payload.biomes && payload.biomes.length > 0
-        ? faunaDefinitionService.resolveBiomes(payload.biomes)
-        : faunaDefinitionService.resolve(payload.grid!);
+    // O grid tem prioridade sobre a lista de biomas. Resolver só por biomas ignora
+    // clima, salinidade e cobertura polar/oceânica — era assim que um pinguim
+    // entrava num oceano tropical de 23 C. A lista fica como fallback para quem
+    // não envia grid.
+    const result = payload.grid
+      ? faunaDefinitionService.resolve(payload.grid)
+      : faunaDefinitionService.resolveBiomes(payload.biomes ?? []);
     sendOk(res, result);
   }
 

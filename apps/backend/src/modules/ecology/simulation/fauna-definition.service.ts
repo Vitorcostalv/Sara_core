@@ -416,7 +416,8 @@ const RAW_CATALOG: RawSpecies[] = [
     commonName: "Alce",
     scientificName: "Alces alces",
     category: "herbivore-large",
-    habitableBiomes: ["taiga", "pradaria-estepe"],
+    // Boreal e de zonas úmidas; a estepe aberta não é habitat de alce.
+    habitableBiomes: ["taiga", "tundra"],
     preySpeciesIds: [],
     populationTarget: 5,
     movementProfile: { maxSpeed: 2.5, turnRate: 1.5, fleeMultiplier: 2.0 },
@@ -746,14 +747,74 @@ const RAW_CATALOG: RawSpecies[] = [
     flockProfile: { formsFlocks: true, flockRadius: 4.0, separationDistance: 0.8 },
   },
 
+  // ── Cadeia marinha tropical/temperada (oceano-pelagico) ────────────────────
+  // Sem ela o oceano quente ficava só com albatroz, já que a cadeia antártica
+  // saiu do bioma. sardinha → atum → golfinho; tartaruga pasta em algas.
+  {
+    id: "sardinha",
+    commonName: "Sardinha-verdadeira",
+    scientificName: "Sardinella brasiliensis",
+    category: "fish",
+    trophicLevel: "herbivore",
+    feedingStrategy: "herbivore",
+    habitableBiomes: ["oceano-pelagico"],
+    preySpeciesIds: [],
+    populationTarget: 16,
+    movementProfile: { maxSpeed: 2.6, turnRate: 4.2, fleeMultiplier: 2.8 },
+    flockProfile: { formsFlocks: true, flockRadius: 2.2, separationDistance: 0.3 },
+  },
+  {
+    id: "tartaruga-marinha",
+    commonName: "Tartaruga-verde",
+    scientificName: "Chelonia mydas",
+    category: "fish",
+    trophicLevel: "herbivore",
+    feedingStrategy: "herbivore",
+    taxonGroup: "réptil",
+    habitableBiomes: ["oceano-pelagico"],
+    preySpeciesIds: [],
+    populationTarget: 5,
+    movementProfile: { maxSpeed: 1.6, turnRate: 1.8, fleeMultiplier: 1.6 },
+    flockProfile: { formsFlocks: false, flockRadius: 4.0, separationDistance: 1.4 },
+  },
+  {
+    id: "atum",
+    commonName: "Atum-amarelo",
+    scientificName: "Thunnus albacares",
+    category: "fish",
+    trophicLevel: "mesopredator",
+    feedingStrategy: "carnivore",
+    habitableBiomes: ["oceano-pelagico"],
+    preySpeciesIds: ["sardinha"],
+    populationTarget: 8,
+    movementProfile: { maxSpeed: 3.8, turnRate: 3.0, fleeMultiplier: 1.8 },
+    flockProfile: { formsFlocks: true, flockRadius: 3.4, separationDistance: 0.7 },
+  },
+  {
+    id: "golfinho",
+    commonName: "Golfinho-nariz-de-garrafa",
+    scientificName: "Tursiops truncatus",
+    category: "fish",
+    trophicLevel: "apex",
+    feedingStrategy: "carnivore",
+    habitableBiomes: ["oceano-pelagico"],
+    preySpeciesIds: ["sardinha", "atum"],
+    populationTarget: 4,
+    movementProfile: { maxSpeed: 3.4, turnRate: 2.8, fleeMultiplier: 1.3 },
+    flockProfile: { formsFlocks: true, flockRadius: 4.5, separationDistance: 1.1 },
+  },
+
   // ── Cadeia marinha polar (todos "fish" para co-ocorrerem na água e a predação ser visível) ──
   // krill/peixe → pinguim/foca → orca
+  // Todas antárticas: ficam restritas a "oceano-polar". Listá-las também em
+  // "oceano-pelagico" colocava pinguim e foca-leopardo num oceano tropical.
+  // A orca é a exceção real: ocorre de polo a trópico.
   {
     id: "krill",
     commonName: "Krill-antártico",
     scientificName: "Euphausia superba",
     category: "fish",
-    habitableBiomes: ["oceano-polar", "oceano-pelagico"],
+    habitableBiomes: ["oceano-polar"],
     preySpeciesIds: [],
     populationTarget: 14,
     movementProfile: { maxSpeed: 1.8, turnRate: 4.0, fleeMultiplier: 2.6 },
@@ -764,7 +825,7 @@ const RAW_CATALOG: RawSpecies[] = [
     commonName: "Peixe-glacial",
     scientificName: "Notothenia coriiceps",
     category: "fish",
-    habitableBiomes: ["oceano-polar", "oceano-pelagico"],
+    habitableBiomes: ["oceano-polar"],
     preySpeciesIds: [],
     populationTarget: 10,
     movementProfile: { maxSpeed: 2.4, turnRate: 3.4, fleeMultiplier: 2.5 },
@@ -776,7 +837,7 @@ const RAW_CATALOG: RawSpecies[] = [
     scientificName: "Pygoscelis adeliae",
     category: "fish",
     trophicLevel: "mesopredator",
-    habitableBiomes: ["oceano-polar", "oceano-pelagico"],
+    habitableBiomes: ["oceano-polar"],
     preySpeciesIds: ["krill", "peixe-glacial"],
     populationTarget: 8,
     movementProfile: { maxSpeed: 3.0, turnRate: 3.0, fleeMultiplier: 2.2 },
@@ -788,7 +849,7 @@ const RAW_CATALOG: RawSpecies[] = [
     scientificName: "Hydrurga leptonyx",
     category: "fish",
     trophicLevel: "mesopredator",
-    habitableBiomes: ["oceano-polar", "oceano-pelagico"],
+    habitableBiomes: ["oceano-polar"],
     preySpeciesIds: ["krill", "peixe-glacial", "pinguim"],
     populationTarget: 5,
     movementProfile: { maxSpeed: 3.2, turnRate: 2.6, fleeMultiplier: 1.4 },
@@ -801,7 +862,7 @@ const RAW_CATALOG: RawSpecies[] = [
     category: "fish",
     trophicLevel: "apex",
     habitableBiomes: ["oceano-polar", "oceano-pelagico"],
-    preySpeciesIds: ["pinguim", "foca", "peixe-glacial"],
+    preySpeciesIds: ["pinguim", "foca", "peixe-glacial", "golfinho", "atum"],
     populationTarget: 3,
     movementProfile: { maxSpeed: 3.6, turnRate: 2.2, fleeMultiplier: 1.2 },
     flockProfile: { formsFlocks: true, flockRadius: 5.0, separationDistance: 1.6 },
@@ -1240,6 +1301,13 @@ function behaviorProfileFor(raw: RawSpecies): BehaviorProfile {
 // catalog ids carry an explicit taxonGroup override; the rest are derived from category.
 const TAXON_OVERRIDES: Record<string, TaxonGroup> = {
   morcego: "mamífero",
+  // A cadeia marinha usa category "fish" só para nadar junto e a predação ficar
+  // visível; o táxon real precisa ser dito, senão o pinguim é exibido como peixe.
+  pinguim: "ave",
+  foca: "mamífero",
+  orca: "mamífero",
+  golfinho: "mamífero",
+  krill: "invertebrado",
   "inseto-cavernicola": "invertebrado",
   "aranha-cavernicola": "invertebrado",
   "serpente-cavernicola": "réptil",
@@ -1528,6 +1596,13 @@ function isStrictOceanSpecies(species: SpeciesDefinition): boolean {
   );
 }
 
+/** Um grid é marinho quando a água é salgada OU quando o oceano domina a área.
+ *  Só o corte de salinidade era frágil: o gerador entrega ~11,8 PSU num oceano
+ *  aberto, e o limite de 12 zerava a fauna do bioma inteiro. */
+function isMarineGrid(context: FaunaGridContext): boolean {
+  return context.avgWaterSalinityPsu >= 12 || context.oceanCoveragePct >= 40;
+}
+
 function isSpeciesCompatibleWithGrid(species: SpeciesDefinition, context: FaunaGridContext): boolean {
   if (species.habitableBiomes.includes(CAVE_PSEUDO_BIOME)) {
     if (context.caveCells < 2) return false;
@@ -1537,14 +1612,14 @@ function isSpeciesCompatibleWithGrid(species: SpeciesDefinition, context: FaunaG
   if (POLAR_MARINE_SPECIES.has(species.id)) {
     return (
       context.oceanCoveragePct >= 8 &&
-      context.avgWaterSalinityPsu >= 12 &&
+      isMarineGrid(context) &&
       context.avgTemperatureC <= 5 &&
       context.polarCoveragePct >= 10
     );
   }
 
   if (isStrictOceanSpecies(species)) {
-    return context.oceanCoveragePct >= 15 && context.avgWaterSalinityPsu >= 12;
+    return context.oceanCoveragePct >= 15 && isMarineGrid(context);
   }
 
   if (COLD_CLIMATE_SPECIES.has(species.id)) {

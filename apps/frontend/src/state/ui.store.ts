@@ -48,8 +48,10 @@ export const useUiStore = create<UiState>((set) => ({
   apiBaseUrl: getInitialApiBaseUrl(),
   presentationMode:
     typeof window !== "undefined" ? window.localStorage.getItem(presentationKey) === "true" : false,
+  // Roteiro começa recolhido: a abertura precisa mostrar o ecossistema, não instruções.
+  // O modo apresentação continua exibindo-o, e quem reabre grava "false".
   demoFlowDismissed:
-    typeof window !== "undefined" ? window.localStorage.getItem(demoFlowKey) === "true" : false,
+    typeof window !== "undefined" ? window.localStorage.getItem(demoFlowKey) !== "false" : true,
   performanceProfile:
     typeof window !== "undefined" &&
     ["high", "balanced", "light"].includes(window.localStorage.getItem(performanceKey) ?? "")

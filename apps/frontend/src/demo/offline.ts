@@ -31,20 +31,26 @@ function hasGrid(value: unknown): value is { terrain: { width: number; height: n
 
 export function validateEcosystemSnapshot(snapshot: OfflineEcosystemSnapshot): OfflineEcosystemSnapshot {
   if (!snapshot.meta.precomputed || snapshot.meta.snapshotVersion !== 1) {
-    throw new Error("Snapshot offline de ecossistema invalido.");
+    throw new Error("Snapshot offline de ecossistema inválido.");
   }
   if (!hasGrid(snapshot.result) || !snapshot.result.report?.validation || !Array.isArray(snapshot.result.species)) {
-    throw new Error("Snapshot offline nao contem terreno, fauna e validacao.");
+    throw new Error("Snapshot offline não contém terreno, fauna e validação.");
   }
   return snapshot;
 }
 
 export function validateInvasiveSnapshot(snapshot: OfflineInvasiveSnapshot): OfflineInvasiveSnapshot {
   if (!snapshot.meta.precomputed || snapshot.meta.snapshotVersion !== 1) {
-    throw new Error("Snapshot offline de invasao invalido.");
+    throw new Error("Snapshot offline de invasão inválido.");
   }
-  if (!hasGrid(snapshot.result) || !snapshot.result.invader || !Array.isArray(snapshot.result.impactMechanisms)) {
-    throw new Error("Snapshot offline de invasao nao contem invasor e mecanismos.");
+  if (
+    !hasGrid(snapshot.result) ||
+    !snapshot.result.invader ||
+    !Array.isArray(snapshot.result.nativeSpecies) ||
+    snapshot.result.nativeSpecies.length === 0 ||
+    !Array.isArray(snapshot.result.impactMechanisms)
+  ) {
+    throw new Error("Snapshot offline de invasão não contém invasor e mecanismos.");
   }
   return snapshot;
 }

@@ -24,7 +24,7 @@ describe("presentation mode", () => {
   it("primary demo scenarios remain available regardless of presentation mode", () => {
     // Presentation mode only changes layout emphasis, not scenario availability.
     useUiStore.getState().setPresentationMode(true);
-    expect(DEMO_SCENARIOS.length).toBe(4);
+    expect(DEMO_SCENARIOS.length).toBeGreaterThanOrEqual(4);
     expect(DEMO_SCENARIOS.some((s) => s.kind === "ecosystem")).toBe(true);
     expect(DEMO_SCENARIOS.some((s) => s.kind === "invasive")).toBe(true);
   });

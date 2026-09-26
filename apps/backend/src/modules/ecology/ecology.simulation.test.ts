@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { terrainGeneratorService } from "./simulation/terrain-generator.service";
 import type { TerrainCell, TerrainGrid } from "./simulation/terrain-generator.service";
-import { faunaDefinitionService } from "./simulation/fauna-definition.service";
+import { faunaDefinitionService, getCatalogSpecies } from "./simulation/fauna-definition.service";
 import { biomePresetService } from "./simulation/biome-preset.service";
 import { biomeMappingService } from "./simulation/biome-mapping.service";
 import { successionSimulatorService } from "./simulation/succession-simulator.service";
@@ -14,6 +14,11 @@ import { trophicNetworkResolver } from "./simulation/trophic-network.service";
 import { ecologicalPlausibilityEvaluator } from "./simulation/ecological-plausibility.service";
 import { ecosystemProfileService } from "./simulation/ecosystem-profiles";
 import { ecologicalTerrainPromptService } from "./llm/ecological-terrain-prompt.service";
+import {
+  invasionCommunityService,
+  INVASION_ECOSYSTEM_BASELINES,
+  INVASION_NATIVE_BIOMES,
+} from "./simulation/invasion-community.service";
 import type { ArtificialProjectRow } from "./grounding/ecological-grounding.repository";
 
 // Amazônia-like preset params (matches BiomePresetService "amazonia"): hot, very wet, humid lowland.
@@ -390,6 +395,44 @@ test("Fauna: polar biomes resolve a full marine chain (herbivore + meso + apex)"
   assert.ok(orca && orca.diet.some((id) => id === "pinguim" || id === "foca"));
 });
 
+test("Fauna: Antarctic species never reach a warm pelagic ocean", () => {
+  // Regressão: pinguim, foca-leopardo, krill e peixe-glacial eram listados também em
+  // "oceano-pelagico", então apareciam num oceano tropical de ~23 C.
+  const { species } = faunaDefinitionService.resolveBiomes(["oceano-pelagico"]);
+  const ids = new Set(species.map((s) => s.id));
+  for (const antarctic of ["pinguim", "foca", "krill", "peixe-glacial"]) {
+    assert.ok(!ids.has(antarctic), `${antarctic} must not inhabit the temperate/tropical pelagic ocean`);
+  }
+  // O oceano quente precisa continuar com uma cadeia própria.
+  const levels = new Set(species.map((s) => s.trophicLevel));
+  assert.ok(levels.has("herbivore"), "missing herbivore (sardinha/tartaruga)");
+  assert.ok(levels.has("mesopredator") || levels.has("apex"), "missing predator (atum/golfinho)");
+});
+
+test("Fauna: a warm ocean grid keeps its fauna despite sub-oceanic salinity", () => {
+  // O corte rígido de 12 PSU zerava a fauna marinha num oceano gerado com ~11,8.
+  const grid = terrainGeneratorService.generate({
+    width: 32,
+    height: 24,
+    seed: 7,
+    baseTemperatureC: 28,
+    basePrecipitationMm: 1800,
+    baseHumidityPct: 80,
+    reliefStyle: "ocean",
+    seaLevel: 0.62,
+  });
+  const { species } = faunaDefinitionService.resolve(grid);
+  assert.ok(species.length > 0, "a warm ocean must not resolve an empty fauna");
+  assert.ok(!species.some((s) => s.id === "pinguim"), "no penguins in a warm ocean");
+});
+
+test("Fauna: marine taxa are reported by their real taxon group, not by the render bucket", () => {
+  assert.equal(getCatalogSpecies("pinguim")?.taxonGroup, "ave");
+  assert.equal(getCatalogSpecies("foca")?.taxonGroup, "mamífero");
+  assert.equal(getCatalogSpecies("orca")?.taxonGroup, "mamífero");
+  assert.equal(getCatalogSpecies("krill")?.taxonGroup, "invertebrado");
+});
+
 test("Fauna: mountain biomes resolve a montane chain (herbivore + meso + apex)", () => {
   const { species } = faunaDefinitionService.resolveBiomes(["montanha-nevada", "montanha", "tundra"]);
   assert.ok(species.length >= 3, `expected >=3 montane species, got ${species.length}`);
@@ -476,6 +519,94 @@ test("Fauna: trophic pyramid scaling keeps apex pressure below prey base", () =>
   assert.ok(totalPopulation <= Math.max(30, species.length), `population cap drifted to ${totalPopulation}`);
   assert.ok(basePopulation > apexPopulation, "prey base should exceed apex population");
   assert.ok(apexPopulation <= 2, `apex population should be capped tightly, got ${apexPopulation}`);
+});
+
+test("Bioinvasion community: all selectable terrain scenarios have an ecological baseline", () => {
+  const expected = [
+    "cerrado", "caatinga", "amazonia", "mata-atlantica", "pantanal", "pampa",
+    "pradaria", "mangue", "floresta-tropical", "floresta-temperada", "mediterraneo",
+    "deserto", "deserto-frio", "tundra", "taiga", "montanha", "montanha-nevada",
+    "oceano", "antartida",
+  ];
+  assert.deepEqual(Object.keys(INVASION_ECOSYSTEM_BASELINES).sort(), expected.sort());
+  assert.deepEqual(Object.keys(INVASION_NATIVE_BIOMES).sort(), expected.sort());
+  for (const baseline of Object.values(INVASION_ECOSYSTEM_BASELINES)) {
+    assert.ok(baseline.flora.length > 20);
+    assert.ok(baseline.fauna.length > 0);
+    assert.ok(baseline.keyResources.length > 0);
+  }
+  for (const [scenario, biomes] of Object.entries(INVASION_NATIVE_BIOMES)) {
+    const species = faunaDefinitionService.resolveBiomes(biomes).species;
+    assert.ok(species.length > 0, `${scenario} must resolve at least one native species`);
+  }
+});
+
+test("Bioinvasion community: balances food support and lets capable native predators defend", () => {
+  const grid = terrainGeneratorService.generate({
+    width: 24,
+    height: 18,
+    seed: 91,
+    baseTemperatureC: 24,
+    basePrecipitationMm: 1050,
+    baseHumidityPct: 52,
+  });
+  const natives = faunaDefinitionService.resolve(grid).species;
+  const template = getCatalogSpecies("capivara");
+  assert.ok(template);
+  const invader = {
+    ...template,
+    id: "invasor-teste",
+    commonName: "Invasor de teste",
+    nativeStatus: "introduced" as const,
+  };
+  const result = invasionCommunityService.consolidate({
+    terrain: grid,
+    intendedBiome: "cerrado",
+    natives,
+    invader,
+    survives: true,
+  });
+
+  assert.ok(result.nativeSpecies.length > 0);
+  assert.ok(result.nativeSpecies.some((species) => species.resourceNeeds.length > 0));
+  for (const hunter of result.nativeSpecies.filter((species) => species.preySpeciesIds.length > 0)) {
+    const preyCapacity = hunter.preySpeciesIds
+      .filter((id) => id !== invader.id)
+      .reduce((sum, id) => sum + (result.nativeSpecies.find((species) => species.id === id)?.populationTarget ?? 0), 0);
+    assert.ok(preyCapacity > 0 || hunter.preySpeciesIds.includes(invader.id));
+  }
+  assert.ok(result.defenses.some((defense) => defense.response === "predation"));
+  assert.ok(result.nativeSpecies.some((species) => species.preySpeciesIds.includes(invader.id)));
+});
+
+test("Bioinvasion community: intended Antarctic biome recovers its marine food web from a land-dominant grid", () => {
+  const preset = biomePresetService.findBySlug("antartida");
+  const template = getCatalogSpecies("capivara");
+  assert.ok(preset && template);
+  const grid = terrainGeneratorService.generate({
+    width: 48,
+    height: 36,
+    seed: 123,
+    baseTemperatureC: preset.baseTemperatureC,
+    basePrecipitationMm: preset.basePrecipitationMm,
+    baseHumidityPct: preset.baseHumidityPct,
+    reliefStyle: preset.reliefStyle,
+    seaLevel: preset.seaLevel,
+  });
+  assert.equal(faunaDefinitionService.resolve(grid).species.length, 0, "regression fixture must expose the sparse-grid case");
+
+  const result = invasionCommunityService.consolidate({
+    terrain: grid,
+    intendedBiome: "antartida",
+    natives: [],
+    invader: { ...template, id: "invasor-teste", nativeStatus: "introduced" },
+    survives: false,
+  });
+
+  const ids = new Set(result.nativeSpecies.map((species) => species.id));
+  assert.ok(ids.has("krill") && ids.has("pinguim") && ids.has("foca") && ids.has("orca"));
+  assert.ok(result.resourceBase.resourceBase.some((resource) => resource.type === "plancton" && resource.availability >= 0.2));
+  assert.equal(result.warnings.length, 0);
 });
 
 test("Fauna: no level set is empty for the four headline biome groups", () => {

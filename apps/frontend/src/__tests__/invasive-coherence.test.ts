@@ -10,11 +10,13 @@ const invasiveSource = readFileSync(
 );
 const terrainSource = readFileSync(join(srcDir, "features", "ecology", "EcologyTerrainSection.tsx"), "utf-8");
 const animalSource = readFileSync(join(srcDir, "features", "ecology", "AnimalEntity.tsx"), "utf-8");
+const faunaLayerSource = readFileSync(join(srcDir, "features", "ecology", "FaunaLayer.tsx"), "utf-8");
 
 describe("invasive scenario coherence", () => {
-  it("resolves native fauna from the complete terrain grid", () => {
+  it("uses the native community consolidated by the invasive simulation", () => {
+    expect(invasiveSource).toContain("let natives = data.nativeSpecies");
+    expect(invasiveSource).toContain("if (!natives)");
     expect(invasiveSource).toContain("ecologyApi.fauna({ grid: buildCompactFaunaGrid(data.terrain) })");
-    expect(invasiveSource).not.toContain("ecologyApi.fauna({ biomes: data.resolvedBiomes })");
   });
 
   it("does not render an invader alone when native fauna fails", () => {
@@ -36,5 +38,16 @@ describe("invasive scenario coherence", () => {
   it("marks invasive animals above their 3D models", () => {
     expect(animalSource).toContain("function InvasiveMarker");
     expect(animalSource).toContain("<InvasiveMarker positionY=");
+  });
+
+  it("uses deterministic habitat waypoints and stalled-agent recovery instead of circular wander", () => {
+    expect(faunaLayerSource).toContain("function chooseRoamTarget(");
+    expect(faunaLayerSource).toContain("progress < 0.35");
+    expect(faunaLayerSource).not.toContain("Math.sin(agent.timer * 0.9 + agent.flapOffset)");
+  });
+
+  it("gives omnivores basal-resource support and slows starvation while prey recovers", () => {
+    expect(faunaLayerSource).toContain("const metabolicFactor");
+    expect(faunaLayerSource).toContain("hasLivePrey");
   });
 });

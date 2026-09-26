@@ -17,7 +17,11 @@ const WATER_HEIGHT = 0.26;
 const LAND_MIN_HEIGHT = 0.72;
 const HEIGHT_SCALE = 6.9;
 const WATER_LEVEL_Y = WATER_HEIGHT + 0.06;
-const WATER_SWIM_Y = WATER_LEVEL_Y - 0.15;
+/** Quanto o peixe nada abaixo da superfície de água daquele grid. */
+const WATER_SWIM_DEPTH = 0.15;
+// Espelha MIN_VISIBLE_WATER_DEPTH do TerrainView. Duplicado de propósito: importar
+// de EcologyTerrainSection criaria ciclo, já que ele importa esta camada.
+const MIN_VISIBLE_WATER_DEPTH = 0.12;
 const RESPAWN_INTERVAL_SECONDS = 5;
 const RESPAWN_THRESHOLD = 0.6;
 const SEPARATION_WEIGHT = 1.5;
@@ -26,7 +30,7 @@ const COHESION_WEIGHT = 0.8;
 const FLEE_WEIGHT = 3.0;
 const HUNT_WEIGHT = 2.2;
 const HOME_WEIGHT = 1.6;
-const WANDER_WEIGHT = 0.45;
+const WANDER_WEIGHT = 1.05;
 const HUNGER_MAX = 1.4;
 const PREDATION_ENERGY_PER_MASS = 0.65;
 const HUNT_TARGET_MEMORY_SECONDS = 2.2;
@@ -133,6 +137,20 @@ function buildTerrainContext(grid: TerrainGrid): TerrainContext {
   const landCells: TerrainPoint[] = [];
   const waterCells: TerrainPoint[] = [];
 
+  // A superfície da água acompanha o relevo submerso, com a mesma fórmula do
+  // TerrainView. Uma constante fixa funcionava em rio raso, mas afundava a fauna
+  // vários metros abaixo do mar num grid oceânico — os peixes saíam da malha.
+  const waterElevations: number[] = [];
+  for (const row of grid.cells) {
+    for (const cell of row) {
+      if (cell.isWater) waterElevations.push(cell.elevation);
+    }
+  }
+  const waterSurfaceY =
+    waterElevations.length > 0
+      ? LAND_MIN_HEIGHT + Math.max(...waterElevations) * HEIGHT_SCALE + MIN_VISIBLE_WATER_DEPTH
+      : WATER_LEVEL_Y;
+
   for (const row of grid.cells) {
     const terrainRow: TerrainPoint[] = [];
 
@@ -141,7 +159,7 @@ function buildTerrainContext(grid: TerrainGrid): TerrainContext {
         cell,
         x: (cell.x - halfWidth) * CELL_SIZE,
         z: (cell.y - halfHeight) * CELL_SIZE,
-        topY: cell.isWater ? WATER_LEVEL_Y : LAND_MIN_HEIGHT + cell.elevation * HEIGHT_SCALE,
+        topY: cell.isWater ? waterSurfaceY : LAND_MIN_HEIGHT + cell.elevation * HEIGHT_SCALE,
       };
 
       terrainRow.push(point);
@@ -323,7 +341,7 @@ function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: 
         : 0;
 
     const baseY = point.cell.isWater
-      ? WATER_SWIM_Y
+      ? point.topY - WATER_SWIM_DEPTH
       : point.topY + size * (isPredator(species.category) ? 0.48 : 0.58);
     const position = new THREE.Vector3(
       x,
@@ -357,6 +375,11 @@ function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: 
       satedUntil: 0,
       huntTargetKey: null,
       huntTargetUntil: 0,
+      roamTarget: position.clone(),
+      roamTargetUntil: 0,
+      roamRevision: 0,
+      progressAnchor: position.clone(),
+      progressCheckAt: 1.5 + hashUnit(slot * 107, speciesSeed & 4194303, seed + 223),
     });
   }
 
@@ -364,13 +387,13 @@ function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: 
 }
 
 function terrainTopForAgent(species: SpeciesDefinition, point: TerrainPoint) {
-  if (isFish(species.category)) return WATER_SWIM_Y;
+  if (isFish(species.category)) return point.topY - WATER_SWIM_DEPTH;
   if (isBird(species.category)) return point.topY + 1;
   return point.topY + speciesSize(species.category) * (isPredator(species.category) ? 0.48 : 0.58);
 }
 
 function carcassYFor(species: SpeciesDefinition, point: TerrainPoint) {
-  if (isFish(species.category)) return WATER_SWIM_Y;
+  if (isFish(species.category)) return point.topY - WATER_SWIM_DEPTH;
   return point.topY + 0.06;
 }
 
@@ -389,6 +412,49 @@ function resetAgent(agent: FaunaAgent, species: SpeciesDefinition, terrain: Terr
   agent.satedUntil = 0;
   agent.huntTargetKey = null;
   agent.huntTargetUntil = 0;
+  agent.roamTarget.copy(agent.spawnPosition);
+  agent.roamTargetUntil = 0;
+  agent.roamRevision = 0;
+  agent.progressAnchor.copy(agent.position);
+  agent.progressCheckAt = 1.5;
+}
+
+function chooseRoamTarget(
+  agent: FaunaAgent,
+  species: SpeciesDefinition,
+  terrain: TerrainContext,
+  seed: number,
+  now: number,
+) {
+  const pool = habitatPool(species, terrain);
+  const speciesSeed = stringHash(species.id) ^ seed;
+  let selected: TerrainPoint | undefined;
+
+  // Prefer a valid point inside the home range. Several deterministic attempts avoid
+  // repeatedly selecting an isolated cell on the opposite side of the map.
+  for (let attempt = 0; attempt < Math.min(12, pool.length); attempt += 1) {
+    const sample = hashUnit(
+      agent.slot * 113 + agent.roamRevision * 29 + attempt * 17,
+      speciesSeed & 8191,
+      seed + 239,
+    );
+    const point = pool[Math.min(pool.length - 1, Math.floor(sample * pool.length))];
+    if (!point) continue;
+    const distance = Math.hypot(point.x - agent.spawnPosition.x, point.z - agent.spawnPosition.z);
+    if (distance <= agent.homeRadius * 1.15) {
+      selected = point;
+      break;
+    }
+  }
+
+  selected ??= nearestTerrainPoint(pool, agent.spawnPosition.x, agent.spawnPosition.z) ?? undefined;
+  if (selected) {
+    agent.roamTarget.set(selected.x, terrainTopForAgent(species, selected), selected.z);
+  } else {
+    agent.roamTarget.copy(agent.spawnPosition);
+  }
+  agent.roamRevision += 1;
+  agent.roamTargetUntil = now + 3.5 + hashUnit(agent.roamRevision, agent.slot, speciesSeed) * 4;
 }
 
 function FaunaSpeciesLayer({
@@ -496,7 +562,14 @@ function FaunaSpeciesLayer({
 
       // Hunting species grow hungrier each frame; if they never feed, they starve.
       if (isHunter) {
-        agent.hunger = Math.min(HUNGER_MAX, agent.hunger + dt * predation.hungerRate);
+        const hasLivePrey = species.preySpeciesIds.some((preyId) =>
+          registryRef.current.get(preyId)?.some((prey) => prey.active && prey.state !== "dying"),
+        );
+        // Omnivores can fall back to the basal resources validated by the community service.
+        // Pure carnivores with temporarily depleted prey still consume reserves, but slowly
+        // enough for the deterministic prey respawn cycle to recover the food web.
+        const metabolicFactor = (species.resourceNeeds?.length ?? 0) > 0 ? 0.3 : hasLivePrey ? 1 : 0.15;
+        agent.hunger = Math.min(HUNGER_MAX, agent.hunger + dt * predation.hungerRate * metabolicFactor);
         if (agent.hunger >= predation.starvationThreshold) {
           const position = killAgent(agent, species, "starvation");
           emitFaunaEvent?.({
@@ -514,15 +587,34 @@ function FaunaSpeciesLayer({
       const separation = new THREE.Vector3();
       const alignment = new THREE.Vector3();
       const cohesion = new THREE.Vector3();
-      const wander = new THREE.Vector3(
-        Math.sin(agent.timer * 0.9 + agent.flapOffset),
-        isBird(species.category) ? Math.sin(agent.timer * 0.6 + agent.flapOffset * 0.7) * 0.2 : 0,
-        Math.cos(agent.timer * 1.1 + agent.flapOffset),
-      );
+      if (now >= agent.roamTargetUntil || agent.position.distanceTo(agent.roamTarget) < 0.6) {
+        chooseRoamTarget(agent, species, terrain, grid.seed, now);
+      }
+      if (now >= agent.progressCheckAt) {
+        const progress = agent.position.distanceTo(agent.progressAnchor);
+        agent.progressAnchor.copy(agent.position);
+        agent.progressCheckAt = now + 1.5;
+        if (progress < 0.35) {
+          agent.roamTargetUntil = 0;
+          chooseRoamTarget(agent, species, terrain, grid.seed, now);
+          const escapeAngle = hashUnit(agent.slot, agent.roamRevision, grid.seed) * Math.PI * 2;
+          agent.velocity.x = Math.sin(escapeAngle) * species.movementProfile.maxSpeed * 0.65;
+          agent.velocity.z = Math.cos(escapeAngle) * species.movementProfile.maxSpeed * 0.65;
+        }
+      }
+      const wander = new THREE.Vector3().subVectors(agent.roamTarget, agent.position);
       const nearbyEntries = spatialIndexRef.current.query(agent.position.x, agent.position.z, interactionRadius);
       let neighbors = 0;
       let nearestThreatDistance = Number.POSITIVE_INFINITY;
       let nearestHuntScore = Number.POSITIVE_INFINITY;
+      let huntTarget: {
+        otherAgent: FaunaAgent;
+        otherSpecies: SpeciesDefinition;
+        offset: THREE.Vector3;
+        distance: number;
+        preference: number;
+        targetKey: string;
+      } | null = null;
       let state: AgentState = "wandering";
 
       for (const entry of nearbyEntries) {
@@ -595,33 +687,40 @@ function FaunaSpeciesLayer({
           if (huntScore >= nearestHuntScore) continue;
 
           nearestHuntScore = huntScore;
-          steering.addScaledVector(offset.normalize(), huntWeight * preference);
-          state = "hunting";
-          agent.huntTargetKey = targetKey;
-          agent.huntTargetUntil = now + HUNT_TARGET_MEMORY_SECONDS;
+          huntTarget = { otherAgent, otherSpecies, offset, distance, preference, targetKey };
+        }
+      }
 
-          if (distance < predation.attackRange) {
-            otherAgent.health -= dt * predation.damageRate;
-            if (otherAgent.health <= 0) {
-              const position = killAgent(otherAgent, otherSpecies, "predation", species);
-              emitFaunaEvent?.({
-                kind: "predation",
-                message: `${species.commonName} cacou ${otherSpecies.commonName}`,
-                speciesId: species.id,
-                predatorSpeciesId: species.id,
-                preySpeciesId: otherSpecies.id,
-                ...position,
-              });
-              agent.hunger = Math.max(
-                0,
-                agent.hunger - speciesMass(otherSpecies) * PREDATION_ENERGY_PER_MASS,
-              );
-              agent.satedUntil = now + predation.satiationCooldownMs / 1000;
-              agent.huntTargetKey = null;
-              agent.huntTargetUntil = 0;
-            } else {
-              otherAgent.state = "fleeing";
-            }
+      // Apply exactly one chase vector. Accumulating every candidate that briefly became
+      // "nearest" made hunters average conflicting headings and settle into circular paths.
+      if (huntTarget && state !== "fleeing") {
+        const { otherAgent, otherSpecies, offset, distance, preference, targetKey } = huntTarget;
+        steering.addScaledVector(offset.normalize(), huntWeight * preference);
+        state = "hunting";
+        agent.huntTargetKey = targetKey;
+        agent.huntTargetUntil = now + HUNT_TARGET_MEMORY_SECONDS;
+
+        if (distance < predation.attackRange) {
+          otherAgent.health -= dt * predation.damageRate;
+          if (otherAgent.health <= 0) {
+            const position = killAgent(otherAgent, otherSpecies, "predation", species);
+            emitFaunaEvent?.({
+              kind: "predation",
+              message: `${species.commonName} caçou ${otherSpecies.commonName}`,
+              speciesId: species.id,
+              predatorSpeciesId: species.id,
+              preySpeciesId: otherSpecies.id,
+              ...position,
+            });
+            agent.hunger = Math.max(
+              0,
+              agent.hunger - speciesMass(otherSpecies) * PREDATION_ENERGY_PER_MASS,
+            );
+            agent.satedUntil = now + predation.satiationCooldownMs / 1000;
+            agent.huntTargetKey = null;
+            agent.huntTargetUntil = 0;
+          } else {
+            otherAgent.state = "fleeing";
           }
         }
       }
@@ -630,11 +729,13 @@ function FaunaSpeciesLayer({
       const validHabitat = isHabitablePoint(species, terrainPoint);
       const homeVector = new THREE.Vector3().subVectors(agent.spawnPosition, agent.position);
 
-      if (!validHabitat || homeVector.length() > agent.homeRadius) {
+      if (!validHabitat || (state !== "hunting" && state !== "fleeing" && homeVector.length() > agent.homeRadius)) {
         steering.addScaledVector(homeVector.normalize(), HOME_WEIGHT);
       }
 
-      steering.addScaledVector(wander.normalize(), WANDER_WEIGHT);
+      if (state !== "hunting" && state !== "fleeing" && wander.lengthSq() > 0.0001) {
+        steering.addScaledVector(wander.normalize(), WANDER_WEIGHT);
+      }
 
       const desiredDirection =
         steering.lengthSq() > 0.0001 ? steering.normalize() : agent.velocity.clone().normalize();
@@ -718,7 +819,7 @@ function FaunaSpeciesLayer({
         agent.position.y = THREE.MathUtils.lerp(agent.position.y, targetY, 0.08);
       } else {
         const targetY =
-          WATER_SWIM_Y + Math.sin(agent.timer * 1.8 + agent.flapOffset) * 0.05;
+          resolvedPoint.topY - WATER_SWIM_DEPTH + Math.sin(agent.timer * 1.8 + agent.flapOffset) * 0.05;
         agent.position.y = THREE.MathUtils.lerp(agent.position.y, targetY, 0.1);
       }
 

@@ -28,7 +28,12 @@ import type {
   TerrainGrid,
   TerrainPromptResult,
 } from "../../services/api/ecology";
-import { DEMO_SCENARIOS, PERFORMANCE_PROFILES, type DemoScenarioId } from "../../demo/catalog";
+import {
+  DEMO_SCENARIOS,
+  PERFORMANCE_PROFILES,
+  getDemoScenario,
+  type DemoScenarioId,
+} from "../../demo/catalog";
 import {
   clearLocalDemoData,
   getOfflineEcosystemSnapshot,
@@ -67,9 +72,9 @@ const BIOME_COLORS: Record<string, number> = {
 };
 
 const BIOME_LABELS: Record<string, string> = {
-  "floresta-tropical-umida": "floresta tropical umida",
+  "floresta-tropical-umida": "floresta tropical úmida",
   "floresta-tropical-seca": "floresta tropical seca",
-  "mata-atlantica": "mata atlantica",
+  "mata-atlantica": "mata atlântica",
   cerrado: "cerrado",
   caatinga: "caatinga",
   "savana-tropical": "savana tropical",
@@ -264,11 +269,11 @@ const OBJECT_LABELS: Record<string, string> = {
   rock: "rochas",
   boulder: "pedregulhos",
   "fallen-log": "troncos",
-  "dead-tree": "arvores mortas",
+  "dead-tree": "árvores mortas",
   bush: "arbustos",
   mushroom: "cogumelos",
   bones: "ossos",
-  "cliff-ledge": "saliencias",
+  "cliff-ledge": "saliências",
   burrow: "tocas",
   nest: "ninhos",
   crystal: "cristais",
@@ -413,8 +418,8 @@ function compactFaunaCell(cell: TerrainCell, x: number, y: number): TerrainCell 
 }
 
 export function buildCompactFaunaGrid(grid: TerrainGrid): TerrainGrid {
-  // A grade visual pode ter milhares de celulas e objetos. Para a resolucao de fauna,
-  // uma amostra espacial de ate 16x16 preserva proporcoes, clima e salinidade sem
+  // A grade visual pode ter milhares de células e objetos. Para a resolução de fauna,
+  // uma amostra espacial de até 16x16 preserva proporcoes, clima e salinidade sem
   // ultrapassar o limite do corpo JSON da API.
   const width = Math.max(4, Math.min(16, grid.width));
   const height = Math.max(4, Math.min(16, grid.height));
@@ -427,8 +432,8 @@ export function buildCompactFaunaGrid(grid: TerrainGrid): TerrainGrid {
     }),
   );
 
-  // Cavernas sao raras e uma amostra regular pode nao acerta-las. Preserve duas
-  // celulas quando ha um sistema real para manter a fauna cavernicola detectavel.
+  // Cavernas são raras e uma amostra regular pode não acertá-las. Preserve duas
+  // células quando ha um sistema real para manter a fauna cavernícola detectável.
   const caveCells = grid.cells.flat().filter((cell) => cell.cave && cell.cave.type !== "none");
   const sampledCaves = cells.flat().filter((cell) => cell.cave && cell.cave.type !== "none").length;
   for (let index = sampledCaves; index < Math.min(2, caveCells.length); index += 1) {
@@ -443,7 +448,7 @@ export function buildCompactFaunaGrid(grid: TerrainGrid): TerrainGrid {
     baseTemperatureC: grid.baseTemperatureC,
     basePrecipitationMm: grid.basePrecipitationMm,
     cells,
-    simulationNote: "Amostra espacial compacta para resolucao de fauna.",
+    simulationNote: "Amostra espacial compacta para resolução de fauna.",
   };
 }
 
@@ -1065,7 +1070,7 @@ function buildSceneData(grid: TerrainGrid): SceneData {
         caveByKey.set(`${cell.x},${cell.y}`, caveInstance);
         if (isEntrance) {
           objectLegend.set(
-            caveInfo.type === "river-cave" ? "cavernas com agua" : "entradas de caverna",
+            caveInfo.type === "river-cave" ? "cavernas com água" : "entradas de caverna",
             colorHex(caveColor),
           );
         }
@@ -2027,7 +2032,7 @@ function _HoverBadge({ hovered }: { hovered: HoverState | null }) {
   return (
     <Html position={hovered.position} center distanceFactor={11}>
       <div className="terrain-stage__tooltip">
-        <strong>{hovered.cell.isWater ? "agua" : hovered.biomeLabel}</strong>
+        <strong>{hovered.cell.isWater ? "água" : hovered.biomeLabel}</strong>
         <span>
           {hovered.cell.temperatureC.toFixed(1)} C - {hovered.cell.precipitationMmYear} mm/ano
         </span>
@@ -2263,8 +2268,8 @@ class CanvasErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <div className="terrain-stage__fallback" role="alert">
-          <strong>WebGL indisponivel</strong>
-          <span>O visualizador 3D nao conseguiu iniciar neste navegador ou dispositivo.</span>
+          <strong>WebGL indisponível</strong>
+          <span>O visualizador 3D não conseguiu iniciar neste navegador ou dispositivo.</span>
         </div>
       );
     }
@@ -2488,7 +2493,7 @@ export function TerrainView({
           <p className="terrain-stage__eyebrow">visualizador 3d</p>
           <h4>Ecossistema low-poly</h4>
           <p className="terrain-stage__summary">
-            {grid.width} x {grid.height} celulas - semente {grid.seed} - base{" "}
+            {grid.width} x {grid.height} células - semente {grid.seed} - base{" "}
             {grid.baseTemperatureC} C / {grid.basePrecipitationMm} mm
           </p>
         </div>
@@ -2521,7 +2526,7 @@ export function TerrainView({
           </div>
         ) : null}
         {activityCounts.length > 0 ? (
-          <div className="terrain-stage__legend terrain-stage__legend--fauna" aria-label="Fauna por periodo de atividade">
+          <div className="terrain-stage__legend terrain-stage__legend--fauna" aria-label="Fauna por período de atividade">
             {activityCounts.map(({ period, count }) => (
               <div key={period} className="terrain-stage__legend-item">
                 <span>
@@ -2753,7 +2758,7 @@ export function TerrainView({
                 Fechar
               </button>
               <span>Arraste para orbitar.</span>
-              <span>Pinca para zoom.</span>
+              <span>Pinça para zoom.</span>
               <span>Toque para selecionar.</span>
               <span>Toque prolongado ou toque novamente para inspecionar.</span>
             </section>
@@ -2800,18 +2805,18 @@ function CellInspectorPanel({
   const hasUnderwater = stat?.hasWater ?? (cave ? cave.type === "river-cave" || cave.humidity >= 0.8 : false);
 
   return (
-    <section className="terrain-inspector" aria-label="Inspector de celula">
+    <section className="terrain-inspector" aria-label="Inspector de célula">
       <div className="terrain-inspector__header">
-        <strong>Inspector de celula</strong>
+        <strong>Inspector de célula</strong>
         <button type="button" onClick={onClose}>Fechar</button>
       </div>
       <dl className="terrain-inspector__grid">
         <div><dt>Coords</dt><dd>{cell.x}, {cell.y}</dd></div>
         <div><dt>Bioma</dt><dd>{biomeLabel(cell.biomeSuggestion)}</dd></div>
-        <div><dt>Elevacao</dt><dd>{(cell.elevation * 100).toFixed(0)}%</dd></div>
-        <div><dt>Agua</dt><dd>{cell.isWater ? "sim" : "nao"}</dd></div>
+        <div><dt>Elevação</dt><dd>{(cell.elevation * 100).toFixed(0)}%</dd></div>
+        <div><dt>Água</dt><dd>{cell.isWater ? "sim" : "não"}</dd></div>
         <div><dt>Temperatura</dt><dd>{cell.temperatureC.toFixed(1)} C</dd></div>
-        <div><dt>Precipitacao</dt><dd>{cell.precipitationMmYear} mm/ano</dd></div>
+        <div><dt>Precipitação</dt><dd>{cell.precipitationMmYear} mm/ano</dd></div>
         <div><dt>Relevo</dt><dd>{cell.altitudeBand ? ALTITUDE_BAND_LABELS[cell.altitudeBand] ?? cell.altitudeBand : "-"}</dd></div>
         <div><dt>Objetos</dt><dd>{(cell.objects ?? []).map((o) => OBJECT_LABELS[o] ?? o).join(", ") || "-"}</dd></div>
       </dl>
@@ -2827,14 +2832,14 @@ function CellInspectorPanel({
             <div><dt>Tuneis</dt><dd>{stat?.tunnels ?? 0}</dd></div>
             <div><dt>Conexoes</dt><dd>{cave.connectedTo?.length ?? 0}</dd></div>
             <div><dt>Prof. (cel/máx)</dt><dd>{(cave.depth * 100).toFixed(0)}% / {((stat?.maxDepth ?? cave.depth) * 100).toFixed(0)}%</dd></div>
-            <div><dt>Agua subterranea</dt><dd>{hasUnderwater ? "sim" : "nao"}</dd></div>
+            <div><dt>Água subterrânea</dt><dd>{hasUnderwater ? "sim" : "não"}</dd></div>
           </dl>
           <div className="terrain-inspector__species">
-            <span>Fauna cavernicola possivel</span>
-            <p>{caveSpecies.map((entry) => entry.commonName).join(", ") || "sem especie compatível no grid"}</p>
+            <span>Fauna cavernícola possível</span>
+            <p>{caveSpecies.map((entry) => entry.commonName).join(", ") || "sem espécie compatível no grid"}</p>
           </div>
           {isFallback ? (
-            <p className="terrain-inspector__hint">Sistema de celula unica (fallback) — terreno nao permitiu crescer galerias.</p>
+            <p className="terrain-inspector__hint">Sistema de célula única (fallback) — terreno não permitiu crescer galerias.</p>
           ) : null}
           {!caveXRayActive ? (
             <p className="terrain-inspector__hint">Ative o modo Subsolo/Raio-X (Camadas) para ver o interior.</p>
@@ -2855,10 +2860,10 @@ function CellInspectorPanel({
 }
 
 const FAUNA_EVENT_LABELS: Record<FaunaEvent["kind"], string> = {
-  predation: "Predacao",
+  predation: "Predação",
   starvation: "Fome",
   respawn: "Respawn",
-  decomposition: "Decomposicao",
+  decomposition: "Decomposição",
 };
 
 const FAUNA_EVENT_ICONS: Record<FaunaEvent["kind"], string> = {
@@ -2962,14 +2967,14 @@ type AnimalFilter = "all" | "herbivore" | "carnivore" | "omnivore" | "bird" | "f
 
 const ANIMAL_FILTERS: { key: AnimalFilter; label: string }[] = [
   { key: "all", label: "Todos" },
-  { key: "herbivore", label: "Herbivoros" },
-  { key: "carnivore", label: "Carnivoros" },
-  { key: "omnivore", label: "Onivoros" },
+  { key: "herbivore", label: "Herbívoros" },
+  { key: "carnivore", label: "Carnívoros" },
+  { key: "omnivore", label: "Onívoros" },
   { key: "predator", label: "Predadores" },
   { key: "bird", label: "Aves" },
   { key: "fish", label: "Peixes" },
-  { key: "cave", label: "Cavernicolas" },
-  { key: "water", label: "Aquaticos" },
+  { key: "cave", label: "Cavernícolas" },
+  { key: "water", label: "Aquáticos" },
 ];
 
 function speciesHabitat(species: SpeciesDefinition): "cave" | "water" | "land" {
@@ -2997,24 +3002,24 @@ function matchesAnimalFilter(species: SpeciesDefinition, filter: AnimalFilter): 
 
 const HABITAT_TAG: Record<"cave" | "water" | "land", string> = {
   cave: "caverna",
-  water: "agua",
+  water: "água",
   land: "terra",
 };
 
 function invasiveEffectLabel(effect: string) {
   switch (effect) {
     case "predation":
-      return "predacao";
+      return "predação";
     case "competition":
-      return "competicao";
+      return "competição";
     case "habitat-alteration":
-      return "alteracao de habitat";
+      return "alteração de habitat";
     case "disease":
-      return "doenca";
+      return "doença";
     case "resource-pressure":
-      return "pressao sobre recursos";
+      return "pressão sobre recursos";
     default:
-      return effect || "impacto nao detalhado";
+      return effect || "impacto não detalhado";
   }
 }
 
@@ -3048,11 +3053,11 @@ function InvasiveImpactOverlay({
   }
 
   return (
-    <section className="terrain-invasive" aria-label="Leitura da invasao">
+    <section className="terrain-invasive" aria-label="Leitura da invasão">
       <div className="terrain-invasive__header">
         <div>
           <strong>Impacto da invasora</strong>
-          <span className="terrain-invasive__phase">{overlay.phaseLabel ?? "fase nao informada"}</span>
+          <span className="terrain-invasive__phase">{overlay.phaseLabel ?? "fase não informada"}</span>
         </div>
         <button type="button" className="terrain-invasive__collapse" onClick={onToggle} aria-label="Recolher detalhes da invasora">
           Recolher
@@ -3064,7 +3069,7 @@ function InvasiveImpactOverlay({
         </span>
         <div>
           <strong>{overlay.invaderName}</strong>
-          <small>{overlay.invaderScientificName ?? "nome cientifico indisponivel"}</small>
+          <small>{overlay.invaderScientificName ?? "nome científico indisponível"}</small>
         </div>
       </div>
       <div className="terrain-invasive__section">
@@ -3073,7 +3078,7 @@ function InvasiveImpactOverlay({
           <div className="terrain-invasive__mechanisms">
             {overlay.impactMechanisms.map((mechanism) => <span key={mechanism}>{mechanism}</span>)}
           </div>
-        ) : <p>Detalhes de impacto indisponiveis.</p>}
+        ) : <p>Detalhes de impacto indisponíveis.</p>}
       </div>
       <div className="terrain-invasive__section">
         <span>Nativas afetadas</span>
@@ -3090,13 +3095,13 @@ function InvasiveImpactOverlay({
             ))}
           </ul>
         ) : (
-          <p>Sem especies afetadas listadas pelo backend.</p>
+          <p>Sem espécies afetadas listadas pelo backend.</p>
         )}
       </div>
       <details className="terrain-invasive__scope">
-        <summary>Escopo da simulacao</summary>
-        <p>{overlay.simulatedNotes?.join(", ") || "A simulacao visual mostra presenca e convivencia da invasora."}</p>
-        {overlay.explanationOnlyNotes?.length ? <p className="terrain-invasive__muted">Explicacao apenas: {overlay.explanationOnlyNotes.join(", ")}</p> : null}
+        <summary>Escopo da simulação</summary>
+        <p>{overlay.simulatedNotes?.join(", ") || "A simulação visual mostra presença e convivência da invasora."}</p>
+        {overlay.explanationOnlyNotes?.length ? <p className="terrain-invasive__muted">Explicação apenas: {overlay.explanationOnlyNotes.join(", ")}</p> : null}
       </details>
     </section>
   );
@@ -3156,7 +3161,7 @@ function AnimalsPanel({
         className="terrain-animals__search"
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="Buscar nome comum ou cientifico"
+        placeholder="Buscar nome comum ou científico"
       />
       <div className="terrain-animals__filters">
         {ANIMAL_FILTERS.map((entry) => (
@@ -3186,7 +3191,7 @@ function AnimalsPanel({
                   {s.commonName}
                   {isInvasive ? <small className="terrain-animals__badge">Invasora</small> : null}
                 </span>
-                <span className="terrain-animals__meta">{s.scientificName || "nome cientifico indisponivel"}</span>
+                <span className="terrain-animals__meta">{s.scientificName || "nome científico indisponível"}</span>
                 <span className="terrain-animals__tags">
                   {FEEDING_STRATEGY_LABELS[s.feedingStrategy]}
                   {" · "}
@@ -3201,7 +3206,7 @@ function AnimalsPanel({
           })}
         </ul>
       ) : (
-        <p className="terrain-animals__empty">Nenhuma especie nesta categoria.</p>
+        <p className="terrain-animals__empty">Nenhuma espécie nesta categoria.</p>
       )}
     </section>
   );
@@ -3249,14 +3254,14 @@ interface LayerToggleState {
 const LAYER_DEFS: { key: LayerKey; label: string; hint: string }[] = [
   { key: "fauna", label: "Fauna", hint: "Animais vivos" },
   { key: "events", label: "Eventos", hint: "Marcadores, chip e avisos" },
-  { key: "predation", label: "Predacao", hint: "Aneis de caca no mapa" },
-  { key: "carcasses", label: "Carcacas", hint: "Restos visiveis" },
-  { key: "rivers", label: "Rios", hint: "Fluxo de agua" },
+  { key: "predation", label: "Predação", hint: "Anéis de caça no mapa" },
+  { key: "carcasses", label: "Carcacas", hint: "Restos visíveis" },
+  { key: "rivers", label: "Rios", hint: "Fluxo de água" },
   { key: "caves", label: "Cavernas", hint: "Entradas e bocas" },
-  { key: "subsoil", label: "Subsolo", hint: "Terreno translucido + interior das cavernas" },
+  { key: "subsoil", label: "Subsolo", hint: "Terreno translúcido + interior das cavernas" },
   { key: "xray", label: "Raio-X", hint: "Interior/subsolo das cavernas" },
-  { key: "markers", label: "Marcadores", hint: "Aneis localizadores das cavernas (debug)" },
-  { key: "relief", label: "Relevo", hint: "Altitude, penhascos, saliencias" },
+  { key: "markers", label: "Marcadores", hint: "Anéis localizadores das cavernas (debug)" },
+  { key: "relief", label: "Relevo", hint: "Altitude, penhascos, saliências" },
   { key: "objects", label: "Objetos", hint: "Rochas, troncos, cogumelos" },
 ];
 
@@ -3338,7 +3343,7 @@ function LayersControl({
           ) : null}
 
           <div className="terrain-layers__veg">
-            <label htmlFor="terrain-veg-opacity">Vegetacao</label>
+            <label htmlFor="terrain-veg-opacity">Vegetação</label>
             <div className="terrain-layers__veg-presets">
               {[0, 0.4, 1].map((value) => (
                 <button
@@ -3368,7 +3373,7 @@ function LayersControl({
             onClick={() => setAdvanced((value) => !value)}
             aria-expanded={advanced}
           >
-            <span>Avancado</span>
+            <span>Avançado</span>
             <span aria-hidden="true">{advanced ? "▾" : "▸"}</span>
           </button>
 
@@ -3420,9 +3425,9 @@ const FAUNA_CATEGORY_LABELS: Record<string, string> = {
 };
 
 const FEEDING_STRATEGY_LABELS: Record<SpeciesDefinition["feedingStrategy"], string> = {
-  carnivore: "Carnivoros",
-  herbivore: "Herbivoros",
-  omnivore: "Onivoros",
+  carnivore: "Carnívoros",
+  herbivore: "Herbívoros",
+  omnivore: "Onívoros",
 };
 
 const FEEDING_STRATEGY_COLORS: Record<SpeciesDefinition["feedingStrategy"], string> = {
@@ -3437,8 +3442,9 @@ const ACTIVITY_PERIOD_LABELS: Record<ActivityPeriod, string> = {
   crepuscular: "Crepusculares",
 };
 
-const DEMO_PROMPT =
-  "Gere um ecossistema de floresta tropical úmida, com rios, alta biodiversidade, vegetação densa e risco de desmatamento.";
+// Cenário exibido na abertura, antes de qualquer geração: dossel denso e água,
+// o quadro mais representativo do que a ferramenta produz.
+const PREVIEW_SCENARIO_ID: DemoScenarioId = "amazonia-coerente";
 
 const INITIAL_FORM = {
   width: "48",
@@ -3578,6 +3584,7 @@ function EcologyTerrainSection({
   const [aiError, setAiError] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState<DemoRunMode>(getDefaultDemoMode);
   const [offlineDisclosure, setOfflineDisclosure] = useState<string | null>(null);
+  const [previewNotice, setPreviewNotice] = useState<string | null>(null);
   const [fallbackScenarioId, setFallbackScenarioId] = useState<DemoScenarioId | null>(null);
   const presentationMode = useUiStore((state) => state.presentationMode);
   const performanceProfile = useUiStore((state) => state.performanceProfile);
@@ -3591,8 +3598,11 @@ function EcologyTerrainSection({
   const reportFormations = report?.formations ?? EMPTY_FORMATIONS;
   const ecosystemDemos = DEMO_SCENARIOS.filter((scenario) => scenario.kind === "ecosystem");
 
-  const applyOfflineSnapshot = useCallback((scenarioId: DemoScenarioId) => {
+  // `preview` carrega um cenário só para a abertura não começar vazia: não grava
+  // como último cenário do usuário e se anuncia como exemplo, nunca como resultado ao vivo.
+  const applyOfflineSnapshot = useCallback((scenarioId: DemoScenarioId, options?: { preview?: boolean }) => {
     if (scenarioId === "invasao-javali-cerrado") return;
+    const isPreview = options?.preview === true;
     const snapshot = getOfflineEcosystemSnapshot(scenarioId);
     const result = snapshot.result;
     setAiResult(result);
@@ -3615,9 +3625,21 @@ function EcologyTerrainSection({
     setFaunaError(null);
     setError(null);
     setAiError(null);
-    setOfflineDisclosure(snapshot.meta.disclosure);
+    setOfflineDisclosure(isPreview ? null : snapshot.meta.disclosure);
+    if (isPreview) {
+      // Deixa o prompt pronto: o botão primário nasce habilitado e a demo começa
+      // com um clique, não com digitação.
+      setAiPrompt(getDemoScenario(scenarioId).prompt);
+    }
+    setPreviewNotice(
+      isPreview
+        ? `Exemplo pré-carregado (${getDemoScenario(scenarioId).title}, cenário offline). Gere um ecossistema para substituí-lo.`
+        : null,
+    );
     setFallbackScenarioId(null);
-    saveLastScenario({ scenarioId, mode: "offline", ecosystemResult: result });
+    if (!isPreview) {
+      saveLastScenario({ scenarioId, mode: "offline", ecosystemResult: result });
+    }
   }, []);
 
   function field(key: keyof TerrainForm) {
@@ -3637,6 +3659,7 @@ function EcologyTerrainSection({
   async function generate() {
     setIsLoading(true);
     setError(null);
+    setPreviewNotice(null);
     setReport(null);
     setFaunaSpecies([]);
     setFaunaLiveCount(0);
@@ -3652,7 +3675,7 @@ function EcologyTerrainSection({
       }
       if (demoMode === "auto" && !(await checkApiHealth())) {
         setFallbackScenarioId("cerrado-predador-presa");
-        setError("Backend indisponivel no momento. Tente novamente ou abra uma demonstracao offline precomputada.");
+        setError("Backend indisponível no momento. Tente novamente ou abra uma demonstração offline precomputada.");
         return;
       }
       const manualProfile = PERFORMANCE_PROFILES[performanceProfile];
@@ -3700,6 +3723,7 @@ function EcologyTerrainSection({
     if (!effectivePrompt) return;
     setIsAiLoading(true);
     setAiError(null);
+    setPreviewNotice(null);
     setAiResult(null);
     setReport(null);
     setFaunaEvents([]);
@@ -3715,7 +3739,7 @@ function EcologyTerrainSection({
       }
       if (demoMode === "auto" && !(await checkApiHealth())) {
         setFallbackScenarioId(scenarioId);
-        setAiError("Backend indisponivel. Nenhum resultado ao vivo foi substituido; escolha tentar novamente ou demo offline.");
+        setAiError("Backend indisponível. Nenhum resultado ao vivo foi substituído; escolha tentar novamente ou demo offline.");
         return;
       }
       const response = await ecologyApi.ecosystemReport({ prompt: effectivePrompt });
@@ -3771,6 +3795,17 @@ function EcologyTerrainSection({
     onInitialPromptConsumed?.();
   }, [initialOfflineScenarioId, applyOfflineSnapshot, onInitialPromptConsumed]);
 
+  // Abertura: em vez do estado vazio, mostra um ecossistema de exemplo já renderizado.
+  // O ref garante uma única carga; as props só são lidas na primeira montagem, por
+  // isso a lista de dependências fica intencionalmente vazia.
+  const previewLoadedRef = useRef(false);
+  useEffect(() => {
+    if (previewLoadedRef.current) return;
+    previewLoadedRef.current = true;
+    if (initialPrompt?.trim() || initialOfflineScenarioId?.trim()) return;
+    applyOfflineSnapshot(PREVIEW_SCENARIO_ID, { preview: true });
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const alreadySuggested = window.localStorage.getItem("sara-core.light-mode-suggested") === "true";
@@ -3819,13 +3854,13 @@ function EcologyTerrainSection({
   return (
     <div className={`page-stack${presentationMode ? " presentation-terrain" : ""}`}>
       <style>{`
-        @import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;700&display=swap");
-
+        /* Tipografia unificada: sans no corpo e nos controles, serifada nos títulos.
+           A monoespaçada sobrevive apenas nas leituras numéricas (ver __meta). */
         .terrain-shell,
         .terrain-stage,
         .terrain-stage__tooltip,
         .terrain-stage__fallback {
-          font-family: "JetBrains Mono", monospace;
+          font-family: var(--token-typography-family);
         }
 
         .terrain-shell {
@@ -3833,9 +3868,69 @@ function EcologyTerrainSection({
           gap: 1rem;
         }
 
+        /* O visualizador é o herói: em telas largas o console vira coluna lateral
+           e o 3D ocupa o resto, aparecendo sem rolagem. Abaixo de 1180px volta a
+           empilhar, com o console primeiro. */
+        .terrain-workspace {
+          display: grid;
+          gap: 1.25rem;
+          align-content: start;
+        }
+
+        @media (min-width: 1180px) {
+          .terrain-workspace {
+            grid-template-columns: minmax(22rem, 27rem) minmax(0, 1fr);
+            align-items: start;
+          }
+
+          /* Abrir o painel avançado não pode esticar a coluna: ela rola por dentro
+             e o visualizador ao lado fica parado. */
+          .terrain-console {
+            position: sticky;
+            top: 5.5rem;
+            max-height: calc(100vh - 7rem);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+          }
+        }
+
+        .terrain-console .terrain-ai-prompt__row {
+          flex-wrap: wrap;
+        }
+
+        .terrain-console .terrain-ai-prompt__input {
+          flex: 1 1 100%;
+        }
+
+        /* Na coluna estreita os campos numéricos cabem em duas colunas curtas
+           em vez de virar uma pilha de dez linhas. */
+        .terrain-console .ecology-form-grid {
+          grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+          gap: 0.65rem;
+        }
+
+        .terrain-console .demo-mode-bar {
+          gap: 0.5rem;
+        }
+
+        .terrain-console .demo-mode-bar label {
+          min-width: 100%;
+        }
+
+        .demo-scenario-row {
+          align-items: center;
+          gap: 0.4rem;
+        }
+
+        .demo-scenario-row__label {
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: #8a6a51;
+        }
+
         .terrain-shell .signal-panel__header h3,
         .terrain-stage h4 {
-          font-family: "Fraunces", serif;
+          font-family: var(--token-typography-displayFamily);
           letter-spacing: 0;
         }
 
@@ -3844,6 +3939,13 @@ function EcologyTerrainSection({
           background:
             linear-gradient(180deg, rgba(250, 241, 229, 0.98), rgba(244, 228, 209, 0.92));
           box-shadow: inset 0 1px 0 rgba(255, 247, 236, 0.8);
+        }
+
+        .terrain-preview-notice {
+          margin: 0;
+          font-size: 0.8rem;
+          line-height: 1.45;
+          color: #8a6a51;
         }
 
         .terrain-ai-prompt {
@@ -3883,7 +3985,9 @@ function EcologyTerrainSection({
         .terrain-ai-badge__meta {
           font-size: 0.75rem;
           color: #9b6e4e;
-          font-family: "JetBrains Mono", monospace;
+          /* Leitura numérica: monoespaçada alinha as colunas de temperatura/chuva. */
+          font-family: var(--token-typography-monoFamily);
+          font-variant-numeric: tabular-nums;
           margin-top: 0.1rem;
         }
 
@@ -3971,7 +4075,8 @@ function EcologyTerrainSection({
 
         .terrain-stage__viewport {
           position: relative;
-          min-height: 32rem;
+          /* Acompanha a regra global: o visualizador cresce com a janela. */
+          min-height: clamp(32rem, 68vh, 50rem);
           border-radius: 0.9rem;
           overflow: hidden;
           border: 1px solid rgba(123, 86, 54, 0.18);
@@ -4864,7 +4969,7 @@ function EcologyTerrainSection({
         }
 
         .terrain-stage__tooltip strong {
-          font-family: "Fraunces", serif;
+          font-family: var(--token-typography-displayFamily);
           font-size: 1rem;
           font-weight: 600;
         }
@@ -5101,26 +5206,117 @@ function EcologyTerrainSection({
         }
       `}</style>
 
-      <section className="signal-panel signal-panel--llm terrain-shell">
+      <div className="terrain-workspace">
+      <section className="signal-panel signal-panel--llm terrain-shell terrain-console">
         <div className="signal-panel__header">
           <div>
-            <h3>Simulacao 3D de ecossistemas</h3>
+            <h3>Simulação 3D de ecossistemas</h3>
             <p>
-              Gera um relevo low-poly com ciclo automatico de dia e noite, chuva dinamica,
-              relampagos ocasionais, agua translucida e vegetacao instanciada por bioma.
-              Arraste para orbitar; o giro inicial para sozinho apos 4 segundos ou no
-              primeiro gesto.
+              {/* Neutro quanto à posição: em telas estreitas o visualizador fica abaixo. */}
+              Descreva um bioma; o relevo, a água, a vegetação e a fauna aparecem no
+              visualizador 3D. Arraste para orbitar.
             </p>
           </div>
         </div>
+
+        {offlineDisclosure ? (
+          <div className="signal-message signal-message--warning" data-testid="offline-disclosure">
+            <WarningCircle weight="duotone" />
+            <div>
+              <strong>Demonstração offline</strong>
+              <span>{offlineDisclosure}</span>
+            </div>
+          </div>
+        ) : null}
+
+        {previewNotice ? (
+          <p className="terrain-preview-notice" data-testid="preview-notice">
+            {previewNotice}
+          </p>
+        ) : null}
+
+        <div className="terrain-ai-prompt">
+          <div className="terrain-ai-prompt__row">
+            <textarea
+              className="ui-input terrain-ai-prompt__input"
+              placeholder="Descreva o ecossistema: 'cerrado brasileiro', 'pantanal alagado', 'amazônia densa', 'deserto quente'..."
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void promptAndGenerate();
+              }}
+              rows={2}
+              disabled={isAiLoading}
+            />
+            {/* Único botão primário da tela: é a ação que a banca precisa ver. */}
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => void promptAndGenerate()}
+              disabled={isAiLoading || !aiPrompt.trim()}
+            >
+              <Sparkle weight="duotone" />
+              {isAiLoading ? "Interpretando..." : "Gerar ecossistema 3D"}
+            </Button>
+          </div>
+
+          {/* Exemplos nomeados: escolher o cenário é parte da narrativa da demo,
+              então cada um é um atalho visível, não um botão genérico. */}
+          <div className="demo-scenario-row">
+            <span className="demo-scenario-row__label">Exemplos</span>
+            {ecosystemDemos.map((scenario) => (
+              <Button
+                key={scenario.id}
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setAiPrompt(scenario.prompt);
+                  if (demoMode === "offline") {
+                    applyOfflineSnapshot(scenario.id);
+                  } else {
+                    void promptAndGenerate(scenario.prompt);
+                  }
+                }}
+                disabled={isAiLoading}
+                title={`${scenario.title} — ${scenario.purpose} Visual: ${scenario.expectedVisualFocus}`}
+              >
+                {scenario.shortTitle}
+              </Button>
+            ))}
+          </div>
+
+          {aiResult && !isAiLoading ? (
+            <div className="terrain-ai-badge">
+              <strong>{aiResult.biomeName}</strong>
+              <span>{aiResult.interpretation}</span>
+              <span className="terrain-ai-badge__meta">
+                {aiResult.terrainParams.baseTemperatureC}°C · {aiResult.terrainParams.basePrecipitationMm}mm · {aiResult.terrainParams.baseHumidityPct}% umidade
+              </span>
+            </div>
+          ) : null}
+
+          {aiError ? (
+            <div className="terrain-ai-error">
+              <p>{aiError}</p>
+              {fallbackScenarioId ? (
+                <Button variant="secondary" size="sm" onClick={() => applyOfflineSnapshot(fallbackScenarioId)}>
+                  Abrir demo offline
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <details className="advanced-controls">
+          <summary>Configurações avançadas</summary>
 
         <div className="demo-mode-bar" data-testid="demo-mode-bar">
           <label>
             Modo
             <select className="ui-select" value={demoMode} onChange={(event) => setDemoMode(event.target.value as DemoRunMode)}>
-              <option value="auto">Automatico: ao vivo, depois oferecer offline</option>
+              <option value="auto">Automático: ao vivo, depois oferecer offline</option>
               <option value="live">Ao vivo</option>
-              <option value="offline">Demonstracao offline</option>
+              <option value="offline">Demonstração offline</option>
             </select>
           </label>
           <label>
@@ -5140,95 +5336,6 @@ function EcologyTerrainSection({
           <span>{PERFORMANCE_PROFILES[performanceProfile].description}</span>
         </div>
 
-        {offlineDisclosure ? (
-          <div className="signal-message signal-message--warning" data-testid="offline-disclosure">
-            <WarningCircle weight="duotone" />
-            <div>
-              <strong>Demonstracao offline</strong>
-              <span>{offlineDisclosure}</span>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="terrain-ai-prompt">
-          <div className="terrain-ai-prompt__row">
-            <textarea
-              className="ui-input terrain-ai-prompt__input"
-              placeholder="Descreva o ecossistema: 'cerrado brasileiro', 'pantanal alagado', 'amazonia densa', 'deserto quente'..."
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void promptAndGenerate();
-              }}
-              rows={2}
-              disabled={isAiLoading}
-            />
-            <Button
-              variant="primary"
-              onClick={() => void promptAndGenerate()}
-              disabled={isAiLoading || !aiPrompt.trim()}
-            >
-              <Sparkle weight="duotone" />
-              {isAiLoading ? "Interpretando..." : "Gerar via IA"}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setAiPrompt(DEMO_PROMPT);
-                void promptAndGenerate(DEMO_PROMPT);
-              }}
-              disabled={isAiLoading}
-              title="Prompt fixo de demonstração"
-            >
-              Exemplo
-            </Button>
-          </div>
-
-          <div className="demo-scenario-row">
-            {ecosystemDemos.map((scenario) => (
-              <Button
-                key={scenario.id}
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setAiPrompt(scenario.prompt);
-                  if (demoMode === "offline") {
-                    applyOfflineSnapshot(scenario.id);
-                  } else {
-                    void promptAndGenerate(scenario.prompt);
-                  }
-                }}
-                title={`${scenario.purpose} Visual: ${scenario.expectedVisualFocus}`}
-              >
-                {scenario.title}
-              </Button>
-            ))}
-          </div>
-
-          {aiResult && !isAiLoading ? (
-            <div className="terrain-ai-badge">
-              <strong>{aiResult.biomeName}</strong>
-              <span>{aiResult.interpretation}</span>
-              <span className="terrain-ai-badge__meta">
-                {aiResult.terrainParams.baseTemperatureC}°C · {aiResult.terrainParams.basePrecipitationMm}mm · {aiResult.terrainParams.baseHumidityPct}% humidade
-              </span>
-            </div>
-          ) : null}
-
-          {aiError ? (
-            <div className="terrain-ai-error">
-              <p>{aiError}</p>
-              {fallbackScenarioId ? (
-                <Button variant="secondary" size="sm" onClick={() => applyOfflineSnapshot(fallbackScenarioId)}>
-                  Abrir demo offline
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-
-        <details className="advanced-controls">
-          <summary>Configuracoes avancadas</summary>
         <div className="ecology-form-grid">
           <div className="ui-input-field">
             <label className="ui-input-field__label">Largura (4-64)</label>
@@ -5253,7 +5360,7 @@ function EcologyTerrainSection({
             />
           </div>
           <div className="ui-input-field">
-            <label className="ui-input-field__label">Precipitacao base (mm/ano)</label>
+            <label className="ui-input-field__label">Precipitação base (mm/ano)</label>
             <input
               type="number"
               className="ui-input"
@@ -5284,7 +5391,7 @@ function EcologyTerrainSection({
               </Button>
             </div>
             <span className="terrain-fauna-control__meta">
-              Camadas (vegetacao, rios, cavernas, relevo, fauna, eventos, raio-X) ficam no botao
+              Camadas (vegetação, rios, cavernas, relevo, fauna, eventos, raio-X) ficam no botao
               "Camadas" sobre o mapa 3D.
             </span>
           </div>
@@ -5310,16 +5417,16 @@ function EcologyTerrainSection({
               {isFaunaLoading
                 ? "carregando..."
                 : faunaSpecies.length > 0
-                  ? `${faunaLiveCount} individuos`
+                  ? `${faunaLiveCount} indivíduos`
                   : grid
-                    ? "sem especies"
+                    ? "sem espécies"
                     : "--"}
             </strong>
             <span className="terrain-fauna-control__meta">
               {faunaSpecies.length > 0
-                ? `${faunaSpecies.length} especies do bioma`
+                ? `${faunaSpecies.length} espécies do bioma`
                 : grid && !isFaunaLoading
-                  ? "aguardando especies compativeis"
+                  ? "aguardando espécies compatíveis"
                   : "gera o terreno para ativar"}
             </span>
           </div>
@@ -5367,25 +5474,25 @@ function EcologyTerrainSection({
               ) : null}
 
               {rainEnabled && rainIntensity >= 60 ? (
-                <span className="terrain-fauna-control__hint">⚡ Relampagos ativos</span>
+                <span className="terrain-fauna-control__hint">⚡ Relâmpagos ativos</span>
               ) : null}
             </div>
           </div>
         </div>
-        </details>
-
         <div className="form-actions">
+          {/* Regeneração manual e manutenção vivem dentro do avançado: fora dele
+              a tela mantém um único caminho de ação. */}
           <Button
-            variant="primary"
+            variant="secondary"
             onClick={() => void generate()}
             disabled={isLoading}
             data-testid="terrain-generate-btn"
           >
             <Mountains weight="duotone" />
-            {isLoading ? "Gerando ecossistema..." : "Gerar ecossistema 3D"}
+            {isLoading ? "Gerando ecossistema..." : "Regenerar com estes parâmetros"}
           </Button>
           <Button
-            variant="secondary"
+            variant="ghost"
             onClick={() => {
               const last = readLastScenario();
               if (last?.ecosystemResult) {
@@ -5393,30 +5500,31 @@ function EcologyTerrainSection({
                 setReport(last.ecosystemResult.report);
                 setGrid(last.ecosystemResult.terrain);
                 setFaunaSpecies(last.ecosystemResult.species);
-                setOfflineDisclosure(last.mode === "offline" ? "Cenario restaurado do armazenamento local offline." : null);
+                setOfflineDisclosure(last.mode === "offline" ? "Cenário restaurado do armazenamento local offline." : null);
               }
             }}
           >
-            Reabrir ultimo cenario
+            Reabrir último cenário
           </Button>
           <Button variant="ghost" onClick={() => { clearLocalDemoData(); setOfflineDisclosure(null); }}>
             Limpar dados locais
           </Button>
         </div>
+        </details>
       </section>
 
-      {isLoading ? <LoadingBlock label="Gerando relevo, agua e biomas..." /> : null}
+      {isLoading ? <LoadingBlock label="Gerando relevo, água e biomas..." /> : null}
 
       {error && !isLoading ? (
         <div className="stack-sm">
           <ErrorState
-            title="Erro na simulacao"
+            title="Erro na simulação"
             message={error}
             onRetry={() => void generate()}
           />
           {fallbackScenarioId ? (
             <Button variant="secondary" onClick={() => applyOfflineSnapshot(fallbackScenarioId)}>
-              Abrir demonstracao offline
+              Abrir demonstração offline
             </Button>
           ) : null}
         </div>
@@ -5426,12 +5534,12 @@ function EcologyTerrainSection({
         <EmptyState
           icon={<Mountains weight="duotone" />}
           title="Nenhum ecossistema gerado ainda"
-          description="Defina os parâmetros no formulário acima e gere um grid para abrir o visualizador 3D."
+          description="Descreva um bioma e gere um grid para abrir o visualizador 3D."
         />
       ) : null}
 
       {grid && !isLoading ? (
-        <section className="signal-panel terrain-shell">
+        <section className="signal-panel terrain-shell terrain-viewer">
           <TerrainView
             grid={grid}
             faunaSpecies={faunaSpecies}
@@ -5475,7 +5583,7 @@ function EcologyTerrainSection({
             <div className="signal-message signal-message--warning" style={{ marginTop: "1rem" }}>
               <WarningCircle weight="duotone" />
               <div>
-                <strong>Fauna indisponivel</strong>
+                <strong>Fauna indisponível</strong>
                 <span>{faunaError}</span>
               </div>
             </div>
@@ -5485,8 +5593,8 @@ function EcologyTerrainSection({
             <div className="signal-message signal-message--neutral" style={{ marginTop: "1rem" }}>
               <WarningCircle weight="duotone" />
               <div>
-                <strong>Fauna em preparacao</strong>
-                <span>Filtrando especies compativeis com os biomas do grid.</span>
+                <strong>Fauna em preparação</strong>
+                <span>Filtrando espécies compatíveis com os biomas do grid.</span>
               </div>
             </div>
           ) : null}
@@ -5494,12 +5602,13 @@ function EcologyTerrainSection({
           <div className="signal-message signal-message--neutral" style={{ marginTop: "0.25rem" }}>
             <WarningCircle weight="duotone" />
             <div>
-              <strong>Nota da simulacao</strong>
+              <strong>Nota da simulação</strong>
               <span>{grid.simulationNote}</span>
             </div>
           </div>
         </section>
       ) : null}
+      </div>
 
       {report && !isLoading ? (
         <section className="signal-panel ecosystem-report" data-testid="ecosystem-report-panel">
@@ -5616,11 +5725,11 @@ function EcologyTerrainSection({
 
           <div className="signal-panel__header">
             <div>
-              <h3>Relatorio do ecossistema{aiResult ? `: ${aiResult.biomeName}` : ""}</h3>
+              <h3>Relatório do ecossistema{aiResult ? `: ${aiResult.biomeName}` : ""}</h3>
               <p>
-                Sintese estruturada do ambiente gerado a partir da descricao textual:
-                clima, relevo, vegetacao, fauna, base de recurso, rede trofica, validacao
-                deterministica e base cientifica.
+                Síntese estruturada do ambiente gerado a partir da descrição textual:
+                clima, relevo, vegetação, fauna, base de recurso, rede trófica, validação
+                determinística e base científica.
               </p>
             </div>
           </div>
@@ -5629,7 +5738,7 @@ function EcologyTerrainSection({
             <div className="signal-message signal-message--error">
               <WarningCircle weight="duotone" />
               <div>
-                <strong>Contradicoes bloqueantes</strong>
+                <strong>Contradições bloqueantes</strong>
                 <span>{report.validation.blockingContradictions.join(" ")}</span>
               </div>
             </div>
@@ -5641,26 +5750,26 @@ function EcologyTerrainSection({
               <strong>{report.ecosystemProfile?.profile?.displayName ?? aiResult?.biomeName ?? "Ecossistema"}</strong>
             </div>
             <div className="ecosystem-report__summary-card">
-              <span>Validacao deterministica</span>
-              <strong>{report.validation ? `${report.validation.score}/100 - ${report.validation.label}` : "indisponivel"}</strong>
+              <span>Validação determinística</span>
+              <strong>{report.validation ? `${report.validation.score}/100 - ${report.validation.label}` : "indisponível"}</strong>
             </div>
             <div className="ecosystem-report__summary-card">
               <span>Fauna</span>
-              <strong>{report.fauna.totalSpecies} especies</strong>
+              <strong>{report.fauna.totalSpecies} espécies</strong>
             </div>
             <div className="ecosystem-report__summary-card">
               <span>Base de recurso</span>
               <strong>{report.resourceBase?.unsupportedConsumers.length ? "com alertas" : "suporte presente"}</strong>
             </div>
             <div className="ecosystem-report__summary-card">
-              <span>Rede trofica</span>
+              <span>Rede trófica</span>
               <strong>{report.trophicNetwork?.pyramidConsistent ? "consistente" : "com alertas"}</strong>
             </div>
           </div>
 
           <div className="plausibility" data-testid="plausibility-panel">
             <div className="plausibility__head">
-              <h4>Plausibilidade ecologica</h4>
+              <h4>Plausibilidade ecológica</h4>
               <span className={`plausibility__overall plausibility__overall--${report.plausibility.overall}`}>
                 {RATING_LABEL[report.plausibility.overall] ?? report.plausibility.overall}
               </span>
@@ -5686,7 +5795,7 @@ function EcologyTerrainSection({
           {report.validation ? (
             <div className="plausibility" data-testid="validation-panel">
               <div className="plausibility__head">
-                <h4>Validacao ecologica deterministica</h4>
+                <h4>Validação ecológica determinística</h4>
                 <span
                   className={`plausibility__overall plausibility__overall--${
                     report.validation.label === "alta"
@@ -5700,9 +5809,9 @@ function EcologyTerrainSection({
                 </span>
               </div>
               <p className="plausibility__caveat" style={{ margin: "0 0 0.5rem" }}>
-                Pontuacao calculada por servicos deterministicos (habitat, clima, cadeia trofica,
-                recursos, riqueza e confianca dos dados) — nao pela IA. A IA apenas interpreta o texto
-                e explica o resultado; a consistencia ecologica e imposta pelo backend.
+                Pontuação calculada por serviços determinísticos (habitat, clima, cadeia trófica,
+                recursos, riqueza e confianca dos dados) — não pela IA. A IA apenas interpreta o texto
+                e explica o resultado; a consistência ecológica é imposta pelo backend.
               </p>
               <table className="plausibility__table">
                 <tbody>
@@ -5725,7 +5834,7 @@ function EcologyTerrainSection({
               {report.validation.blockingContradictions.length > 0 ? (
                 <ul className="ecosystem-report__limitations" style={{ marginTop: "0.5rem" }}>
                   {report.validation.blockingContradictions.map((b, i) => (
-                    <li key={i}>Contradicao: {b}</li>
+                    <li key={i}>Contradição: {b}</li>
                   ))}
                 </ul>
               ) : null}
@@ -5744,7 +5853,7 @@ function EcologyTerrainSection({
                   Temperatura: {report.climate.temperatureRangeC[0]}–{report.climate.temperatureRangeC[1]} °C
                 </li>
                 <li>
-                  Precipitacao: {report.climate.precipitationRangeMm[0]}–{report.climate.precipitationRangeMm[1]} mm
+                  Precipitação: {report.climate.precipitationRangeMm[0]}–{report.climate.precipitationRangeMm[1]} mm
                 </li>
                 <li>
                   Umidade: {report.climate.humidityRangePct[0]}–{report.climate.humidityRangePct[1]} %
@@ -5756,32 +5865,32 @@ function EcologyTerrainSection({
             <div className="ecosystem-report__card">
               <h4>Relevo</h4>
               <ul>
-                <li>Elevacao: {report.relief.elevationMin}–{report.relief.elevationMax} (media {report.relief.elevationMean})</li>
+                <li>Elevação: {report.relief.elevationMin}–{report.relief.elevationMax} (média {report.relief.elevationMean})</li>
                 <li>Irregularidade: {report.relief.ruggedness}</li>
-                <li>Cobertura de agua: {report.relief.waterCoveragePct}%</li>
-                <li>Grid: {report.relief.width}×{report.relief.height} ({report.relief.cellCount} celulas)</li>
+                <li>Cobertura de água: {report.relief.waterCoveragePct}%</li>
+                <li>Grid: {report.relief.width}×{report.relief.height} ({report.relief.cellCount} células)</li>
               </ul>
             </div>
 
             <div className="ecosystem-report__card">
-              <h4>Formacoes do terreno</h4>
+              <h4>Formações do terreno</h4>
               <ul>
-                <li>Sistemas de caverna: {reportFormations.caveSystems} ({reportFormations.caveCells} celulas)</li>
-                <li>Entradas visiveis: {reportFormations.visibleEntrances} / celulas internas: {reportFormations.subterraneanCells}</li>
+                <li>Sistemas de caverna: {reportFormations.caveSystems} ({reportFormations.caveCells} células)</li>
+                <li>Entradas visíveis: {reportFormations.visibleEntrances} / células internas: {reportFormations.subterraneanCells}</li>
                 <li>Camaras: {reportFormations.chamberCells} / tuneis: {reportFormations.tunnelCells} / conexoes: {reportFormations.connections}</li>
-                <li>Maior sistema: {reportFormations.largestSystemCells} celulas{reportFormations.fallbackSingleCellSystems > 0 ? ` · ${reportFormations.fallbackSingleCellSystems} sistema(s) de celula unica (fallback)` : ""}</li>
+                <li>Maior sistema: {reportFormations.largestSystemCells} células{reportFormations.fallbackSingleCellSystems > 0 ? ` · ${reportFormations.fallbackSingleCellSystems} sistema(s) de célula única (fallback)` : ""}</li>
                 <li>Profundidade: max. {(reportFormations.maxCaveDepth * 100).toFixed(0)}% / media {(reportFormations.avgCaveDepth * 100).toFixed(0)}% · rasas {reportFormations.shallowCaveCount} / profundas {reportFormations.deepCaveCount}</li>
                 <li>Tipos: {reportFormations.caveTypes.map((entry) => `${CAVE_TYPE_LABELS[entry.type] ?? entry.type} (${entry.count})`).join(", ") || "-"}</li>
-                <li>Rios: {reportFormations.riverCells} celulas / fluxo max. {(reportFormations.maxWaterFlow * 100).toFixed(0)}% / quedas {reportFormations.waterfallCells}</li>
-                <li>Relevo: montanha {reportFormations.mountainCoveragePct}% / penhasco {reportFormations.cliffCoveragePct}% / saliencias {reportFormations.ledgeCells}</li>
+                <li>Rios: {reportFormations.riverCells} células / fluxo max. {(reportFormations.maxWaterFlow * 100).toFixed(0)}% / quedas {reportFormations.waterfallCells}</li>
+                <li>Relevo: montanha {reportFormations.mountainCoveragePct}% / penhasco {reportFormations.cliffCoveragePct}% / saliências {reportFormations.ledgeCells}</li>
               </ul>
             </div>
 
             <div className="ecosystem-report__card">
-              <h4>Vegetacao</h4>
+              <h4>Vegetação</h4>
               <ul>
                 {report.vegetation.dominantBiomes.map((b) => (
-                  <li key={b.biome}>{b.biome}: {b.pct}%</li>
+                  <li key={b.biome}>{biomeLabel(b.biome)}: {b.pct}%</li>
                 ))}
               </ul>
               <p style={{ fontSize: "0.85rem", opacity: 0.85, margin: "0.5rem 0 0" }}>
@@ -5790,7 +5899,7 @@ function EcologyTerrainSection({
             </div>
 
             <div className="ecosystem-report__card">
-              <h4>Fauna ({report.fauna.totalSpecies} especies)</h4>
+              <h4>Fauna ({report.fauna.totalSpecies} espécies)</h4>
               <ul>
                 {report.fauna.byFeedingStrategy.map((c) => (
                   <li key={c.feedingStrategy}>
@@ -5822,13 +5931,13 @@ function EcologyTerrainSection({
                 </ul>
               ) : (
                 <p style={{ fontSize: "0.85rem", opacity: 0.75, margin: 0 }}>
-                  Nenhuma especie compativel com os biomas gerados.
+                  Nenhuma espécie compatível com os biomas gerados.
                 </p>
               )}
             </div>
 
             <div className="ecosystem-report__card">
-              <h4>Fatores abioticos</h4>
+              <h4>Fatores abióticos</h4>
               <ul>
                 {report.abioticFactors.map((f) => (
                   <li key={f.label}>{f.label}: {f.value} {f.unit}</li>
@@ -5847,11 +5956,11 @@ function EcologyTerrainSection({
                   </ul>
                 ) : (
                   <p style={{ fontSize: "0.85rem", opacity: 0.75, margin: 0 }}>
-                    Sem base de recurso vegetal detectavel no grid.
+                    Sem base de recurso vegetal detectável no grid.
                   </p>
                 )}
                 <p style={{ fontSize: "0.82rem", opacity: 0.8, margin: "0.4rem 0 0" }}>
-                  Pressao herbivora: {report.resourceBase.herbivorePressure.level}
+                  Pressão herbívora: {report.resourceBase.herbivorePressure.level}
                 </p>
                 {report.resourceBase.unsupportedConsumers.length > 0 ? (
                   <p style={{ fontSize: "0.82rem", color: "#fca5a5", margin: "0.3rem 0 0" }}>
@@ -5863,12 +5972,12 @@ function EcologyTerrainSection({
 
             {report.trophicNetwork ? (
               <div className="ecosystem-report__card">
-                <h4>Rede trofica</h4>
+                <h4>Rede trófica</h4>
                 <ul>
-                  <li>Elos de predacao ativos: {report.trophicNetwork.links.length}</li>
+                  <li>Elos de predação ativos: {report.trophicNetwork.links.length}</li>
                   <li>Elos podados (presa ausente): {report.trophicNetwork.prunedLinks.length}</li>
                   <li>
-                    Piramide: {report.trophicNetwork.pyramidConsistent ? "consistente" : "desbalanceada"}
+                    Pirâmide: {report.trophicNetwork.pyramidConsistent ? "consistente" : "desbalanceada"}
                   </li>
                   {report.trophicNetwork.unsupportedSpecies.length > 0 ? (
                     <li>Sem suporte: {report.trophicNetwork.unsupportedSpecies.join(", ")}</li>
@@ -5920,7 +6029,7 @@ function EcologyTerrainSection({
 
           <div className="ecosystem-report__facts">
             <h4 style={{ margin: "0 0 0.25rem" }}>
-              Explicacao cientifica
+              Explicação científica
               <span
                 className={`ecosystem-report__tag ${
                   report.scientificExplanation.coverage === "sufficient"
@@ -5956,14 +6065,14 @@ function EcologyTerrainSection({
               </>
             ) : (
               <p style={{ fontSize: "0.88rem", opacity: 0.8 }}>
-                Nenhum fato cientifico do banco cobre este bioma.
+                Nenhum fato científico do banco cobre este bioma.
               </p>
             )}
           </div>
 
           {report.limitations.length > 0 ? (
             <div className="ecosystem-report__facts">
-              <h4 style={{ margin: "0 0 0.25rem" }}>Limitacoes</h4>
+              <h4 style={{ margin: "0 0 0.25rem" }}>Limitações</h4>
               <ul className="ecosystem-report__limitations">
                 {report.limitations.map((l, i) => (
                   <li key={i}>{l}</li>
