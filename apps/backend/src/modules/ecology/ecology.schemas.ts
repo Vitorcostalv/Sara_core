@@ -43,6 +43,12 @@ export const ecologyListEcosystemsSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(50).default(20),
 });
 
+// GET /ecology/artificial-projects
+export const ecologyListArtificialProjectsSchema = ecologyListEcosystemsSchema.pick({
+  page: true,
+  pageSize: true,
+});
+
 // GET /ecology/species
 export const ecologyListSpeciesSchema = z.object({
   ecosystem: ecosystemSlugSchema.optional(),
@@ -179,6 +185,8 @@ const terrainCellBodySchema = z.object({
       darkness: z.number(),
       connectedTo: z.array(z.string()).optional(),
       systemId: z.string().optional(),
+      isEntrance: z.boolean().optional(),
+      role: z.enum(["entrance", "chamber", "tunnel"]).optional(),
     })
     .optional(),
   objects: z.array(terrainObjectTypeSchema).optional(),
@@ -190,8 +198,16 @@ const faunaGridSchema = z.object({
   seed: z.number().int(),
   baseTemperatureC: z.number(),
   basePrecipitationMm: z.number(),
-  cells: z.array(z.array(terrainCellBodySchema)),
+  cells: z.array(z.array(terrainCellBodySchema).min(4).max(64)).min(4).max(64),
   simulationNote: z.string(),
+}).superRefine((grid, ctx) => {
+  if (grid.cells.length !== grid.height || grid.cells.some((row) => row.length !== grid.width)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Grid cells must match the declared width and height.",
+      path: ["cells"],
+    });
+  }
 });
 
 export const ecologyFaunaSchema = z

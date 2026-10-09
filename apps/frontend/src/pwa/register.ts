@@ -18,7 +18,7 @@ export function registerSaraPwa() {
     if ("caches" in window) {
       caches
         .keys()
-        .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+        .then((keys) => Promise.all(keys.filter((key) => key.startsWith("sara-core-pwa-")).map((key) => caches.delete(key))))
         .catch(() => {
           // idem
         });

@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { getLanInfo } from "../pwa/lan";
+import { readLocalValue, writeLocalValue } from "./storage";
+import { getRuntimeApiBaseUrl } from "../services/api/runtime";
 
 interface UiState {
   apiBaseUrl: string;
@@ -37,6 +39,8 @@ export function normalizeApiBaseUrl(value: string): string {
 }
 
 function getInitialApiBaseUrl(): string {
+  const runtime = getRuntimeApiBaseUrl();
+  if (runtime) return runtime;
   if (typeof window === "undefined") {
     return defaultApiBaseUrl;
   }
@@ -48,47 +52,47 @@ function getInitialApiBaseUrl(): string {
     return lan.apiBaseUrl;
   }
 
-  const saved = window.localStorage.getItem(storageKey);
+  const saved = readLocalValue(storageKey);
   return saved && saved.trim().length > 0 ? normalizeApiBaseUrl(saved) : defaultApiBaseUrl;
 }
 
 export const useUiStore = create<UiState>((set) => ({
   apiBaseUrl: getInitialApiBaseUrl(),
   presentationMode:
-    typeof window !== "undefined" ? window.localStorage.getItem(presentationKey) === "true" : false,
+    readLocalValue(presentationKey) === "true",
   // Roteiro começa recolhido: a abertura precisa mostrar o ecossistema, não instruções.
   // O modo apresentação continua exibindo-o, e quem reabre grava "false".
   demoFlowDismissed:
-    typeof window !== "undefined" ? window.localStorage.getItem(demoFlowKey) !== "false" : true,
+    readLocalValue(demoFlowKey) !== "false",
   performanceProfile:
     typeof window !== "undefined" &&
-    ["high", "balanced", "light"].includes(window.localStorage.getItem(performanceKey) ?? "")
-      ? (window.localStorage.getItem(performanceKey) as UiState["performanceProfile"])
+    ["high", "balanced", "light"].includes(readLocalValue(performanceKey) ?? "")
+      ? (readLocalValue(performanceKey) as UiState["performanceProfile"])
       : "balanced",
   setApiBaseUrl: (value) => {
     const nextValue = normalizeApiBaseUrl(value);
 
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(storageKey, nextValue);
+      writeLocalValue(storageKey, nextValue);
     }
 
     set({ apiBaseUrl: nextValue });
   },
   setPresentationMode: (value) => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(presentationKey, String(value));
+      writeLocalValue(presentationKey, String(value));
     }
     set({ presentationMode: value });
   },
   setDemoFlowDismissed: (value) => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(demoFlowKey, String(value));
+      writeLocalValue(demoFlowKey, String(value));
     }
     set({ demoFlowDismissed: value });
   },
   setPerformanceProfile: (value) => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(performanceKey, value);
+      writeLocalValue(performanceKey, value);
     }
     set({ performanceProfile: value });
   },

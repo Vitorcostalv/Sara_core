@@ -3,6 +3,34 @@ import test from "node:test";
 import { createApp } from "../app";
 import { env } from "../config/env";
 import { ecologicalLlmService } from "../modules/ecology/llm/ecological-llm.service";
+import { ecologicalGroundingRepository } from "../modules/ecology/grounding/ecological-grounding.repository";
+
+test("HTTP integration: artificial projects validate pagination before querying the database", async () => {
+  const originalAuthMode = env.authMode;
+  const originalList = ecologicalGroundingRepository.listArtificialProjects;
+  let calls = 0;
+  env.authMode = "disabled";
+  ecologicalGroundingRepository.listArtificialProjects = async (options) => {
+    calls += 1;
+    assert.deepEqual(options, { limit: 12, offset: 12 });
+    return { rows: [], total: 0 };
+  };
+  try {
+    await withTestServer(async (baseUrl) => {
+      for (const query of ["page=0", "page=-1", "page=abc", "pageSize=0", "pageSize=51", "pageSize=1.5", "page=2junk"]) {
+        const response = await fetch(`${baseUrl}/api/v1/ecology/artificial-projects?${query}`);
+        assert.equal(response.status, 400, query);
+      }
+      assert.equal(calls, 0);
+      const valid = await fetch(`${baseUrl}/api/v1/ecology/artificial-projects?page=2&pageSize=12`);
+      assert.equal(valid.status, 200);
+      assert.equal(calls, 1);
+    });
+  } finally {
+    env.authMode = originalAuthMode;
+    ecologicalGroundingRepository.listArtificialProjects = originalList;
+  }
+});
 
 async function withTestServer(callback: (baseUrl: string) => Promise<void>) {
   const app = createApp();

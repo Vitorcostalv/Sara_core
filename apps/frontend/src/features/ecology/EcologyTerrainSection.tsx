@@ -42,6 +42,7 @@ import {
   type DemoRunMode,
 } from "../../demo/offline";
 import { useUiStore } from "../../state/ui.store";
+import { readLocalValue, writeLocalValue } from "../../state/storage";
 import { DayNightCycle, formatSimulatedTime } from "./DayNightCycle";
 import FaunaLayer, { type FaunaEvent } from "./FaunaLayer";
 import { RainSystem } from "./RainSystem";
@@ -318,7 +319,7 @@ function getDefaultDemoMode(): DemoRunMode {
     host.startsWith("192.168.") ||
     host.startsWith("10.") ||
     host.endsWith(".local");
-  const configuredBackend = window.localStorage.getItem("sara-core.api-base-url") ?? "";
+  const configuredBackend = readLocalValue("sara-core.api-base-url") ?? "";
   const hasRemoteBackend =
     configuredBackend.trim().length > 0 && !/localhost|127\.0\.0\.1/.test(configuredBackend);
   if (!isLocalHost && !hasRemoteBackend) return "offline";
@@ -2402,7 +2403,7 @@ export function TerrainView({
   const [highlightSystemId, setHighlightSystemId] = useState<string | null>(null);
   const [gestureHelpOpen, setGestureHelpOpen] = useState(() => {
     if (typeof window === "undefined") return true;
-    return window.localStorage.getItem("sara-core.gesture-help-dismissed") !== "true";
+    return readLocalValue("sara-core.gesture-help-dismissed") !== "true";
   });
   const locatorTimer = useRef<number | null>(null);
   const highlightTimer = useRef<number | null>(null);
@@ -2750,7 +2751,7 @@ export function TerrainView({
               <button
                 type="button"
                 onClick={() => {
-                  window.localStorage.setItem("sara-core.gesture-help-dismissed", "true");
+                  writeLocalValue("sara-core.gesture-help-dismissed", "true");
                   setGestureHelpOpen(false);
                 }}
                 aria-label="Fechar ajuda de gestos"
@@ -3808,11 +3809,11 @@ function EcologyTerrainSection({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const alreadySuggested = window.localStorage.getItem("sara-core.light-mode-suggested") === "true";
+    const alreadySuggested = readLocalValue("sara-core.light-mode-suggested") === "true";
     if (alreadySuggested || performanceProfile !== "balanced") return;
     if (window.matchMedia("(max-width: 720px), (pointer: coarse)").matches) {
       setPerformanceProfile("light");
-      window.localStorage.setItem("sara-core.light-mode-suggested", "true");
+      writeLocalValue("sara-core.light-mode-suggested", "true");
     }
   }, [performanceProfile, setPerformanceProfile]);
 

@@ -1,5 +1,6 @@
 import type { EcosystemReportResult, InvasiveScenarioResult } from "../services/api/ecology";
 import type { DemoScenarioId } from "./catalog";
+import { readLocalValue, removeLocalValue, writeLocalValue } from "../state/storage";
 import {
   OFFLINE_ECOSYSTEM_SNAPSHOTS,
   OFFLINE_INVASIVE_SNAPSHOT,
@@ -70,12 +71,12 @@ export function saveLastScenario(record: Omit<LastScenarioRecord, "timestamp" | 
     timestamp: new Date().toISOString(),
     appVersion,
   };
-  window.localStorage.setItem(lastScenarioKey, JSON.stringify(next));
+  writeLocalValue(lastScenarioKey, JSON.stringify(next));
 }
 
 export function readLastScenario(): LastScenarioRecord | null {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(lastScenarioKey);
+  const raw = readLocalValue(lastScenarioKey);
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as LastScenarioRecord;
@@ -88,5 +89,5 @@ export function readLastScenario(): LastScenarioRecord | null {
 
 export function clearLocalDemoData() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(lastScenarioKey);
+  removeLocalValue(lastScenarioKey);
 }

@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 let root = process.cwd();
@@ -16,14 +16,14 @@ const files = [
   "apps/frontend/dist/fauna/invasor-javali.png",
 ];
 const budgetBytes = 5 * 1024 * 1024;
+const entryHtml = readFileSync(join(root, "apps/frontend/dist/index.html"), "utf8");
+for (const match of entryHtml.matchAll(/(?:src|href)=["'](\/assets\/[^"']+)["']/g)) {
+  files.push(`apps/frontend/dist${match[1]}`);
+}
 let total = 0;
 
-for (const file of files) {
-  try {
-    total += statSync(join(root, file)).size;
-  } catch {
-    // Missing optional assets are reported by the build/runtime separately.
-  }
+for (const file of new Set(files)) {
+  total += statSync(join(root, file)).size;
 }
 
 const mb = (total / 1024 / 1024).toFixed(2);

@@ -20,6 +20,24 @@ import {
   INVASION_NATIVE_BIOMES,
 } from "./simulation/invasion-community.service";
 import type { ArtificialProjectRow } from "./grounding/ecological-grounding.repository";
+import { ecologyFaunaSchema } from "./ecology.schemas";
+
+test("Fauna request: rejects grids whose actual dimensions differ from their metadata", () => {
+  const grid = terrainGeneratorService.generate({ width: 4, height: 4, seed: 42, baseTemperatureC: 20, basePrecipitationMm: 1200, baseHumidityPct: 60 });
+  assert.equal(ecologyFaunaSchema.safeParse({ grid }).success, true);
+  assert.equal(ecologyFaunaSchema.safeParse({ grid: { ...grid, cells: [] } }).success, false);
+  assert.equal(ecologyFaunaSchema.safeParse({ grid: { ...grid, width: 5 } }).success, false);
+  assert.equal(ecologyFaunaSchema.safeParse({ grid: { ...grid, height: 5 } }).success, false);
+  assert.equal(ecologyFaunaSchema.safeParse({ grid: { ...grid, cells: grid.cells.map((row) => row.slice(1)) } }).success, false);
+});
+
+test("Fauna request: preserves cave entrances and chamber roles on round-trip", () => {
+  const grid = terrainGeneratorService.generate({ width: 4, height: 4, seed: 42, baseTemperatureC: 20, basePrecipitationMm: 1200, baseHumidityPct: 60 });
+  const cave = { type: "deep-cave" as const, depth: 0.8, openness: 0.2, humidity: 0.9, darkness: 0.9, isEntrance: false, role: "chamber" as const, systemId: "cave-1", connectedTo: ["1,0"] };
+  grid.cells[0]![0]!.cave = cave;
+  const parsed = ecologyFaunaSchema.parse({ grid });
+  assert.deepEqual(parsed.grid!.cells[0]![0]!.cave, cave);
+});
 
 // Amazônia-like preset params (matches BiomePresetService "amazonia"): hot, very wet, humid lowland.
 const AMAZON_PARAMS = {

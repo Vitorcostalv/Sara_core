@@ -1,11 +1,14 @@
 import type { ApiErrorResponse } from "@sara/shared-types";
 import { useUiStore } from "../../state/ui.store";
+import { getRuntimeApiBaseUrl } from "./runtime";
 
 const fallbackApiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3333/api/v1";
 const defaultTimeoutMs = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 12000);
 
 function getApiBaseUrl(): string {
+  const runtime = getRuntimeApiBaseUrl();
+  if (runtime) return runtime;
   const configured = useUiStore.getState().apiBaseUrl?.trim();
   return configured && configured.length > 0 ? configured : fallbackApiBaseUrl;
 }
@@ -26,19 +29,25 @@ export async function fetchWithTimeout(
   timeoutMs = defaultTimeoutMs
 ): Promise<Response> {
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort(init.signal?.reason);
+  if (init.signal?.aborted) abortFromCaller();
+  else init.signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await fetch(input, { ...init, signal: controller.signal });
   } finally {
     window.clearTimeout(timeoutId);
+    init.signal?.removeEventListener("abort", abortFromCaller);
   }
 }
 
 export async function checkApiHealth(timeoutMs = 3000): Promise<boolean> {
   try {
     const response = await fetchWithTimeout(buildApiUrl("/health"), {}, timeoutMs);
-    return response.ok;
+    if (!response.ok) return false;
+    const status = await response.json() as { status?: string; database?: { ok?: boolean } };
+    return status.status === "ok" && status.database?.ok === true;
   } catch {
     return false;
   }
@@ -72,7 +81,7 @@ export function getApiErrorMessage(error: unknown): string {
         : "Limite temporário atingido. Aguarde um pouco antes de tentar novamente.";
     }
 
-    return error.payload?.error.message ?? error.message;
+    return error.payload?.error?.message ?? error.message;
   }
   if (error instanceof Error) {
     return error.message;

@@ -45,6 +45,7 @@ tmp-*.log
 
 # Local/private documentation — never commit
 docs/private/
+artifacts/portable/
 *.local.md
 
 # System reference — descreve o sistema inteiro; manter fora do versionamento público.

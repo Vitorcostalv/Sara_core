@@ -88,8 +88,7 @@ export class EcologyController {
 
   // GET /ecology/artificial-projects
   async listArtificialProjects(req: Request, res: Response): Promise<void> {
-    const page = parseInt(String(req.query["page"] ?? 1), 10);
-    const pageSize = parseInt(String(req.query["pageSize"] ?? 20), 10);
+    const { page, pageSize } = req.query as unknown as Pick<EcologyListEcosystemsInput, "page" | "pageSize">;
     const { rows, total } = await ecologicalGroundingRepository.listArtificialProjects({
       limit: pageSize,
       offset: (page - 1) * pageSize,

@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { FaunaCategory, FeedingStrategy, SpeciesDefinition } from "../../services/api/ecology";
 import { getSpeciesRenderProfile, type FallbackShape, type SpeciesRenderProfile } from "./faunaRenderProfiles";
+import { loadSpriteTexture } from "./spriteTextures";
 
 export type AgentState = "wandering" | "flocking" | "fleeing" | "hunting" | "dying";
 
@@ -88,8 +89,6 @@ interface PolygonAnimalProps {
   isInvasive?: boolean;
 }
 
-const spriteTextureCache = new Map<string, THREE.Texture | null>();
-
 function eventEmissive(state: AgentState) {
   return {
     color: STATE_EMISSIVE[state],
@@ -98,40 +97,22 @@ function eventEmissive(state: AgentState) {
 }
 
 function useSpriteTexture(assetPath: string | null) {
-  const [texture, setTexture] = useState<THREE.Texture | null>(() => (assetPath ? spriteTextureCache.get(assetPath) ?? null : null));
+  const [loaded, setLoaded] = useState<{ path: string; texture: THREE.Texture | null } | null>(null);
 
   useEffect(() => {
-    if (!assetPath) {
-      setTexture(null);
-      return;
-    }
-    const cached = spriteTextureCache.get(assetPath);
-    if (cached !== undefined) {
-      setTexture(cached);
-      return;
-    }
+    if (!assetPath) return;
 
     let cancelled = false;
-    new THREE.TextureLoader().load(
-      assetPath,
-      (loaded) => {
-        loaded.colorSpace = THREE.SRGBColorSpace;
-        spriteTextureCache.set(assetPath, loaded);
-        if (!cancelled) setTexture(loaded);
-      },
-      undefined,
-      () => {
-        spriteTextureCache.set(assetPath, null);
-        if (!cancelled) setTexture(null);
-      },
-    );
+    void loadSpriteTexture(assetPath).then((texture) => {
+      if (!cancelled) setLoaded({ path: assetPath, texture });
+    });
 
     return () => {
       cancelled = true;
     };
   }, [assetPath]);
 
-  return texture;
+  return loaded?.path === assetPath ? loaded.texture : null;
 }
 
 function GlyphBadge({
@@ -273,6 +254,7 @@ function AnimalBillboard({
   kind,
   speedMultiplier,
   profile,
+  texture,
   feedingStrategy,
   isInvasive = false,
 }: {
@@ -280,6 +262,7 @@ function AnimalBillboard({
   kind: AnimalKind;
   speedMultiplier: number;
   profile: SpeciesRenderProfile;
+  texture: THREE.Texture;
   feedingStrategy: FeedingStrategy;
   isInvasive?: boolean;
 }) {
@@ -287,7 +270,6 @@ function AnimalBillboard({
   const planeRef = useRef<THREE.Mesh>(null);
   const haloRef = useRef<THREE.Mesh>(null);
   const camera = useThree((state) => state.camera);
-  const texture = useSpriteTexture(profile.assetPath);
   const glyphMaterial = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -324,14 +306,9 @@ function AnimalBillboard({
     [feedingStrategy, isInvasive],
   );
 
-  useEffect(
-    () => () => {
-      glyphMaterial.dispose();
-      spriteMaterial.dispose();
-      haloMaterial.dispose();
-    },
-    [glyphMaterial, haloMaterial, spriteMaterial],
-  );
+  useEffect(() => () => glyphMaterial.dispose(), [glyphMaterial]);
+  useEffect(() => () => spriteMaterial.dispose(), [spriteMaterial]);
+  useEffect(() => () => haloMaterial.dispose(), [haloMaterial]);
 
   useFrame((_, delta) => {
     const group = groupRef.current;
@@ -495,6 +472,7 @@ export function AnimalEntity({
         kind={kind}
         speedMultiplier={speedMultiplier}
         profile={renderProfile}
+        texture={spriteTexture}
         feedingStrategy={feedingStrategy}
         isInvasive={isInvasive}
       />

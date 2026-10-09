@@ -7,6 +7,7 @@ import {
   ecologyGroundedQuerySchema,
   ecologyListEcosystemsSchema,
   ecologyListSpeciesSchema,
+  ecologyListArtificialProjectsSchema,
   ecologyTerrainSchema,
   ecologySuccessionSchema,
   ecologyScenarioSchema,
@@ -72,6 +73,7 @@ ecologyRoutes.get(
 
 ecologyRoutes.get(
   "/artificial-projects",
+  validateQuery(ecologyListArtificialProjectsSchema),
   asyncHandler(ecologyController.listArtificialProjects.bind(ecologyController))
 );
 

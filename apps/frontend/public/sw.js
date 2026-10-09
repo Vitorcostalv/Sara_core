@@ -1,5 +1,4 @@
-// Bumped from v1 -> v2 so an old cached release is fully replaced after an update.
-const CACHE_VERSION = "sara-core-pwa-v2";
+const CACHE_VERSION = "sara-core-pwa-v5";
 const APP_SHELL = [
   "/",
   "/ecology",
@@ -11,36 +10,61 @@ const APP_SHELL = [
   "/fauna/invasor-javali.png"
 ];
 
+async function precacheApp() {
+  const cache = await caches.open(CACHE_VERSION);
+  await cache.addAll(APP_SHELL);
+  // On the first visit the bundle loads before the worker controls the page.
+  // Precache entry scripts/styles explicitly so that the very next reload works offline.
+  const shell = await cache.match("/ecology");
+  if (!shell) throw new Error("App shell is missing from the precache");
+  const html = await shell.text();
+  const buildAssets = [...html.matchAll(/(?:src|href)=["'](\/assets\/[^"']+|\/runtime-config\.js)["']/g)].map((match) => match[1]);
+  await cache.addAll([...new Set(buildAssets)]);
+  await self.skipWaiting();
+}
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
-  );
+  event.waitUntil(precacheApp());
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("sara-core-pwa-") && key !== CACHE_VERSION).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
 
-// Cache-first with background store: return cache if present, otherwise fetch and
-// persist the response for offline use. Only same-origin, non-opaque, OK responses.
-function cacheFirst(request) {
-  return caches.match(request).then((cached) => {
+// Cache writes are awaited so worker termination cannot interrupt persistence.
+async function storeResponse(request, response) {
+  try {
+    const cache = await caches.open(CACHE_VERSION);
+    await cache.put(request, response);
+  } catch {
+    // A full or unavailable cache must not discard a successful network response.
+  }
+}
+
+async function cacheFirst(request) {
+  try {
+    const cache = await caches.open(CACHE_VERSION);
+    // Module requests carry Origin while install-time precache requests may not.
+    // Public static assets are identical for both; Vary: Origin must not hide them offline.
+    const cached = await cache.match(request, { ignoreVary: true });
     if (cached) return cached;
-    return fetch(request)
-      .then((response) => {
-        if (response && response.ok && response.type === "basic") {
-          const copy = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      })
-      .catch(() => cached);
-  });
+  } catch {
+    // Try the network even if browser cache access is unavailable.
+  }
+  try {
+    const response = await fetch(request);
+    if (response.ok && response.type === "basic") {
+      await storeResponse(request, response.clone());
+    }
+    return response;
+  } catch {
+    return Response.error();
+  }
 }
 
 self.addEventListener("fetch", (event) => {
@@ -59,12 +83,18 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put("/ecology", copy));
+        .then(async (response) => {
+          if (response.ok) await storeResponse("/ecology", response.clone());
           return response;
         })
-        .catch(() => caches.match("/ecology").then((cached) => cached || caches.match("/")))
+        .catch(async () => {
+          try {
+            const cache = await caches.open(CACHE_VERSION);
+            return (await cache.match("/ecology")) || (await cache.match("/")) || Response.error();
+          } catch {
+            return Response.error();
+          }
+        })
     );
     return;
   }
