@@ -2,6 +2,8 @@
 
 ## Acesso pela web
 
+[Abrir o Sara Core](https://sara-core-one.vercel.app/ecology)
+
 Publicação automática na Vercel a partir da branch Dev-Vitor deste repositório. O frontend e a API usam o mesmo domínio; o banco Neon e o Gemini permanecem no servidor.
 
 Consulte [o guia de publicação e apresentação no celular](docs/deployment/vercel.md).

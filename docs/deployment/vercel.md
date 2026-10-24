@@ -1,5 +1,9 @@
 # Sara Core na web — apresentação do TCC
 
+**Abrir:** [Sara Core](https://sara-core-one.vercel.app/ecology)
+
+**Ver o deploy:** [painel da Vercel](https://vercel.com/vitorcostalvs-projects/sara-core)
+
 ## Manutenção
 
 O projeto da Vercel **sara-core**, da conta **vitorcostalvs-projects**, está conectado ao repositório `Vitorcostalv/Sara_core`. A branch de produção é **Dev-Vitor**, a mesma usada nesta pasta. Um push nessa branch dispara a publicação automática. Não é necessário copiar arquivos para outro projeto ou executar o servidor no computador durante a apresentação.
