@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: sara-core-llm
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: Dev-Vitor
+    dockerfilePath: services/local-llm/Dockerfile
+    dockerContext: services/local-llm
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: SARA_LLM_API_KEY
+        generateValue: true
