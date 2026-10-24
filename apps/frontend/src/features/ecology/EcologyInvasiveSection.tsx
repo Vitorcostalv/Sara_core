@@ -13,6 +13,9 @@ import { buildCompactFaunaGrid, TerrainView } from "./EcologyTerrainSection";
 import type { FaunaEvent } from "./FaunaLayer";
 import { getOfflineInvasiveSnapshot, saveLastScenario } from "../../demo/offline";
 
+import { useUiStore } from "../../state/ui.store";
+import { PERFORMANCE_PROFILES } from "../../demo/catalog";
+
 const RATING_LABEL: Record<PlausibilityRating, string> = {
   alto: "Alto",
   medio: "Médio",
@@ -99,6 +102,7 @@ function locationById(id: string) {
 }
 
 export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOfflineScenarioId?: string | null } = {}) {
+  const performanceProfile = useUiStore((state) => state.performanceProfile);
   const [selectedSpeciesId, setSelectedSpeciesId] = useState("javali");
   const [selectedLocationId, setSelectedLocationId] = useState("cerrado");
   const [result, setResult] = useState<InvasiveScenarioResult | null>(null);
@@ -156,6 +160,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
     try {
       const response = await ecologyApi.invasive({
         speciesText: selectedSpecies.speciesText,
+        ...PERFORMANCE_PROFILES[performanceProfile].terrainSize,
         locationText: selectedLocation.locationText,
       });
       const data = response.data;
@@ -484,6 +489,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
         <>
           {faunaSpecies.length > 0 ? (
             <TerrainView
+              performanceProfile={performanceProfile}
               grid={result.terrain}
               faunaSpecies={faunaSpecies}
               faunaPaused={false}

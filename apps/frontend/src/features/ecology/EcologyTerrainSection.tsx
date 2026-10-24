@@ -42,6 +42,7 @@ import {
   type DemoRunMode,
 } from "../../demo/offline";
 import { useUiStore } from "../../state/ui.store";
+import { chooseDefaultRunMode } from "../../demo/run-mode";
 import { readLocalValue, writeLocalValue } from "../../state/storage";
 import { DayNightCycle, formatSimulatedTime } from "./DayNightCycle";
 import FaunaLayer, { type FaunaEvent } from "./FaunaLayer";
@@ -305,25 +306,9 @@ interface InvasiveOverlayData {
   explanationOnlyNotes?: string[];
 }
 
-// Quando o app está publicado como estático (ex: PWA no Netlify aberto no celular) e nenhum
-// backend remoto foi configurado, "Ao vivo"/"auto" só teria como alvo o localhost do dev — que
-// não existe no dispositivo. Nesses casos entramos em "offline" (cenários precomputados) por
-// padrão, para a apresentação funcionar sem rede. Em localhost/LAN de dev mantemos "auto".
 function getDefaultDemoMode(): DemoRunMode {
   if (typeof window === "undefined") return "auto";
-  const host = window.location.hostname;
-  const isLocalHost =
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "" ||
-    host.startsWith("192.168.") ||
-    host.startsWith("10.") ||
-    host.endsWith(".local");
-  const configuredBackend = readLocalValue("sara-core.api-base-url") ?? "";
-  const hasRemoteBackend =
-    configuredBackend.trim().length > 0 && !/localhost|127\.0\.0\.1/.test(configuredBackend);
-  if (!isLocalHost && !hasRemoteBackend) return "offline";
-  return "auto";
+  return chooseDefaultRunMode(window.location.hostname, useUiStore.getState().apiBaseUrl);
 }
 
 function instancedArgs(count: number): [undefined, undefined, number] {
@@ -2557,7 +2542,7 @@ export function TerrainView({
         <CanvasErrorBoundary>
           <Canvas
             data-testid="terrain-canvas-viewport"
-            shadows
+            shadows={profile.shadows}
             dpr={profile.dpr}
             camera={{ position: cameraPosition, fov: 34, near: 0.1, far: 500 }}
             gl={{
@@ -3743,7 +3728,10 @@ function EcologyTerrainSection({
         setAiError("Backend indisponível. Nenhum resultado ao vivo foi substituído; escolha tentar novamente ou demo offline.");
         return;
       }
-      const response = await ecologyApi.ecosystemReport({ prompt: effectivePrompt });
+      const response = await ecologyApi.ecosystemReport({
+        prompt: effectivePrompt,
+        ...PERFORMANCE_PROFILES[performanceProfile].terrainSize,
+      });
       const result = response.data;
       setAiResult(result);
       setReport(result.report);
