@@ -74,7 +74,7 @@ Rules:
 - biomeSlug MUST be exactly one of the slugs above.
 - Prefer the most specific match: snowy peaks → montanha-nevada (never tundra/montanha); polar coast or sea ice → antartida; open sea or archipelago → oceano.
 - displayName is the human-readable name in the user's language.
-- interpretation is a single sentence in the user's language.
+- interpretation is a single sentence in the user's language. Describe ONLY the selected biome; never claim that specific counts, dimensions, species or custom climate values were implemented. Terrain uses canonical preset parameters.
 - Never include anything outside the JSON object.`;
 }
 
@@ -212,6 +212,7 @@ export class EcologicalTerrainPromptService {
     const terrain = terrainGeneratorService.generate({
       ...terrainParams,
       featureHints: classification.featureHints,
+      waterKind: classification.biomeSlug === "mangue" ? "brackish" : undefined,
     });
 
     return {

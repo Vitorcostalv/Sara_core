@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type {
@@ -12,13 +12,14 @@ import { CarcassLayer, type CarcassController, type CarcassRecordInput } from ".
 import { DeathPuffLayer, type DeathPuffController } from "./DeathPuffLayer";
 import { FaunaSpatialIndex } from "./FaunaSpatialIndex";
 
+import { swimmingHeight, waterSurfaceHeights } from "./terrain-water";
+import { FoodPatch, SimulationClock, canBreed, canCross, pursuitSeconds, shouldHunt, type PopulationMode } from "./fauna-dynamics";
+
 const CELL_SIZE = 1;
 const WATER_HEIGHT = 0.26;
 const LAND_MIN_HEIGHT = 0.72;
 const HEIGHT_SCALE = 6.9;
 const WATER_LEVEL_Y = WATER_HEIGHT + 0.06;
-/** Quanto o peixe nada abaixo da superfície de água daquele grid. */
-const WATER_SWIM_DEPTH = 0.15;
 // Espelha MIN_VISIBLE_WATER_DEPTH do TerrainView. Duplicado de propósito: importar
 // de EcologyTerrainSection criaria ciclo, já que ele importa esta camada.
 const MIN_VISIBLE_WATER_DEPTH = 0.12;
@@ -37,7 +38,7 @@ const HUNT_TARGET_MEMORY_SECONDS = 2.2;
 const ENABLE_DEV_PREDATION_NUDGE = false;
 const SPATIAL_INDEX_CELL_SIZE = 3.2;
 
-export type FaunaEventKind = "predation" | "starvation" | "respawn" | "decomposition";
+export type FaunaEventKind = "predation" | "starvation" | "respawn" | "birth" | "decomposition";
 
 export interface FaunaEvent {
   id: string;
@@ -71,6 +72,7 @@ interface TerrainPoint {
   x: number;
   z: number;
   topY: number;
+  food: FoodPatch;
 }
 
 interface TerrainContext {
@@ -90,6 +92,7 @@ interface FaunaLayerProps {
   visible: boolean;
   /** Carcasses can be toggled independently from live fauna (defaults to fauna visibility). */
   carcassesVisible?: boolean;
+  populationMode?: PopulationMode;
   onCountUpdate?: (count: number) => void;
   onFaunaEvent?: (event: FaunaEvent) => void;
   invasiveSpeciesIds?: string[];
@@ -111,6 +114,8 @@ interface FaunaSpeciesLayerProps {
   spatialIndexRef: React.MutableRefObject<FaunaSpatialIndex>;
   spatialTickRef: React.MutableRefObject<number>;
   invasiveSpeciesIds: Set<string>;
+  populationMode: PopulationMode;
+  stepCallbacks: React.MutableRefObject<Map<string, (dt: number) => void>>;
 }
 
 function hashUnit(x: number, z: number, seed: number) {
@@ -131,6 +136,7 @@ function stringHash(value: string) {
 }
 
 function buildTerrainContext(grid: TerrainGrid): TerrainContext {
+  const waterLevels = waterSurfaceHeights(grid);
   const halfWidth = (grid.width - 1) / 2;
   const halfHeight = (grid.height - 1) / 2;
   const cells: TerrainPoint[][] = [];
@@ -155,11 +161,12 @@ function buildTerrainContext(grid: TerrainGrid): TerrainContext {
     const terrainRow: TerrainPoint[] = [];
 
     for (const cell of row) {
-      const point = {
+      const point: TerrainPoint = {
+        food: new FoodPatch(cell.biomeSuggestion, Boolean(cell.cave && cell.cave.type !== "none")),
         cell,
         x: (cell.x - halfWidth) * CELL_SIZE,
         z: (cell.y - halfHeight) * CELL_SIZE,
-        topY: cell.isWater ? waterSurfaceY : LAND_MIN_HEIGHT + cell.elevation * HEIGHT_SCALE,
+        topY: cell.isWater ? waterLevels.get(`${cell.x},${cell.y}`) ?? waterSurfaceY : LAND_MIN_HEIGHT + cell.elevation * HEIGHT_SCALE,
       };
 
       terrainRow.push(point);
@@ -249,6 +256,24 @@ function isHabitablePoint(species: SpeciesDefinition, point: TerrainPoint) {
   return species.habitableBiomes.includes(point.cell.biomeSuggestion);
 }
 
+/** Check the segment before moving/attacking so shorelines and cliffs are barriers. */
+function traversable(terrain: TerrainContext, from: THREE.Vector3, to: THREE.Vector3, kind: AnimalKind) {
+  if (kind === "bird") return true;
+  const distance = Math.hypot(to.x - from.x, to.z - from.z);
+  const samples = Math.max(1, Math.ceil(distance / 0.3));
+  let previous = sampleTerrainPoint(terrain, from.x, from.z).cell;
+  for (let i = 1; i <= samples; i++) {
+    const t = i / samples;
+    const x = from.x + (to.x - from.x) * t;
+    const z = from.z + (to.z - from.z) * t;
+    if (Math.abs(x) > terrain.halfWidth || Math.abs(z) > terrain.halfHeight) return false;
+    const next = sampleTerrainPoint(terrain, x, z).cell;
+    if (!canCross(previous, next, kind)) return false;
+    previous = next;
+  }
+  return true;
+}
+
 function habitatPool(species: SpeciesDefinition, terrain: TerrainContext) {
   const preferred =
     isFish(species.category) || isBird(species.category)
@@ -257,7 +282,7 @@ function habitatPool(species: SpeciesDefinition, terrain: TerrainContext) {
   const filtered = preferred.filter((point) => isHabitablePoint(species, point));
 
   if (filtered.length > 0) return filtered;
-  if (isFish(species.category) && terrain.waterCells.length > 0) return terrain.waterCells;
+  if (isFish(species.category)) return terrain.waterCells;
   return terrain.landCells.length > 0 ? terrain.landCells : [...terrain.waterCells];
 }
 
@@ -319,6 +344,7 @@ function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: 
   const pool = habitatPool(species, terrain);
   const speciesSeed = stringHash(species.id) ^ seed;
   const agents: FaunaAgent[] = [];
+  if (pool.length === 0) return agents;
   const size = speciesSize(species.category);
 
   for (let slot = 0; slot < species.populationTarget; slot += 1) {
@@ -341,7 +367,7 @@ function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: 
         : 0;
 
     const baseY = point.cell.isWater
-      ? point.topY - WATER_SWIM_DEPTH
+      ? swimmingHeight(point.topY, LAND_MIN_HEIGHT + point.cell.elevation * HEIGHT_SCALE)
       : point.topY + size * (isPredator(species.category) ? 0.48 : 0.58);
     const position = new THREE.Vector3(
       x,
@@ -387,13 +413,13 @@ function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: 
 }
 
 function terrainTopForAgent(species: SpeciesDefinition, point: TerrainPoint) {
-  if (isFish(species.category)) return point.topY - WATER_SWIM_DEPTH;
+  if (isFish(species.category)) return swimmingHeight(point.topY, LAND_MIN_HEIGHT + point.cell.elevation * HEIGHT_SCALE);
   if (isBird(species.category)) return point.topY + 1;
   return point.topY + speciesSize(species.category) * (isPredator(species.category) ? 0.48 : 0.58);
 }
 
 function carcassYFor(species: SpeciesDefinition, point: TerrainPoint) {
-  if (isFish(species.category)) return point.topY - WATER_SWIM_DEPTH;
+  if (isFish(species.category)) return swimmingHeight(point.topY, LAND_MIN_HEIGHT + point.cell.elevation * HEIGHT_SCALE);
   return point.topY + 0.06;
 }
 
@@ -441,7 +467,7 @@ function chooseRoamTarget(
     const point = pool[Math.min(pool.length - 1, Math.floor(sample * pool.length))];
     if (!point) continue;
     const distance = Math.hypot(point.x - agent.spawnPosition.x, point.z - agent.spawnPosition.z);
-    if (distance <= agent.homeRadius * 1.15) {
+    if (distance <= agent.homeRadius * 1.15 && traversable(terrain, agent.position, new THREE.Vector3(point.x, point.topY, point.z), animalKind(species.category)) && (!(species.resourceNeeds?.length) || point.food.available(species.resourceNeeds, now))) {
       selected = point;
       break;
     }
@@ -473,22 +499,33 @@ function FaunaSpeciesLayer({
   spatialIndexRef,
   spatialTickRef,
   invasiveSpeciesIds,
+  populationMode,
+  stepCallbacks,
 }: FaunaSpeciesLayerProps) {
   const initialAgents = useMemo(() => spawnAgents(species, terrain, grid.seed), [grid.seed, species, terrain]);
   const agentsRef = useRef<FaunaAgent[]>(initialAgents);
   const lastCountRef = useRef(species.populationTarget);
   const respawnClockRef = useRef(0);
   const simClockRef = useRef(0);
+  const breedingClockRef = useRef(0);
+  const stepRef = useRef<(dt: number) => void>(() => {});
+  useEffect(() => {
+    stepCallbacks.current.set(species.id, dt => stepRef.current(dt));
+    return () => { stepCallbacks.current.delete(species.id); };
+  }, [stepCallbacks, species.id]);
   const flockIds = useMemo(() => new Set(species.preySpeciesIds), [species.preySpeciesIds]);
   const predation = useMemo(() => resolvePredationParams(species), [species]);
   const awarenessRange = useMemo(() => awarenessRangeFor(species), [species]);
   const kind = animalKind(species.category);
 
   useEffect(() => {
+    simClockRef.current = 0;
+    respawnClockRef.current = 0;
+    breedingClockRef.current = 0;
     agentsRef.current = initialAgents;
     registryRef.current.set(species.id, agentsRef.current);
-    lastCountRef.current = species.populationTarget;
-    onCountChange(species.id, species.populationTarget);
+    lastCountRef.current = initialAgents.length;
+    onCountChange(species.id, initialAgents.length);
     if (import.meta.env.DEV) {
       // Dev-only sanity checks for predation parameters and initial hunger/sated state.
       const hasPrey = species.preySpeciesIds && species.preySpeciesIds.length > 0;
@@ -507,10 +544,8 @@ function FaunaSpeciesLayer({
     };
   }, [initialAgents, onCountChange, registryRef, species.id, species.populationTarget]);
 
-  useFrame((_, delta) => {
+  stepRef.current = (dt: number) => {
     if (paused) return;
-
-    const dt = Math.min(delta, 0.05) * speedMultiplier;
     simClockRef.current += dt;
     const now = simClockRef.current;
     const agents = agentsRef.current;
@@ -546,6 +581,7 @@ function FaunaSpeciesLayer({
         predatorName: predatorSpecies?.commonName,
         kind: animalKind(victimSpecies.category),
       });
+      terrainPoint.food.addCarrion(speciesMass(victimSpecies) * 0.4);
       victim.active = false;
       victim.state = "dying";
       victim.scale = 0.0001;
@@ -560,27 +596,20 @@ function FaunaSpeciesLayer({
       if (!agent.active) continue;
       liveCount += 1;
 
-      // Hunting species grow hungrier each frame; if they never feed, they starve.
-      if (isHunter) {
-        const hasLivePrey = species.preySpeciesIds.some((preyId) =>
-          registryRef.current.get(preyId)?.some((prey) => prey.active && prey.state !== "dying"),
-        );
-        // Omnivores can fall back to the basal resources validated by the community service.
-        // Pure carnivores with temporarily depleted prey still consume reserves, but slowly
-        // enough for the deterministic prey respawn cycle to recover the food web.
-        const metabolicFactor = (species.resourceNeeds?.length ?? 0) > 0 ? 0.3 : hasLivePrey ? 1 : 0.15;
-        agent.hunger = Math.min(HUNGER_MAX, agent.hunger + dt * predation.hungerRate * metabolicFactor);
-        if (agent.hunger >= predation.starvationThreshold) {
-          const position = killAgent(agent, species, "starvation");
-          emitFaunaEvent?.({
-            kind: "starvation",
-            message: `${species.commonName} morreu de fome`,
-            speciesId: species.id,
-            ...position,
-          });
-          liveCount -= 1;
-          continue;
-        }
+      const localPoint = sampleTerrainPoint(terrain, agent.position.x, agent.position.z);
+      const needs = species.resourceNeeds ?? [];
+      const effort = agent.state === "hunting" || agent.state === "fleeing" ? 1.8 : 1;
+      agent.hunger = Math.min(HUNGER_MAX, agent.hunger + dt * predation.hungerRate * effort);
+      // Feeding competes for a finite local resource; omnivores really eat rather than
+      // receiving a permanent metabolic discount when no prey remains.
+      const canFeed = agent.state !== "fleeing" && agent.state !== "hunting" && isHabitablePoint(species, localPoint);
+      const eaten = canFeed && agent.hunger > 0.12 ? localPoint.food.consume(needs, dt * 0.09, now) : 0;
+      agent.hunger = Math.max(0, agent.hunger - eaten);
+      if (agent.hunger >= predation.starvationThreshold) {
+        const position = killAgent(agent, species, "starvation");
+        emitFaunaEvent?.({ kind: "starvation", message: `${species.commonName} morreu por falta de alimento`, speciesId: species.id, ...position });
+        liveCount -= 1;
+        continue;
       }
 
       const steering = new THREE.Vector3();
@@ -654,7 +683,7 @@ function FaunaSpeciesLayer({
         }
       }
 
-      const isSated = isHunter && now < agent.satedUntil;
+      const isSated = !isHunter || !shouldHunt(agent.hunger, predation.starvationThreshold, agent.satedUntil, now, agent.state === "hunting");
       const huntWeight = HUNT_WEIGHT * (0.55 + agent.hunger);
 
       for (const entry of nearbyEntries) {
@@ -678,7 +707,7 @@ function FaunaSpeciesLayer({
           state = "fleeing";
         }
 
-        if (!isSated && currentSpeciesCanHunt && distance < predation.huntRange) {
+        if (!isSated && currentSpeciesCanHunt && distance < predation.huntRange && traversable(terrain, agent.position, otherAgent.position, kind)) {
           const preference = Math.max(0.1, predation.preyPreference[otherSpeciesId] ?? 1);
           const targetKey = `${otherSpeciesId}:${otherAgent.slot}`;
           const targetMemory =
@@ -695,7 +724,9 @@ function FaunaSpeciesLayer({
       // "nearest" made hunters average conflicting headings and settle into circular paths.
       if (huntTarget && state !== "fleeing") {
         const { otherAgent, otherSpecies, offset, distance, preference, targetKey } = huntTarget;
-        steering.addScaledVector(offset.normalize(), huntWeight * preference);
+        const intercept = otherAgent.position.clone().addScaledVector(otherAgent.velocity, pursuitSeconds(distance, species.movementProfile.maxSpeed));
+        const aim = traversable(terrain, agent.position, intercept, kind) ? intercept.sub(agent.position) : offset;
+        steering.addScaledVector(aim.normalize(), huntWeight * preference);
         state = "hunting";
         agent.huntTargetKey = targetKey;
         agent.huntTargetUntil = now + HUNT_TARGET_MEMORY_SECONDS;
@@ -716,7 +747,7 @@ function FaunaSpeciesLayer({
               0,
               agent.hunger - speciesMass(otherSpecies) * PREDATION_ENERGY_PER_MASS,
             );
-            agent.satedUntil = now + predation.satiationCooldownMs / 1000;
+            agent.satedUntil = now + Math.max(8, predation.satiationCooldownMs / 1000);
             agent.huntTargetKey = null;
             agent.huntTargetUntil = 0;
           } else {
@@ -737,11 +768,15 @@ function FaunaSpeciesLayer({
         steering.addScaledVector(wander.normalize(), WANDER_WEIGHT);
       }
 
+      if (state !== "hunting" && state !== "fleeing") {
+        if (eaten > 0) state = "feeding";
+        else if (isHunter && now < agent.satedUntil) state = "resting";
+      }
       const desiredDirection =
         steering.lengthSq() > 0.0001 ? steering.normalize() : agent.velocity.clone().normalize();
       const baseSpeed = species.movementProfile.maxSpeed;
       const desiredSpeed =
-        state === "fleeing"
+        state === "feeding" || state === "resting" ? baseSpeed * 0.12 : state === "fleeing"
           ? baseSpeed * species.movementProfile.fleeMultiplier
           : state === "hunting"
             ? baseSpeed * 1.08
@@ -778,7 +813,24 @@ function FaunaSpeciesLayer({
         );
       }
 
-      agent.position.addScaledVector(agent.velocity, dt);
+      const nextPosition = agent.position.clone().addScaledVector(agent.velocity, dt);
+      if (traversable(terrain, agent.position, nextPosition, kind)) {
+        agent.position.copy(nextPosition);
+      } else {
+        // Try a small turn before reversing. No teleport toward a distant shore.
+        let avoided = false;
+        for (const angle of [Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, Math.PI]) {
+          const velocity = agent.velocity.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+          const candidate = agent.position.clone().addScaledVector(velocity, dt);
+          if (!traversable(terrain, agent.position, candidate, kind)) continue;
+          agent.position.copy(candidate);
+          agent.velocity.copy(velocity);
+          avoided = true;
+          break;
+        }
+        if (!avoided) agent.velocity.multiplyScalar(0.5);
+        agent.roamTargetUntil = 0;
+      }
 
       if (Math.abs(agent.position.x) > terrain.halfWidth) {
         agent.position.x = Math.sign(agent.position.x) * terrain.halfWidth;
@@ -819,16 +871,17 @@ function FaunaSpeciesLayer({
         agent.position.y = THREE.MathUtils.lerp(agent.position.y, targetY, 0.08);
       } else {
         const targetY =
-          resolvedPoint.topY - WATER_SWIM_DEPTH + Math.sin(agent.timer * 1.8 + agent.flapOffset) * 0.05;
+          swimmingHeight(resolvedPoint.topY, LAND_MIN_HEIGHT + resolvedPoint.cell.elevation * HEIGHT_SCALE, Math.sin(agent.timer * 1.8 + agent.flapOffset) * 0.05);
         agent.position.y = THREE.MathUtils.lerp(agent.position.y, targetY, 0.1);
       }
 
-      agent.health = Math.min(1, agent.health + dt * 0.03);
+      if (state !== "hunting" && state !== "fleeing" && agent.hunger < 0.4) agent.health = Math.min(1, agent.health + dt * 0.03);
       agent.scale = 1;
       agent.state = state;
     }
 
-    if (liveCount < Math.ceil(species.populationTarget * RESPAWN_THRESHOLD)) {
+    liveCount = agents.filter(agent => agent.active).length;
+    if (populationMode === "demonstration" && liveCount < Math.ceil(species.populationTarget * RESPAWN_THRESHOLD)) {
       respawnClockRef.current += dt;
       if (respawnClockRef.current >= RESPAWN_INTERVAL_SECONDS) {
         const deadAgent = agents.find((a) => !a.active);
@@ -836,7 +889,7 @@ function FaunaSpeciesLayer({
           resetAgent(deadAgent, species, terrain);
           emitFaunaEvent?.({
             kind: "respawn",
-            message: `${species.commonName} respawnou`,
+            message: `${species.commonName}: reposição do modo demonstração`,
             speciesId: species.id,
             x: deadAgent.position.x,
             y: deadAgent.position.y,
@@ -850,11 +903,34 @@ function FaunaSpeciesLayer({
       respawnClockRef.current = 0;
     }
 
+    breedingClockRef.current += dt;
+    const parents = agents.filter(a => a.active && a.hunger < 0.3 && a.health > 0.8 && a.state !== "hunting" && a.state !== "fleeing");
+    const pair = parents.find(a => parents.some(b => b !== a && b.position.distanceTo(a.position) < 3 && traversable(terrain, a.position, b.position, kind)));
+    const foodAvailable = pair && ((species.resourceNeeds?.length ?? 0) > 0
+      ? sampleTerrainPoint(terrain, pair.position.x, pair.position.z).food.available(species.resourceNeeds!, now)
+      : species.preySpeciesIds.some(id => registryRef.current.get(id)?.some(a => a.active)));
+    if (populationMode === "ecological" && pair && canBreed(liveCount, species.populationTarget, parents.length, breedingClockRef.current, Boolean(foodAvailable))) {
+      const newborn = agents.find(a => !a.active);
+      if (newborn) {
+        resetAgent(newborn, species, terrain);
+        newborn.position.copy(pair.position);
+        newborn.spawnPosition.copy(pair.position);
+        newborn.hunger = 0.2;
+        newborn.satedUntil = now + 8;
+        pair.hunger = Math.min(HUNGER_MAX, pair.hunger + 0.18);
+        const mate = parents.find(a => a !== pair && a.position.distanceTo(pair.position) < 3 && traversable(terrain, pair.position, a.position, kind));
+        if (mate) mate.hunger = Math.min(HUNGER_MAX, mate.hunger + 0.18);
+        emitFaunaEvent?.({ kind: "birth", message: `${species.commonName}: nascimento com alimento e energia disponíveis`, speciesId: species.id, x: newborn.position.x, y: newborn.position.y, z: newborn.position.z });
+        liveCount++;
+        breedingClockRef.current = 0;
+      }
+    }
+
     if (liveCount !== lastCountRef.current) {
       lastCountRef.current = liveCount;
       onCountChange(species.id, liveCount);
     }
-  });
+  };
 
   return (
     <group visible={visible}>
@@ -884,11 +960,18 @@ export function FaunaLayer({
   speedMultiplier,
   visible,
   carcassesVisible,
+  populationMode = "ecological",
   onCountUpdate,
   onFaunaEvent,
   invasiveSpeciesIds = [],
 }: FaunaLayerProps) {
-  const terrain = useMemo(() => buildTerrainContext(grid), [grid]);
+  const terrain = useMemo(() => buildTerrainContext(grid), [grid, species]);
+  const clock = useMemo(() => new SimulationClock(), [grid, species]);
+  const stepCallbacks = useRef(new Map<string, (dt: number) => void>());
+  const countCallback = useRef(onCountUpdate);
+  const eventCallback = useRef(onFaunaEvent);
+  countCallback.current = onCountUpdate;
+  eventCallback.current = onFaunaEvent;
   const registryRef = useRef<Map<string, FaunaAgent[]>>(new Map());
   const countsRef = useRef<Map<string, number>>(new Map());
   const spatialIndexRef = useRef(new FaunaSpatialIndex(SPATIAL_INDEX_CELL_SIZE));
@@ -913,24 +996,34 @@ export function FaunaLayer({
   );
 
   useEffect(() => {
+    // Child registration effects run before this effect; derive the initial count
+    // from the actual registry instead of clearing counts after registration.
     countsRef.current.clear();
-    onCountUpdate?.(0);
-  }, [onCountUpdate, species]);
+    let total = 0;
+    for (const entry of species) {
+      const count = registryRef.current.get(entry.id)?.filter(agent => agent.active).length ?? 0;
+      countsRef.current.set(entry.id, count);
+      total += count;
+    }
+    countCallback.current?.(total);
+  }, [species]);
 
-  useFrame(
-    () => {
+  useFrame((_, delta) => {
+    if (paused || document.hidden) { clock.reset(); return; }
+    clock.advance(delta, speedMultiplier, dt => {
       spatialTickRef.current += 1;
       spatialIndexRef.current.rebuild(registryRef.current, spatialTickRef.current);
-    },
-    -10,
-  );
+      // Every species advances once per fixed world tick, in catalog order.
+      for (const entry of species) stepCallbacks.current.get(entry.id)?.(dt);
+    });
+  }, -10);
 
-  function handleCountChange(speciesId: string, count: number) {
+  const handleCountChange = useCallback((speciesId: string, count: number) => {
     countsRef.current.set(speciesId, count);
     let total = 0;
     for (const value of countsRef.current.values()) total += value;
-    onCountUpdate?.(total);
-  }
+    countCallback.current?.(total);
+  }, []);
 
   // Centralized fauna event handler: count events (dev) and forward to parent.
   function handleFaunaEvent(event: Omit<FaunaEvent, "id" | "createdAt">) {
@@ -946,7 +1039,7 @@ export function FaunaLayer({
       else if (fullEvent.kind === "starvation") starvationEventsRef.current += 1;
       else if (fullEvent.kind === "respawn") respawnEventsRef.current += 1;
     }
-    onFaunaEvent?.(fullEvent);
+    eventCallback.current?.(fullEvent);
   }
 
   // Dev-only diagnostics: periodic summary (throttled) to avoid log spam.
@@ -1050,6 +1143,8 @@ export function FaunaLayer({
             spatialIndexRef={spatialIndexRef}
             spatialTickRef={spatialTickRef}
             invasiveSpeciesIds={invasiveSet}
+            populationMode={populationMode}
+            stepCallbacks={stepCallbacks}
           />
         ))}
         <DeathPuffLayer controllerRef={puffControllerRef} visible={visible} />

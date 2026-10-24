@@ -385,6 +385,27 @@ function smoothstep01(t: number): number {
   return x * x * (3 - 2 * x);
 }
 
+/** Mark well-fed closed depressions as small lakes before river enrichment. */
+export function markClosedBasins(grid: TerrainGrid): void {
+  const { cells, width, height } = grid;
+  const order = cells.flat().slice().sort((a, b) => b.elevation - a.elevation);
+  const inflow = cells.map(row => row.map(() => 1));
+  const sinks: TerrainCell[] = [];
+  for (const cell of order) {
+    if (cell.isWater) continue;
+    const next = lowestNeighbor(cells, width, height, cell.x, cell.y);
+    if (next && next.elevation < cell.elevation) inflow[next.y]![next.x]! += inflow[cell.y]![cell.x]!;
+    else if (cell.x > 0 && cell.y > 0 && cell.x < width - 1 && cell.y < height - 1 && inflow[cell.y]![cell.x]! >= 12 && cell.precipitationMmYear >= 600) sinks.push(cell);
+  }
+  // Bound the small-pond budget on presentation-sized maps.
+  sinks.sort((a, b) => inflow[b.y]![b.x]! - inflow[a.y]![a.x]!);
+  for (const sink of sinks.slice(0, Math.max(1, Math.floor(width * height / 160)))) {
+    sink.isWater = true;
+    sink.biomeSuggestion = "lago";
+    sink.salinityPsu = 0;
+  }
+}
+
 // ─── Hydrography: carve rivers by descending the elevation gradient ─────────────
 
 interface RiverField {

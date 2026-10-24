@@ -5,7 +5,7 @@ import type { FaunaCategory, FeedingStrategy, SpeciesDefinition } from "../../se
 import { getSpeciesRenderProfile, type FallbackShape, type SpeciesRenderProfile } from "./faunaRenderProfiles";
 import { loadSpriteTexture } from "./spriteTextures";
 
-export type AgentState = "wandering" | "flocking" | "fleeing" | "hunting" | "dying";
+export type AgentState = "wandering" | "flocking" | "fleeing" | "hunting" | "feeding" | "resting" | "dying";
 
 export interface FaunaAgent {
   slot: number;
@@ -51,6 +51,8 @@ const STATE_EMISSIVE: Record<AgentState, number> = {
   flocking: 0x04260e,
   fleeing: 0x2dd8ff,
   hunting: 0xffb22e,
+  feeding: 0x124515,
+  resting: 0x000000,
   dying: 0x000000,
 };
 

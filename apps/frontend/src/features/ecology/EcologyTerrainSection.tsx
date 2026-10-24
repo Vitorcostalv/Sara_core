@@ -45,6 +45,7 @@ import { useUiStore } from "../../state/ui.store";
 import { chooseDefaultRunMode } from "../../demo/run-mode";
 import { readLocalValue, writeLocalValue } from "../../state/storage";
 import { DayNightCycle, formatSimulatedTime } from "./DayNightCycle";
+import { waterSurfaceHeights } from "./terrain-water";
 import FaunaLayer, { type FaunaEvent } from "./FaunaLayer";
 import { RainSystem } from "./RainSystem";
 import { getSpeciesRenderProfile } from "./faunaRenderProfiles";
@@ -316,6 +317,16 @@ function getDefaultDemoMode(): DemoRunMode {
 
 function instancedArgs(count: number): [undefined, undefined, number] {
   return [undefined, undefined, Math.max(count, 1)];
+}
+
+/** Low-frequency field makes clearings and forest stands instead of independent cell noise. */
+function vegetationPatch(x: number, z: number, seed: number) {
+  const nx = x / 4, nz = z / 4, ix = Math.floor(nx), iz = Math.floor(nz);
+  const sx = nx - ix, sz = nz - iz;
+  const tx = sx * sx * (3 - 2 * sx), tz = sz * sz * (3 - 2 * sz);
+  const a = hashUnit(ix, iz, seed), b = hashUnit(ix + 1, iz, seed);
+  const c = hashUnit(ix, iz + 1, seed), d = hashUnit(ix + 1, iz + 1, seed);
+  return (a + (b - a) * tx) * (1 - tz) + (c + (d - c) * tx) * tz;
 }
 
 function hashUnit(x: number, z: number, seed: number) {
@@ -689,6 +700,7 @@ function buildSceneData(grid: TerrainGrid): SceneData {
   }
   const legend = new Map<string, string>();
   const objectLegend = new Map<string, string>();
+  const waterLevels = waterSurfaceHeights(grid);
   const waterElevations = grid.cells.flatMap((row) => row.filter((cell) => cell.isWater).map((cell) => cell.elevation));
   const fallbackWaterSurfaceY =
     waterElevations.length > 0
@@ -785,10 +797,7 @@ function buildSceneData(grid: TerrainGrid): SceneData {
       if (cell.isWater) {
         const floorY = terrainTopY(cell);
         const bankY = minNeighborLandTop(cell);
-        const surfaceY = Math.max(
-          floorY + 0.04,
-          Math.min(fallbackWaterSurfaceY, bankY - WATER_BANK_RECESS),
-        );
+        const surfaceY = waterLevels.get(`${cell.x},${cell.y}`) ?? Math.max(floorY + 0.04, bankY - WATER_BANK_RECESS);
         const depth = Math.max(0.04, surfaceY - floorY);
         const waterColor = blendedWaterColor(depth, WATER_HEIGHT * 2.6, hashUnit(cell.x * 41, cell.y * 53, grid.seed));
         water.push({
@@ -836,7 +845,10 @@ function buildSceneData(grid: TerrainGrid): SceneData {
       legend.set(biomeLabel(cell.biomeSuggestion), colorHex(baseColor));
       const caveInfo = cell.cave && cell.cave.type !== "none" ? cell.cave : null;
       // Thin/clear vegetation on and around visible cave entrances.
-      const vegScale = entranceClear.get(`${cell.x},${cell.y}`) ?? 1;
+      const patch = vegetationPatch(cell.x, cell.y, grid.seed + 731);
+      const riparian = (cell.riverDistance ?? 99) <= 1 ? 0.18 : 0;
+      const standDensity = Math.max(0.15, Math.min(1.4, 0.25 + patch * 1.4 + riparian - (cell.slope ?? 0) * 0.45));
+      const vegScale = (entranceClear.get(`${cell.x},${cell.y}`) ?? 1) * standDensity;
 
       const forestBiome =
         cell.biomeSuggestion === "floresta-tropical-seca" ||
@@ -893,7 +905,7 @@ function buildSceneData(grid: TerrainGrid): SceneData {
       } else if (forestBiome) {
         const forestDensity =
           cell.biomeSuggestion === "floresta-tropical-umida" ? 2.5 : 1.8;
-        const count = caveInfo ? 0 : Math.floor(forestDensity * hashUnit(cell.x, cell.y, grid.seed + 103) * vegScale);
+        const count = caveInfo ? 0 : Math.min(2, Math.floor(forestDensity * hashUnit(cell.x, cell.y, grid.seed + 103) * vegScale));
 
         for (let slot = 0; slot < count; slot += 1) {
           const placement = scatter(cell, grid.seed + 109, slot);
@@ -1914,6 +1926,7 @@ function eventColor(kind: FaunaEvent["kind"]) {
       return "#e24834";
     case "starvation":
       return "#8a6b44";
+    case "birth":
     case "respawn":
       return "#38b86f";
     case "decomposition":
@@ -2098,6 +2111,7 @@ function TerrainScene({
   faunaSpecies,
   faunaPaused,
   faunaSpeedMultiplier,
+  populationMode,
   showFauna,
   showObjects,
   showCaves,
@@ -2128,6 +2142,7 @@ function TerrainScene({
   faunaSpecies: SpeciesDefinition[];
   faunaPaused: boolean;
   faunaSpeedMultiplier: number;
+  populationMode: "ecological" | "demonstration";
   showFauna: boolean;
   showObjects: boolean;
   showCaves: boolean;
@@ -2206,6 +2221,7 @@ function TerrainScene({
         species={faunaSpecies}
         gradientMap={gradientMap}
         paused={faunaPaused}
+        populationMode={populationMode}
         speedMultiplier={faunaSpeedMultiplier}
         visible={showFauna}
         carcassesVisible={showCarcasses}
@@ -2421,6 +2437,7 @@ export function TerrainView({
   const [locator, setLocator] = useState<LocatorTarget | null>(null);
   const [highlightSystemId, setHighlightSystemId] = useState<string | null>(null);
   const [gestureHelpOpen, setGestureHelpOpen] = useState(false);
+  const [populationMode, setPopulationMode] = useState<"ecological" | "demonstration">("ecological");
 
   const locatorTimer = useRef<number | null>(null);
   const highlightTimer = useRef<number | null>(null);
@@ -2605,6 +2622,7 @@ export function TerrainView({
                 grid={grid}
                 faunaSpecies={faunaSpecies}
                 faunaPaused={faunaPaused}
+                populationMode={populationMode}
                 faunaSpeedMultiplier={faunaSpeedMultiplier}
                 showFauna={showFauna}
                 showObjects={showObjects}
@@ -2800,6 +2818,17 @@ export function TerrainView({
         </div>
       </div>
       <p className="terrain-stage__hint">Arraste para girar · use dois dedos para aproximar</p>
+      <details className="terrain-dynamics">
+        <summary>Dinâmica: {populationMode === "ecological" ? "ecológica" : "demonstração"}</summary>
+        <label>População
+          <select aria-label="Modo da população" value={populationMode} onChange={event => setPopulationMode(event.target.value as "ecological" | "demonstration")}>
+            <option value="ecological">Ecológica: alimento e reprodução</option>
+            <option value="demonstration">Demonstração: reposição automática</option>
+          </select>
+        </label>
+        <p>{populationMode === "ecological" ? "Alimento é consumido e se regenera. Nascimentos exigem dois animais próximos, energia e recursos. Uma espécie pode desaparecer; gere o cenário novamente para reiniciar." : "Para manter a apresentação ativa, um animal é reposto a cada 5 segundos quando a espécie fica abaixo de 60% da população inicial."}</p>
+        <small>Modelo educativo simplificado, com capacidade limitada à população inicial. O relatório descreve o cenário gerado; os eventos acompanham as mudanças ao vivo.</small>
+      </details>
     </div>
   );
 }
@@ -2897,7 +2926,8 @@ function CellInspectorPanel({
 const FAUNA_EVENT_LABELS: Record<FaunaEvent["kind"], string> = {
   predation: "Predação",
   starvation: "Fome",
-  respawn: "Respawn",
+  respawn: "Reposição",
+  birth: "Nascimento",
   decomposition: "Decomposição",
 };
 
@@ -2905,6 +2935,7 @@ const FAUNA_EVENT_ICONS: Record<FaunaEvent["kind"], string> = {
   predation: "🩸",
   starvation: "🍂",
   respawn: "✦",
+  birth: "🌱",
   decomposition: "🦴",
 };
 
@@ -5266,7 +5297,7 @@ function EcologyTerrainSection({
           </div>
         </div>
 
-        {offlineDisclosure ? (
+        {offlineDisclosure || previewNotice ? (
           <div className="signal-message signal-message--warning" data-testid="offline-disclosure">
             <WarningCircle weight="duotone" />
             <div>
@@ -5303,7 +5334,7 @@ function EcologyTerrainSection({
               disabled={isAiLoading || !aiPrompt.trim()}
             >
               <Sparkle weight="duotone" />
-              {isAiLoading ? "Interpretando..." : "Gerar ecossistema 3D"}
+              {isAiLoading ? "Preparando ecossistema..." : "Gerar ecossistema 3D"}
             </Button>
           </div>
 
@@ -5332,9 +5363,11 @@ function EcologyTerrainSection({
             ))}
           </div>
 
+          {isAiLoading ? <p className="terrain-generation-status" role="status">Identificando o ambiente e preparando terreno, fauna e explicações. Isso pode levar alguns segundos.</p> : null}
           {aiResult && !isAiLoading ? (
             <div className="terrain-ai-badge">
               <strong>{aiResult.biomeName}</strong>
+              <small className="terrain-generation-source">{offlineDisclosure || previewNotice ? "Exemplo offline previamente calculado; nenhuma consulta à IA ou ao banco está sendo realizada." : aiResult.source === "llm" ? "Ambiente identificado com IA; clima e espécies seguem o catálogo do projeto." : aiResult.source === "keyword" ? "Ambiente identificado por palavras-chave; geração sem depender da IA." : "Descrição não reconhecida: foi usado um ambiente tropical genérico. Descreva o bioma para obter um resultado mais próximo."}</small>
               <span>{aiResult.interpretation}</span>
               <span className="terrain-ai-badge__meta">
                 {aiResult.terrainParams.baseTemperatureC}°C · {aiResult.terrainParams.basePrecipitationMm}mm · {aiResult.terrainParams.baseHumidityPct}% umidade

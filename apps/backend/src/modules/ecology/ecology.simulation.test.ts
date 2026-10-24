@@ -1178,3 +1178,37 @@ test("Integration: the demo Amazon prompt runs the fixed terrain pipeline cohere
   const species = faunaDefinitionService.resolve(result.terrain).species;
   assert.ok(!species.some((s) => s.habitableBiomes.includes("caverna")), "no cave fauna without caves");
 });
+
+test("Continental water remains fresh and never becomes marine because of rain", () => {
+  for (const seed of [42, 123, 2026]) {
+    const grid = terrainGeneratorService.generate({width: 32, height: 24, seed, baseTemperatureC: 27, basePrecipitationMm: 2400, baseHumidityPct: 85});
+    for (const cell of grid.cells.flat()) {
+      if (cell.isWater) {
+        assert.equal(cell.biomeSuggestion, "lago");
+        assert.equal(cell.salinityPsu, 0);
+      }
+      if (cell.temperatureC > 15 && cell.precipitationMmYear > 1500) assert.notEqual(cell.biomeSuggestion, "deserto-frio");
+    }
+  }
+});
+
+test("Marine water stays saline, including shallow cells", () => {
+  const grid = terrainGeneratorService.generate({width: 24, height: 20, seed: 42, baseTemperatureC: 25, basePrecipitationMm: 500, baseHumidityPct: 70, reliefStyle: "ocean", seaLevel: 0.65});
+  const water = grid.cells.flat().filter(cell => cell.isWater);
+  assert.ok(water.length > 0);
+  for (const cell of water) { assert.equal(cell.salinityPsu, 35); assert.equal(cell.biomeSuggestion, "oceano-pelagico"); }
+});
+
+test("Mangrove water is explicitly brackish and independent of precipitation", () => {
+  const grid = terrainGeneratorService.generate({width: 24, height: 20, seed: 42, baseTemperatureC: 26, basePrecipitationMm: 1800, baseHumidityPct: 85, waterKind: "brackish", seaLevel: 0.55});
+  const water = grid.cells.flat().filter(cell => cell.isWater);
+  assert.ok(water.length > 0);
+  for (const cell of water) {assert.equal(cell.salinityPsu, 15); assert.equal(cell.biomeSuggestion, "manguezal");}
+});
+
+test("Wet closed drainage forms freshwater ponds without adding water to dry deserts", () => {
+  const wet = terrainGeneratorService.generate({width: 32, height: 24, seed: 2026, baseTemperatureC: 27, basePrecipitationMm: 2400, baseHumidityPct: 85});
+  assert.ok(wet.cells.flat().some(cell => cell.isWater && cell.elevation >= 0.25));
+  const dry = terrainGeneratorService.generate({width: 32, height: 24, seed: 2026, baseTemperatureC: 33, basePrecipitationMm: 90, baseHumidityPct: 12});
+  assert.ok(dry.cells.flat().every(cell => !cell.isWater || cell.elevation < 0.25));
+});

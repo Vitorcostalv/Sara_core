@@ -121,3 +121,14 @@
 .ecosystem-report-disclosure { min-width: 0; }
 .ecosystem-report-disclosure > summary { cursor: pointer; min-height: 3rem; padding: .85rem 1rem; border: 1px solid #d9d0bf; border-radius: .7rem; background: #fffaf0; color: #4d3929; font-weight: 600; }
 .ecosystem-report-disclosure[open] > summary { margin-bottom: .75rem; }
+
+.terrain-dynamics { color: #765942; padding: .55rem .75rem; border-top: 1px solid #ddccb8; font-size: .8rem; }
+.terrain-dynamics summary { cursor: pointer; min-height: 2.75rem; display: flex; align-items: center; font-weight: 600; }
+.terrain-dynamics summary::before { content: "+"; margin-right: .5rem; }
+.terrain-dynamics[open] summary::before { content: "−"; }
+.terrain-dynamics label { display: grid; gap: .4rem; }
+.terrain-dynamics select { max-width: 100%; width: 100%; min-height: 2.75rem; font: inherit; color: #413020; border: 1px solid #c9b298; border-radius: .5rem; background: #fffaf0; padding: .5rem; }
+.terrain-dynamics p, .terrain-dynamics small { line-height: 1.5; overflow-wrap: anywhere; }
+.terrain-generation-source { display: block; line-height: 1.5; }
+.terrain-generation-status { font-size: .85rem; line-height: 1.5; color: #765942; }
+.terrain-stage.is-expanded .terrain-dynamics { max-height: 25dvh; overflow: auto; flex-shrink: 0; }

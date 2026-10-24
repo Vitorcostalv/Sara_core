@@ -46,8 +46,7 @@ describe("invasive scenario coherence", () => {
     expect(faunaLayerSource).not.toContain("Math.sin(agent.timer * 0.9 + agent.flapOffset)");
   });
 
-  it("gives omnivores basal-resource support and slows starvation while prey recovers", () => {
-    expect(faunaLayerSource).toContain("const metabolicFactor");
-    expect(faunaLayerSource).toContain("hasLivePrey");
-  });
+  // Actual food depletion, omnivore support and starvation are exercised by
+  // fauna-dynamics.test.ts and fauna-runtime.test.tsx.
+
 });

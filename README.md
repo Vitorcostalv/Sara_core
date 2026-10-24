@@ -95,3 +95,5 @@ npm run dev:frontend
 - a geração depende da qualidade do grounding no banco; temas sem cobertura retornam aviso de insuficiência;
 - a interpretação por IA depende de um provider configurado (há fallback por palavra-chave);
 - a documentação ainda evolui conforme a base é endurecida.
+
+Consulte [as regras, os modos e as limitações da dinâmica ecológica](docs/ecological-dynamics.md).

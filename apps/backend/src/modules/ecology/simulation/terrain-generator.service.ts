@@ -8,6 +8,7 @@
 import {
   carveChannels,
   carveWaterBasins,
+  markClosedBasins,
   enrichTerrain,
   type AltitudeBand,
   type CaveInfo,
@@ -64,12 +65,13 @@ export interface TerrainInput {
   basePrecipitationMm: number;
   baseHumidityPct: number;
   /**
-   * Shapes the macro relief. "default" preserves the original generation byte-for-byte;
+   * Shapes the macro relief. "default" generates continental rolling terrain;
    * the other styles enrich the terrain with oceans, mountain ridges or polar ice.
    */
   reliefStyle?: ReliefStyle;
   /** Elevation threshold below which a cell is water. Defaults to 0.25 (original behaviour). */
   seaLevel?: number;
+  waterKind?: "freshwater" | "marine" | "brackish";
   /** Carve river valleys into the heightmap before classification. Defaults to true. */
   carveChannels?: boolean;
   /** 0 = off (default). 0–1 eases elevation down toward the grid borders (island look). */
@@ -143,7 +145,8 @@ function toKoppenCode(tempC: number, precipMm: number, humidity: number): string
 }
 
 function toBiomeSuggestion(tempC: number, precipMm: number, elevation: number): string {
-  if (elevation > 0.85) return "deserto-frio";
+  // Normalized relief is not a climate: warm, wet peaks remain vegetated.
+  if (elevation > 0.85 && tempC < 5 && precipMm < 400) return "deserto-frio";
   if (tempC < -5) return "tundra";
   if (tempC < 5) return "taiga";
   if (precipMm < 200) return tempC > 20 ? "deserto-quente" : "deserto-frio";
@@ -159,12 +162,11 @@ function toBiomeSuggestion(tempC: number, precipMm: number, elevation: number): 
   return "pradaria-estepe";
 }
 
-// Water classification. The "default"/"mountain" path is identical to the original
-// inline logic; ocean/polar styles surface dedicated marine biomes.
+// Marine styles have explicit water chemistry; rainfall never determines salinity.
 function classifyWaterBiome(style: ReliefStyle, tempC: number, precipMm: number): string {
   if (style === "polar") return "oceano-polar";
   if (style === "ocean") return tempC < 1 ? "oceano-polar" : "oceano-pelagico";
-  return precipMm > 1500 ? "oceano-pelagico" : "lago";
+  return "lago"; // Rainfall cannot turn a continental basin into an ocean.
 }
 
 // Land classification. The "default" path defers fully to toBiomeSuggestion (no behaviour
@@ -272,11 +274,12 @@ export class TerrainGeneratorService {
 
         // Water if (carved) elevation below threshold
         const isWater = elev < seaLevel;
-        const salinityPsu = isWater ? lerp(0, 35, 1 - elev / seaLevel) : 0;
+        const marine = input.waterKind === "marine" || (!input.waterKind && (style === "ocean" || style === "polar"));
+        const salinityPsu = isWater ? input.waterKind === "brackish" ? 15 : marine ? 35 : 0 : 0;
 
         const climateCode = toKoppenCode(temperatureC, precipitationMmYear, humidityPct);
         const biomeSuggestion = isWater
-          ? classifyWaterBiome(style, temperatureC, precipitationMmYear)
+          ? input.waterKind === "brackish" ? "manguezal" : marine ? classifyWaterBiome(style === "polar" ? "polar" : "ocean", temperatureC, precipitationMmYear) : "lago"
           : classifyLandBiome(style, temperatureC, precipitationMmYear, elev);
 
         rowCells.push({
@@ -307,11 +310,12 @@ export class TerrainGeneratorService {
         "Climate and biome assignment are heuristic approximations, not validated ecological models.",
     };
 
-    // Second logical layer: rivers (carved by gradient), caves and procedural
-    // objects. Purely additive — never rewrites elevation/isWater/biomeSuggestion.
+    // Closed continental drainage forms small fresh ponds; enrichment then computes
+    // river flow, caves and procedural objects on the final land/water mask.
     // Incidental natural caves are gated to cave-prone relief (mountain); explicit cave hints
     // still generate caves in any style. Lowland default/ocean/polar prompts stay cave-free
     // unless hinted, so an Amazon prompt doesn't sprout caves + cave-specialist fauna.
+    if (input.waterKind !== "brackish" && !((input.waterKind === "marine") || style === "ocean" || style === "polar")) markClosedBasins(grid);
     enrichTerrain(grid, input.featureHints, { allowNaturalCaves: style === "mountain" });
 
     return grid;
