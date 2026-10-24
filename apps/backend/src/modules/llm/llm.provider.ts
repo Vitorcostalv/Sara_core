@@ -1,8 +1,9 @@
 import { AppError } from "../../core/errors/app-error";
 import { GeminiLlmProvider } from "./providers/gemini.provider";
+import { RenderLlmProvider } from "./providers/render.provider";
 import { GrokLlmProvider } from "./providers/grok.provider";
 
-export type LlmProviderName = "disabled" | "gemini" | "grok";
+export type LlmProviderName = "disabled" | "gemini" | "grok" | "render";
 
 export interface LlmGenerateTextInput {
   systemPrompt: string;
@@ -11,10 +12,15 @@ export interface LlmGenerateTextInput {
   apiKey: string;
   baseUrl: string;
   timeoutMs: number;
+  maxOutputTokens?: number;
+  responseSchema?: Record<string, unknown>;
 }
 
 export interface LlmGenerateTextOutput {
   text: string;
+  provider?: string;
+  model?: string;
+  fallbackReason?: string;
 }
 
 export interface LlmProvider {
@@ -28,6 +34,8 @@ export function createLlmProvider(providerName: LlmProviderName): LlmProvider | 
   switch (providerName) {
     case "gemini":
       return new GeminiLlmProvider();
+    case "render":
+      return new RenderLlmProvider();
     case "grok":
       return new GrokLlmProvider();
     case "disabled":

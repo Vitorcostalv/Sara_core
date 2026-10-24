@@ -213,3 +213,9 @@ test("Ecology business rules: no warnings for clean ecological query", () => {
   const warnings = detectAmbiguousTerms("Como funciona a ciclagem de nutrientes em florestas tropicais?");
   assert.equal(warnings.length, 0);
 });
+
+test("retrieval ranks a matching sourced fact before a generic high-importance fact",()=>{
+  const generic=makeGroundingFact({id:"generic",importance:5,retrieval_score:0});
+  const matching=makeGroundingFact({id:"matching",category:"concept",importance:2,retrieval_score:.5});
+  assert.equal(rankFacts([generic,matching],[])[0]!.id,"matching");
+});

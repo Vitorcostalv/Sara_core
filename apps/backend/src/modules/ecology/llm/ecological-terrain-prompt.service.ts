@@ -1,5 +1,7 @@
+import { localClassifierRequest, normalizeLocalClassification } from "./terrain-local-classifier";
 import { env } from "../../../config/env";
 import { logger } from "../../../logging/logger";
+import { generateWithLocalFallback } from "../../llm/local-fallback";
 import { createLlmProvider } from "../../llm/llm.provider";
 import { biomePresetService } from "../simulation/biome-preset.service";
 import { terrainGeneratorService } from "../simulation/terrain-generator.service";
@@ -31,6 +33,7 @@ export interface TerrainPromptResult {
   };
   terrain: TerrainGrid;
   source: "llm" | "keyword" | "default";
+  inference?: {provider:string;model:string;usedFallback:boolean};
 }
 
 interface LlmBiomeExtraction {
@@ -42,6 +45,7 @@ interface LlmBiomeExtraction {
 // Classification (independente de width/height/seed) — derivada do bioma canônico.
 interface BiomeClassification {
   source: TerrainPromptResult["source"];
+  inference?: TerrainPromptResult["inference"];
   biomeSlug: string;
   biomeName: string;
   interpretation: string;
@@ -228,6 +232,7 @@ export class EcologicalTerrainPromptService {
       terrainParams,
       terrain,
       source: classification.source,
+      ...(classification.inference ? {inference:classification.inference} : {}),
     };
   }
 
@@ -264,21 +269,27 @@ export class EcologicalTerrainPromptService {
     const provider = createLlmProvider(env.llmProvider);
     if (provider && env.llmApiKey) {
       try {
-        const generation = await provider.generateText({
+        const generation = await generateWithLocalFallback(provider, {
           systemPrompt: SYSTEM_PROMPT,
           userPrompt: prompt,
           model: env.llmModel || provider.defaultModel,
           apiKey: env.llmApiKey,
           baseUrl: normalizeBaseUrl(env.llmBaseUrl ?? provider.defaultBaseUrl),
           timeoutMs: Math.min(env.llmTimeoutMs, 15_000),
-        });
+          maxOutputTokens: 128,
+          responseSchema: {type:"object",properties:{biomeSlug:{type:"string",enum:biomePresetService.listAll().map(p=>p.slug)},displayName:{type:"string"},interpretation:{type:"string"}},required:["biomeSlug","displayName","interpretation"],additionalProperties:false},
+        }, {enabled:env.renderLlmEnabled,baseUrl:env.renderLlmBaseUrl,apiKey:env.renderLlmApiKey,timeoutMs:env.renderLlmTimeoutMs}, text=>{
+          const parsed=tryParseLlmJson(text);
+          return Boolean(parsed && biomePresetService.findBySlug(parsed.biomeSlug));
+        }, localClassifierRequest(), text=>normalizeLocalClassification(text,prompt));
 
         const parsed = tryParseLlmJson(generation.text);
         if (parsed) {
           const preset = biomePresetService.findBySlug(parsed.biomeSlug);
           if (preset) {
-            terrainPromptLogger.info({ biomeSlug: parsed.biomeSlug, source: "llm" }, "Biome extracted via LLM");
+            terrainPromptLogger.info({ biomeSlug: parsed.biomeSlug, source: "llm", provider:generation.provider, model:generation.model, fallbackReason:generation.fallbackReason }, "Biome extracted via LLM");
             const result = fromPreset("llm", parsed.biomeSlug, parsed.displayName, parsed.interpretation, preset);
+            result.inference={provider:generation.provider ?? provider.name,model:generation.model ?? (env.llmModel || provider.defaultModel),usedFallback:Boolean(generation.fallbackReason)};
             cacheClassification(cacheKey, result);
             return result;
           }

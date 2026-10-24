@@ -153,6 +153,7 @@ export class EcologicalContextBuilderService {
 
     // Fetch raw facts from DB
     const rawFacts = await ecologicalGroundingRepository.listGroundingFacts({
+      prompt: input.prompt,
       ecosystemSlugs: requestedEcosystems,
       categories: effectiveCategories,
       maxFacts: Math.max(maxFacts * 3, 30),

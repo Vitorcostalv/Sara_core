@@ -21,6 +21,7 @@ export interface GroundingFactRow {
   source_type: string | null;
   source_year: number | null;
   ecosystem_slug: string | null;
+  retrieval_score?: number;
 }
 
 export interface EcosystemRow {
@@ -97,6 +98,7 @@ export interface ListGroundingFactsQuery {
   categories?: GroundingCategory[];
   maxFacts: number;
   language?: string;
+  prompt?: string;
 }
 
 export interface DomainCoverageStats {
@@ -153,12 +155,21 @@ export class EcologicalGroundingRepository {
       params.push(q.ecosystemSlugs);
     }
 
+    // Bind an OR query so a useful fact need not contain the entire question.
+    // Native PostgreSQL full-text search requires no paid vector service or extension.
+    const terms=(q.prompt?.match(/[\p{L}\p{N}]{3,}/gu) ?? []).slice(0,32);
+    let relevanceSql="0::real";
+    if(terms.length) {
+      params.push(terms.map(term=>`"${term}"`).join(" OR "));
+      relevanceSql=`ts_rank_cd(to_tsvector('portuguese', coalesce(gf.title,'') || ' ' || coalesce(gf.fact_text,'')), websearch_to_tsquery('portuguese', $${idx++}))`;
+    }
     params.push(q.maxFacts);
     const limitPlaceholder = `$${idx}`;
 
     const sql = `
       SELECT
         gf.id,
+        ${relevanceSql} AS retrieval_score,
         gf.domain_id,
         gf.category::text,
         gf.slug,
@@ -191,6 +202,7 @@ export class EcologicalGroundingRepository {
         ${ecosystemCondition}
       ORDER BY
         ${prioritySql}
+        retrieval_score DESC,
         gf.importance DESC,
         gf.updated_at DESC,
         gf.id

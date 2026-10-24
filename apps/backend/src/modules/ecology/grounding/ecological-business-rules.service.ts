@@ -155,6 +155,10 @@ export function rankFacts(
     const bRequested = b.ecosystem_slug && requestedSet.has(b.ecosystem_slug) ? 0 : 1;
     if (aRequested !== bRequested) return aRequested - bRequested;
 
+    // Prefer facts that actually match the question before generic category boosts.
+    const relevance=(b.retrieval_score ?? 0)-(a.retrieval_score ?? 0);
+    if(relevance !== 0) return relevance;
+
     // 2. Ecosystem facts over other categories
     const aIsEco = a.category === "ecosystem" ? 0 : 1;
     const bIsEco = b.category === "ecosystem" ? 0 : 1;
