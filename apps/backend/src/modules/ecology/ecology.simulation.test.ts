@@ -1237,3 +1237,13 @@ test("Tropical serras preserve warmer slopes than the alpine mountain preset", (
   assert.ok(Math.min(...tropical.cells.flat().map(cell=>cell.temperatureC)) > Math.min(...alpine.cells.flat().map(cell=>cell.temperatureC)));
   assert.ok(Math.max(...tropical.cells.flat().map(cell=>cell.elevation))-Math.min(...tropical.cells.flat().map(cell=>cell.elevation))>.3);
 });
+
+test("Ordinary river requests preserve natural relief without forcing a waterfall corridor",()=>{
+  for(const seed of [1,42,2026]) {
+    const input={width:20,height:16,seed,baseTemperatureC:26,basePrecipitationMm:2100,baseHumidityPct:80};
+    const normal=terrainGeneratorService.generate(input);
+    const rivers=terrainGeneratorService.generate({...input,featureHints:{rivers:true}});
+    assert.deepEqual(rivers.cells.map(row=>row.map(cell=>cell.elevation)),normal.cells.map(row=>row.map(cell=>cell.elevation)));
+    assert.ok(rivers.cells.flat().every(cell=>!cell.objects?.includes("waterfall")));
+  }
+});

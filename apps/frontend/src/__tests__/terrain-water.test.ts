@@ -21,3 +21,17 @@ it("keeps fish above the bed of shallow ponds and below their water surface", ()
     }
   }
 });
+
+it("the initial Amazon river remains below adjacent land instead of becoming a water wall",async()=>{
+  const {OFFLINE_ECOSYSTEM_SNAPSHOTS}=await import("../demo/snapshots");
+  const snapshot=Object.values(OFFLINE_ECOSYSTEM_SNAPSHOTS).find(s=>s.result.terrain.seed===9021);
+  expect(snapshot).toBeDefined();
+  const grid=snapshot!.result.terrain;
+  const levels=waterSurfaceHeights(grid);
+  for(const row of grid.cells) for(const cell of row) if(cell.isWater) {
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const bank=grid.cells[cell.y+dy!]?.[cell.x+dx!];
+      if(bank && !bank.isWater) expect(levels.get(`${cell.x},${cell.y}`)!).toBeLessThan(.72+bank.elevation*6.9);
+    }
+  }
+});

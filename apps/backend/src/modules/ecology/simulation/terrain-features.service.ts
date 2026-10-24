@@ -479,7 +479,7 @@ function carveRivers(grid: TerrainGrid, hints?: TerrainFeatureHints): RiverField
   }
   candidates.sort((a, b) => b.score - a.score);
   const sources = candidates.slice(0, sourceBudget);
-  if (hints?.rivers || hints?.waterfalls) {
+  if (hints?.waterfalls) {
     const first = scenicRiverPath(width,height,seed)[0];
     if (first) sources.unshift({x:first[0],y:first[1],score:10});
   }
@@ -957,7 +957,7 @@ function placeObjects(
         if (roll(x, y, 223) < 0.22) out.push("fallen-log");
         if (roll(x, y, 227) < 0.18) out.push("nest");
         const downstream = lowestNeighbor(cells, width, height, x, y);
-        if (waterFlow[y]![x]! > 0 && downstream && cell.elevation - downstream.elevation > 0.08) out.push("waterfall");
+        if (hints?.waterfalls && waterFlow[y]![x]! > 0 && downstream && cell.elevation - downstream.elevation > 0.08) out.push("waterfall");
       }
 
       // Biome-driven props.

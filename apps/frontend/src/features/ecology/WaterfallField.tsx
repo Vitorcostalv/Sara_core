@@ -8,13 +8,13 @@ interface Fall { x:number; y:number; z:number; sx:number; sy:number; sz:number; 
 export function WaterfallField({falls}: {falls:Fall[]}) {
   const curtains = useRef<THREE.InstancedMesh>(null!);
   const foam = useRef<THREE.InstancedMesh>(null!);
-  const selected = useMemo(() => falls.slice().sort((a,b)=>b.sy-a.sy).slice(0,48),[falls]);
+  const selected = useMemo(() => falls.slice().sort((a,b)=>b.sy-a.sy).slice(0,8),[falls]);
   const texture = useMemo(() => {
     const data = new Uint8Array(32*64*4);
     for(let y=0;y<64;y++) for(let x=0;x<32;x++) {
       const i=(y*32+x)*4;
       const stripe=(Math.sin(x*1.7+Math.sin(y*.23))*.5+.5)*.6+(Math.sin(y*.63+x*.4)*.5+.5)*.4;
-      data[i]=55+stripe*180; data[i+1]=170+stripe*80; data[i+2]=205+stripe*50; data[i+3]=150+stripe*100;
+      data[i]=55+stripe*180; data[i+1]=170+stripe*80; data[i+2]=205+stripe*50; data[i+3]=Math.round((90+stripe*140)*Math.pow(Math.sin(Math.PI*x/31),.7));
     }
     const map=new THREE.DataTexture(data,32,64,THREE.RGBAFormat);
     map.wrapS=map.wrapT=THREE.RepeatWrapping; map.magFilter=map.minFilter=THREE.LinearFilter;
@@ -52,8 +52,8 @@ export function WaterfallField({falls}: {falls:Fall[]}) {
   });
   return <group>
     <instancedMesh ref={curtains} args={[undefined,undefined,Math.max(1,selected.length)]} count={selected.length}>
-      <boxGeometry args={[1,1,1]} />
-      <meshStandardMaterial map={texture} transparent opacity={.88} roughness={.32} emissive="#238899" emissiveIntensity={.35} depthWrite={false} />
+      <planeGeometry args={[1,1]} />
+      <meshStandardMaterial map={texture} transparent opacity={.72} side={THREE.DoubleSide} alphaTest={.12} roughness={.32} emissive="#238899" emissiveIntensity={.35} depthWrite={false} />
     </instancedMesh>
     <instancedMesh ref={foam} args={[undefined,undefined,Math.max(1,selected.length)]} count={selected.length}>
       <sphereGeometry args={[1,6,4]} />

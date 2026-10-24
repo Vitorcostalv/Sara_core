@@ -1,3 +1,4 @@
+import { hasVisibleRiver } from "./terrain-hydrology";
 import type { TerrainGrid } from "../../services/api/ecology";
 
 /** Piecewise planar surface: cell centers retain their generated height, shared
@@ -12,7 +13,7 @@ export function createTerrainSurface(grid: TerrainGrid) {
       const cell = grid.cells[y + dy]![x + dx]!;
       const height = top(x + dx, y + dy);
       sum += height; count++;
-      if (cell.isWater || (cell.waterFlow ?? 0) > 0.02) channelBed = Math.min(channelBed,height);
+      if (cell.isWater || hasVisibleRiver(cell.waterFlow)) channelBed = Math.min(channelBed,height);
     }
     corners[y * (grid.width + 1) + x] = Math.min(sum / count,channelBed);
   }

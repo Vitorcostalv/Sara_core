@@ -118,7 +118,7 @@ const HOVER_COLOR = 0xf4dc8c;
 const FALLBACK_COLOR = 0x7b6a5b;
 
 // ─── River rendering tunables (the single documented place, frontend side) ──────
-const RIVER_FLOW_MIN = 0.02; // render threshold: below this a cell is a trickle, dropped
+import { RIVER_FLOW_MIN } from "./terrain-hydrology";
 const RIVER_MIN_COMPONENT_CELLS = 3; // drop river fragments smaller than this (prune stubs)
 const RIVER_SURFACE_LIFT = 0.1; // minimum water above the carved channel floor
 const RIVER_WATERFALL_DROP = 0.55; // surface-height delta that spawns a waterfall ribbon
@@ -250,6 +250,8 @@ interface RiverNode {
   surfaceY: number;
   bankY: number;
   flow: number;
+  waterfall?: boolean;
+  terminal?: boolean;
 }
 
 // Altitude/cliff highlight used by the Relief layer.
@@ -590,7 +592,7 @@ function buildRiverScene(nodes: Map<string, RiverNode>, seed: number, falls: Ins
 
   for (const key of keep) {
     const node = nodes.get(key);
-    if (!node) continue;
+    if (!node || node.terminal) continue;
     const waterY = waterYOf(key, node);
     const depth = Math.max(0.04, waterY - node.surfaceY);
     const color = blendedWaterColor(depth, 0.42, hashUnit(node.gx, node.gy, seed + 1147));
@@ -618,15 +620,15 @@ function buildRiverScene(nodes: Map<string, RiverNode>, seed: number, falls: Ins
       x: node.wx,
       y: Math.max(node.surfaceY + 0.01, waterY - 0.018),
       z: node.wz,
-      sx: WATER_SIZE,
+      sx: WATER_SIZE * orderScale * 1.08,
       sy: 0.025,
-      sz: WATER_SIZE,
+      sz: WATER_SIZE * orderScale * 1.08,
       color: RIVER_WET_BANK_HEX,
     });
   }
 
   for (const [key, node] of nodes) {
-    if (!keep.has(key)) continue;
+    if (!keep.has(key) || node.terminal) continue;
     const dKey = downstream.get(key);
     if (!dKey || !keep.has(dKey)) continue;
     const ds = nodes.get(dKey)!;
@@ -641,14 +643,14 @@ function buildRiverScene(nodes: Map<string, RiverNode>, seed: number, falls: Ins
       const rotation = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1),delta.clone().normalize()));
       volumes.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.z+b.z)/2,sx:WATER_SIZE*.8,sy:.045,sz:delta.length()+.05,rx:rotation.x,ry:rotation.y,rz:rotation.z,color:0x70b9c9});
     }
-    if (drop > RIVER_WATERFALL_DROP) {
+    if (drop > RIVER_WATERFALL_DROP && node.waterfall) {
       const lower = node.surfaceY < ds.surfaceY ? node : ds;
       const angle = Math.atan2(ds.wx - node.wx, ds.wz - node.wz);
       falls.push({
         x: (node.wx + ds.wx) / 2,
         y: waterYOf(keyOf(lower.gx, lower.gy), lower) + drop / 2,
         z: (node.wz + ds.wz) / 2,
-        sx: WATER_SIZE * 0.82,
+        sx: WATER_SIZE * 0.48,
         sy: drop,
         sz: 0.06,
         ry: angle,
@@ -806,7 +808,7 @@ function buildSceneData(grid: TerrainGrid): SceneData {
         const bankY = minNeighborLandTop(cell);
         const surfaceY = waterLevels.get(`${cell.x},${cell.y}`) ?? Math.max(floorY + 0.04, bankY - WATER_BANK_RECESS);
         if ((cell.waterFlow ?? 0) > RIVER_FLOW_MIN) riverNodes.set(`${cell.x},${cell.y}`, {
-          gx:cell.x, gy:cell.y, wx:x, wz:z, surfaceY:surfaceY-.04, bankY:surfaceY+.1, flow:cell.waterFlow!,
+          gx:cell.x, gy:cell.y, wx:x, wz:z, surfaceY:surfaceY-.04, bankY:surfaceY+.1, flow:cell.waterFlow!, waterfall: false, terminal: true,
         });
         const depth = Math.max(0.04, surfaceY - floorY);
         const waterColor = blendedWaterColor(depth, WATER_HEIGHT * 2.6, hashUnit(cell.x * 41, cell.y * 53, grid.seed));
@@ -1098,6 +1100,7 @@ function buildSceneData(grid: TerrainGrid): SceneData {
           surfaceY: height,
           bankY: minNeighborLandTop(cell, true),
           flow: Math.min(1, cell.waterFlow),
+          waterfall: cell.objects?.includes("waterfall") ?? false,
         });
       }
 
@@ -1329,7 +1332,7 @@ function WaterDepthVolumes({
       }}
     >
       <boxGeometry args={[1, 1, 1]} />
-      <meshToonMaterial gradientMap={gradientMap} />
+      <meshStandardMaterial roughness={.65} emissive="#397d93" emissiveIntensity={.45} />
     </instancedMesh>
   );
 }
@@ -1361,6 +1364,8 @@ function WaterSurfaceTiles({ surfaces }: { surfaces: InstanceSpec[] }) {
         opacity={0.74}
         roughness={0.32}
         metalness={0}
+        emissive="#397d93"
+        emissiveIntensity={.3}
         normalMap={normalTexture}
         normalScale={normalScale}
         side={THREE.DoubleSide}
@@ -1884,7 +1889,7 @@ function RiverWetBanks({ wetBanks }: { wetBanks: InstanceSpec[] }) {
   return (
     <instancedMesh ref={ref} args={instancedArgs(wetBanks.length)} receiveShadow>
       <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial transparent opacity={0.42} roughness={0.86} metalness={0.02} vertexColors depthWrite={false} />
+      <meshStandardMaterial transparent opacity={0.18} roughness={0.86} metalness={0.02} vertexColors depthWrite={false} />
     </instancedMesh>
   );
 }
@@ -2611,7 +2616,7 @@ export function TerrainView({
             }}
             onCreated={({ gl }) => {
               gl.toneMapping = THREE.ACESFilmicToneMapping;
-              gl.toneMappingExposure = 1.2;
+              gl.toneMappingExposure = 1.5;
             }}
           >
             {/* If postprocessing is reintroduced later, it belongs here after the scene content. */}

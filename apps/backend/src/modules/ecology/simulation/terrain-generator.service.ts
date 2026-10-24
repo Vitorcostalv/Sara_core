@@ -249,7 +249,7 @@ export class TerrainGeneratorService {
       carveWaterBasins(elevation, width, height, seaLevel);
     }
 
-    if (input.featureHints?.rivers || input.featureHints?.waterfalls) {
+    if (input.featureHints?.waterfalls) {
       carveScenicRiver(elevation,width,height,seed,Boolean(input.featureHints.waterfalls));
     }
 

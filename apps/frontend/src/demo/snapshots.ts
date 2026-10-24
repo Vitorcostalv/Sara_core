@@ -43,7 +43,7 @@ function cell(
   return {
     x,
     y,
-    elevation,
+    elevation: options.elevation ?? elevation,
     temperatureC: options.temperatureC ?? 26,
     humidityPct: options.humidityPct ?? 76,
     precipitationMmYear: options.precipitationMmYear ?? 1600,
@@ -159,6 +159,8 @@ const PROFILE_SPECS: Record<SnapshotProfile, ProfileSpec> = {
       const river = riverAt(x, y, width);
       return cell(x, y, river ? "lago" : "floresta-tropical-umida", seed, {
         isWater: river,
+        // A low, continuous bed keeps the demonstration river inside its banks.
+        elevation: river ? .18 : undefined,
         temperatureC: 27 + ((x + y) % 3),
         humidityPct: 86,
         precipitationMmYear: 2800,

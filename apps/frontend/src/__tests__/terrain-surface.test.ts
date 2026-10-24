@@ -26,3 +26,10 @@ describe("continuous terrain surface",()=>{
     for(const x of [-100,-1.5,0,1.5,100]) for(const z of [-100,0,100]) expect(Number.isFinite(surface.heightAt(x,z))).toBe(true);
   });
 });
+
+it("background moisture neither carves the ground nor becomes a river",()=>{
+  const dry=grid(),moist=grid();
+  for(const row of moist.cells) for(const cell of row) cell.waterFlow=.04;
+  const a=createTerrainSurface(dry),b=createTerrainSurface(moist);
+  for(let y=0;y<=3;y++) for(let x=0;x<=3;x++) expect(b.corner(x,y)).toEqual(a.corner(x,y));
+});

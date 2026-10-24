@@ -17,7 +17,7 @@ export function TerrainRelief({grid, colors, gradientMap, opacity, onInspect}: {
       const center = [x, surface.heightAt(x,z), z];
       const corners = [[x-.5, surface.corner(cell.x,cell.y), z-.5], [x+.5,surface.corner(cell.x+1,cell.y),z-.5], [x+.5,surface.corner(cell.x+1,cell.y+1),z+.5], [x-.5,surface.corner(cell.x,cell.y+1),z+.5]];
       color.setHex(colors.get(`${cell.x},${cell.y}`) ?? 0x5d8752);
-      if (!cell.isWater) color.lerp(new THREE.Color(0x858579), Math.min(0.55, Math.max(0, (cell.slope ?? 0) - .25) * .7));
+      if (!cell.isWater && cell.elevation > .72) color.lerp(new THREE.Color(0x858579), Math.min(.25, Math.max(0, (cell.slope ?? 0) - .55) * .4));
       for (let side=0; side<4; side++) {
         const a = corners[side]!, b = corners[(side+1)%4]!;
         positions.push(...center,...b,...a);
