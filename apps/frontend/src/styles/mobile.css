@@ -112,3 +112,12 @@
   .app-shell .terrain-stage.is-expanded .terrain-view-actions { display: flex; }
   .app-shell .terrain-stage.is-expanded .terrain-stage__hint { display: none; }
 }
+
+.terrain-touch-inspection { display: none; }
+@media (max-width: 720px), (pointer: coarse) {
+  .terrain-touch-inspection { display: flex; flex: 1 1 100%; align-items: center; gap: .6rem; min-height: 2.75rem; padding: .5rem; font-size: .8rem; color: #594430; }
+  .terrain-touch-inspection input { width: 1.25rem; height: 1.25rem; accent-color: #2f6b4f; }
+}
+.ecosystem-report-disclosure { min-width: 0; }
+.ecosystem-report-disclosure > summary { cursor: pointer; min-height: 3rem; padding: .85rem 1rem; border: 1px solid #d9d0bf; border-radius: .7rem; background: #fffaf0; color: #4d3929; font-weight: 600; }
+.ecosystem-report-disclosure[open] > summary { margin-bottom: .75rem; }

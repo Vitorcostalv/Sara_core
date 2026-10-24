@@ -2380,6 +2380,7 @@ export function TerrainView({
   const profile = PERFORMANCE_PROFILES[performanceProfile];
   const [expanded, setExpanded] = useState(false);
   const [legendExpanded, setLegendExpanded] = useState(false);
+  const [touchInspection, setTouchInspection] = useState(false);
   const [cameraResetKey, setCameraResetKey] = useState(0);
   const stageRef = useRef<HTMLDivElement>(null);
   useCloseOnAndroidBack(expanded, () => setExpanded(false));
@@ -2522,6 +2523,10 @@ export function TerrainView({
           </button>
         </div>
         <div className="terrain-stage__legends">
+          <label className="terrain-touch-inspection">
+            <input type="checkbox" checked={touchInspection} onChange={(event) => { setTouchInspection(event.target.checked); setInspectedState(null); }} />
+            Ativar inspeção por toque
+          </label>
         <div className="terrain-stage__legend" aria-label="Legenda de biomas">
           {sceneData.legend.map(({ label, color }) => (
             <div key={label} className="terrain-stage__legend-item">
@@ -2629,6 +2634,8 @@ export function TerrainView({
                 onLightningObserved={onLightningObserved}
                 onFaunaCountUpdate={onFaunaCountUpdate}
                 onInspect={(cell) => {
+                  // Touch navigation is the default. Inspection must be deliberately enabled.
+                  if (!touchInspection && window.matchMedia("(max-width: 720px), (pointer: coarse)").matches) return;
                   setLayersOpen(false);
                   setAnimalsOpen(false);
                   setEventsExpanded(false);
@@ -2786,8 +2793,8 @@ export function TerrainView({
               </button>
               <span>Arraste para orbitar.</span>
               <span>Pinça para zoom.</span>
-              <span>Toque para selecionar.</span>
-              <span>Toque prolongado ou toque novamente para inspecionar.</span>
+              <span>No celular, os toques apenas movimentam o cenário.</span>
+              <span>Para consultar uma célula, ative a inspeção em Legenda.</span>
             </section>
           ) : null}
         </div>
@@ -5651,6 +5658,8 @@ function EcologyTerrainSection({
       </div>
 
       {report && !isLoading ? (
+        <details className="ecosystem-report-disclosure">
+        <summary>Ver relatório do ecossistema</summary>
         <section className="signal-panel ecosystem-report" data-testid="ecosystem-report-panel">
           <style>{`
             .ecosystem-report__grid {
@@ -6121,6 +6130,7 @@ function EcologyTerrainSection({
             </div>
           ) : null}
         </section>
+        </details>
       ) : null}
     </div>
   );
