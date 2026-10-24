@@ -52,3 +52,6 @@ artifacts/portable/
 # NOTA: já existe em commits anteriores; para apagar do histórico é preciso reescrevê-lo
 # (git filter-repo/BFG) e dar push --force.
 /System.md
+
+.vercel
+.env*

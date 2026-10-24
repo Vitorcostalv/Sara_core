@@ -1,0 +1,17 @@
+.env
+.env.*
+.git
+.tmp
+.agents
+.claude
+node_modules
+**/node_modules
+**/android
+**/*.log
+**/*.map
+docs/private
+artifacts
+demo-video
+System.md
+work
+**/dist

@@ -32,7 +32,9 @@
     "db:check": "npm run db:check -w @sara/backend",
     "db:migrate": "npm run db:migrate -w @sara/backend",
     "db:reset": "npm run db:reset -w @sara/backend",
-    "db:seed": "npm run db:seed -w @sara/backend"
+    "db:seed": "npm run db:seed -w @sara/backend",
+    "build:web": "node scripts/build-web.mjs",
+    "test:web": "node --test scripts/web-entry.test.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

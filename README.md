@@ -1,5 +1,12 @@
 # Sara Core
 
+## Acesso pela web
+
+Publicação automática na Vercel a partir da branch Dev-Vitor deste repositório. O frontend e a API usam o mesmo domínio; o banco Neon e o Gemini permanecem no servidor.
+
+Consulte [o guia de publicação e apresentação no celular](docs/deployment/vercel.md).
+
+
 ## Visão geral
 Sara Core gera e simula ecossistemas digitais plausíveis a partir de descrições em linguagem natural. O usuário descreve um ambiente (por exemplo, "um cerrado com relevo irregular e rios"), a IA interpreta o texto, o backend consulta uma base ecológica científica e o frontend monta o terreno em 3D com clima, relevo, vegetação e fauna. As respostas e simulações são *grounded*: baseadas nos dados do banco, não em conhecimento livre do modelo.
 
