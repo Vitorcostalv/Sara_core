@@ -39,7 +39,9 @@ export function FitTerrainCamera({ bounds, resetKey, overview = false, zoomComma
     const direction = camera.position.clone().sub(orbit.target).normalize();
     orbit.target.set(...focusCommand.point);
     camera.position.copy(orbit.target).addScaledVector(direction,focusCommand.distance);
+    // Stay above the relief when the selected drop lies inside a narrow gorge.
+    camera.position.y = Math.max(camera.position.y, bounds[4] + 1.5);
     camera.lookAt(orbit.target); orbit.update(); invalidate();
-  }, [focusCommand,camera,controls,invalidate]);
+  }, [focusCommand,camera,controls,bounds,invalidate]);
   return null;
 }
