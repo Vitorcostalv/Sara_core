@@ -20,5 +20,5 @@ const cases=[["Floresta amazônica quente e úmida.", "amazonia"], ["Cerrado bra
  }
  const output=process.env.LLM_BENCHMARK_OUTPUT||path.join(root,".tmp/render-llm-benchmark.json");
  fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(results,null,2));
- if(results.some(r=>r.accepted&&!r.correct))process.exitCode=1;
+ if(results.filter(r=>r.correct).length<10 || results.some(r=>r.accepted&&!r.correct))process.exitCode=1;
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

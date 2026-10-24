@@ -19,5 +19,5 @@ export function normalizeLocalClassification(text:string, prompt?:string) {
  // Defer those disagreements to the main provider instead of trusting small-model output.
  const known=prompt ? biomePresetService.findByKeyword(prompt) : null;
  if(known && known.slug !== parsed.biomeSlug) throw new Error("Local model contradicts the biome catalog");
- return JSON.stringify({biomeSlug:parsed.biomeSlug,displayName:preset.displayName,interpretation:`${preset.displayName} identificado na descrição; clima e espécies seguem o catálogo do projeto.`});
+ return JSON.stringify({biomeSlug:parsed.biomeSlug,displayName:preset.displayName,interpretation:`Ecossistema identificado como "${preset.displayName}"; clima e espécies seguem o catálogo do projeto.`});
 }
