@@ -17,6 +17,7 @@
     "db:check": "tsx src/database/check-postgres.ts"
   },
   "dependencies": {
+    "@sara/shared-types": "0.1.0",
     "pg": "^8.14.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

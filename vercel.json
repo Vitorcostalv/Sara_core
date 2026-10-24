@@ -7,7 +7,7 @@
   "functions": {
     "api/index.js": {
       "maxDuration": 120,
-      "includeFiles": "apps/backend/dist/**"
+      "includeFiles": "{apps/backend,packages/shared-types}/dist/**"
     }
   },
   "rewrites": [

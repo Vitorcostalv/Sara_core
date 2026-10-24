@@ -38,3 +38,11 @@ test('cloud entry preserves paths/query and keeps its integration key server-sid
     await new Promise(r => server.close(r));
   }
 });
+
+test('cloud runtime loads the compiled shared resource catalog without a TypeScript loader', () => {
+  const path = require.resolve('@sara/shared-types');
+  assert.match(path.replaceAll('\\', '/'), /shared-types\/dist\/index\.js$/);
+  const resources = require('@sara/shared-types');
+  assert.equal(resources.biomeFamily('lago'), 'freshwater');
+  assert.equal(resources.FAMILY_RESOURCES.ocean.plancton, 1);
+});
