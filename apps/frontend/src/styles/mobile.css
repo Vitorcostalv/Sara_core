@@ -59,7 +59,7 @@
   .app-shell .ecology-tabs--primary .ecology-tab-btn svg { font-size: 1rem; }
   .app-shell .terrain-workspace { display: flex; flex-direction: column; gap: .75rem; }
   .app-shell .terrain-workspace > * { width: 100%; min-width: 0; }
-  .app-shell .terrain-viewer { order: -1; padding: .6rem; gap: .5rem; border-radius: .85rem; }
+  .app-shell .terrain-viewer { order: -1; scroll-margin-top: 4.1rem; padding: .6rem; gap: .5rem; border-radius: .85rem; }
   .app-shell .terrain-stage { gap: .45rem; }
   .app-shell .terrain-stage__chrome { display: flex; flex-direction: column; align-items: stretch; gap: .45rem; }
   .app-shell .terrain-stage__chrome h4 { font-size: 1.12rem; }

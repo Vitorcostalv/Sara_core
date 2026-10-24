@@ -3611,6 +3611,15 @@ function EcologyTerrainSection({
   const [report, setReport] = useState<EcosystemReport | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState<DemoRunMode>(getDefaultDemoMode);
+  const viewerRef = useRef<HTMLElement>(null);
+  const previousGrid = useRef<TerrainGrid | null>(null);
+  useEffect(() => {
+    const updated = previousGrid.current !== null && previousGrid.current !== grid;
+    if (grid) previousGrid.current = grid;
+    if (!updated || !window.matchMedia("(max-width: 720px)").matches) return;
+    const frame = window.requestAnimationFrame(() => viewerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [grid]);
   const [offlineDisclosure, setOfflineDisclosure] = useState<string | null>(null);
   const [previewNotice, setPreviewNotice] = useState<string | null>(null);
   const [fallbackScenarioId, setFallbackScenarioId] = useState<DemoScenarioId | null>(null);
@@ -5570,7 +5579,7 @@ function EcologyTerrainSection({
       ) : null}
 
       {grid && !isLoading ? (
-        <section className="signal-panel terrain-shell terrain-viewer">
+        <section ref={viewerRef} className="signal-panel terrain-shell terrain-viewer">
           <TerrainView
             grid={grid}
             faunaSpecies={faunaSpecies}
