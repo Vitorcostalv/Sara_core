@@ -48,6 +48,9 @@ import { DayNightCycle, formatSimulatedTime } from "./DayNightCycle";
 import FaunaLayer, { type FaunaEvent } from "./FaunaLayer";
 import { RainSystem } from "./RainSystem";
 import { getSpeciesRenderProfile } from "./faunaRenderProfiles";
+import { FitTerrainCamera } from "./FitTerrainCamera";
+import type { TerrainBounds } from "./mobile-camera";
+import { useCloseOnAndroidBack } from "../../pwa/androidBack";
 
 const BIOME_COLORS: Record<string, number> = {
   "floresta-tropical-umida": 0x2f7a4f,
@@ -2081,7 +2084,7 @@ function AutoOrbitControls({ worldRadius }: { worldRadius: number }) {
       enableDamping
       dampingFactor={0.08}
       minDistance={worldRadius * 0.55}
-      maxDistance={worldRadius * 2.6}
+      maxDistance={worldRadius * 12}
       minPolarAngle={0.5}
       maxPolarAngle={1.26}
       onStart={() => setAutoRotate(false)}
@@ -2375,6 +2378,36 @@ export function TerrainView({
     return [span * 0.58, span * 0.92, span * 1.16] as [number, number, number];
   }, [sceneData.worldRadius]);
   const profile = PERFORMANCE_PROFILES[performanceProfile];
+  const [expanded, setExpanded] = useState(false);
+  const [legendExpanded, setLegendExpanded] = useState(false);
+  const [cameraResetKey, setCameraResetKey] = useState(0);
+  const stageRef = useRef<HTMLDivElement>(null);
+  useCloseOnAndroidBack(expanded, () => setExpanded(false));
+  const cameraBounds = useMemo<TerrainBounds>(() => {
+    let top = 1;
+    for (const batch of [sceneData.land, sceneData.water, ...Object.values(sceneData.vegetation), ...Object.values(sceneData.objects)]) {
+      for (const instance of batch) top = Math.max(top, instance.y + instance.sy / 2);
+    }
+    return [-grid.width / 2, 0, -grid.height / 2, grid.width / 2, top + 0.5, grid.height / 2];
+  }, [sceneData, grid.width, grid.height]);
+  useEffect(() => {
+    if (!expanded) return;
+    const overflow = document.body.style.overflow;
+    const previous = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = "hidden";
+    stageRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpanded(false);
+      if (event.key !== "Tab") return;
+      const items = Array.from(stageRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), select, input, [tabindex="0"]') ?? []).filter(el => el.getClientRects().length > 0);
+      const first = items[0], last = items[items.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === stageRef.current)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === stageRef.current)) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", onKey); previous?.focus(); };
+  }, [expanded]);
   const [eventsExpanded, setEventsExpanded] = useState(false);
   const [invasivePanelExpanded, setInvasivePanelExpanded] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
@@ -2386,10 +2419,8 @@ export function TerrainView({
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [locator, setLocator] = useState<LocatorTarget | null>(null);
   const [highlightSystemId, setHighlightSystemId] = useState<string | null>(null);
-  const [gestureHelpOpen, setGestureHelpOpen] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return readLocalValue("sara-core.gesture-help-dismissed") !== "true";
-  });
+  const [gestureHelpOpen, setGestureHelpOpen] = useState(false);
+
   const locatorTimer = useRef<number | null>(null);
   const highlightTimer = useRef<number | null>(null);
   const toastTimers = useRef<number[]>([]);
@@ -2473,16 +2504,24 @@ export function TerrainView({
   }, [isNightTime, simulatedTimeRef]);
 
   return (
-    <div className="terrain-stage">
+    <div ref={stageRef} className={`terrain-stage${expanded ? " is-expanded" : ""}${legendExpanded ? " is-legend-open" : ""}`} tabIndex={expanded ? -1 : undefined} role={expanded ? "dialog" : undefined} aria-modal={expanded || undefined} aria-label={expanded ? "Ecossistema em tela cheia" : undefined}>
       <div className="terrain-stage__chrome">
         <div>
           <p className="terrain-stage__eyebrow">visualizador 3d</p>
-          <h4>Ecossistema low-poly</h4>
+          <h4>Seu ecossistema</h4>
           <p className="terrain-stage__summary">
             {grid.width} x {grid.height} células - semente {grid.seed} - base{" "}
             {grid.baseTemperatureC} C / {grid.basePrecipitationMm} mm
           </p>
         </div>
+        <div className="terrain-view-actions" aria-label="Opções de visualização">
+          <button type="button" onClick={() => setCameraResetKey(value => value + 1)}>Enquadrar</button>
+          <button type="button" className="terrain-legend-toggle" aria-expanded={legendExpanded} onClick={() => setLegendExpanded(!legendExpanded)}>Legenda</button>
+          <button type="button" aria-label={expanded ? "Fechar tela cheia" : "Abrir ecossistema em tela cheia"} onClick={() => { setExpanded(!expanded); setGestureHelpOpen(false); setLayersOpen(false); setAnimalsOpen(false); setEventsExpanded(false); }}>
+            {expanded ? "Fechar" : "Tela cheia"}
+          </button>
+        </div>
+        <div className="terrain-stage__legends">
         <div className="terrain-stage__legend" aria-label="Legenda de biomas">
           {sceneData.legend.map(({ label, color }) => (
             <div key={label} className="terrain-stage__legend-item">
@@ -2535,6 +2574,7 @@ export function TerrainView({
             ))}
           </div>
         ) : null}
+        </div>
       </div>
 
       <div className="terrain-stage__viewport">
@@ -2544,7 +2584,7 @@ export function TerrainView({
             data-testid="terrain-canvas-viewport"
             shadows={profile.shadows}
             dpr={profile.dpr}
-            camera={{ position: cameraPosition, fov: 34, near: 0.1, far: 500 }}
+            camera={{ position: cameraPosition, fov: 38, near: 0.1, far: 500 }}
             gl={{
               antialias: true,
             }}
@@ -2604,6 +2644,7 @@ export function TerrainView({
                 }}
               />
             </Suspense>
+            <FitTerrainCamera bounds={cameraBounds} resetKey={cameraResetKey} />
           </Canvas>
         </CanvasErrorBoundary>
 
@@ -2751,6 +2792,7 @@ export function TerrainView({
           ) : null}
         </div>
       </div>
+      <p className="terrain-stage__hint">Arraste para girar · use dois dedos para aproximar</p>
     </div>
   );
 }
@@ -5588,7 +5630,7 @@ function EcologyTerrainSection({
             </div>
           ) : null}
 
-          <div className="signal-message signal-message--neutral" style={{ marginTop: "0.25rem" }}>
+          <div className="signal-message signal-message--neutral terrain-simulation-note" style={{ marginTop: "0.25rem" }}>
             <WarningCircle weight="duotone" />
             <div>
               <strong>Nota da simulação</strong>

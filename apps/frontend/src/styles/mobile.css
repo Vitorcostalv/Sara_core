@@ -1,0 +1,114 @@
+/* Viewer controls shared by the ecology and invasion screens. */
+.terrain-view-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.terrain-view-actions button {
+  min-height: 2.65rem; padding: .45rem .75rem;
+  border: 1px solid rgba(85, 64, 42, .22); border-radius: .6rem;
+  background: #fffaf0; color: #4d3929; font: inherit; font-size: .8rem;
+  cursor: pointer;
+}
+.terrain-view-actions button:last-child { background: #2f6b4f; color: #fffaf0; border-color: #2f6b4f; }
+.terrain-view-actions button:focus-visible { outline: 3px solid #bc8d43; outline-offset: 2px; }
+.terrain-stage__legends { display: flex; flex-wrap: wrap; gap: .45rem; grid-column: 1 / -1; }
+.terrain-stage__legends .terrain-stage__legend { justify-content: flex-start; }
+.terrain-stage__hint { display: none; }
+.terrain-legend-toggle, .mobile-action-label, .presentation-scenarios__toggle { display: none; }
+
+/* An expanded canvas also works on iPhone, without a browser fullscreen API. */
+.app-shell .terrain-stage.is-expanded {
+  position: fixed; inset: 0; z-index: 10000;
+  width: 100%; height: 100vh; height: 100dvh;
+  margin: 0; padding: max(.65rem, env(safe-area-inset-top)) max(.65rem, env(safe-area-inset-right))
+    max(.65rem, env(safe-area-inset-bottom)) max(.65rem, env(safe-area-inset-left));
+  display: flex; flex-direction: column; gap: .5rem;
+  background: #f8f4e9;
+}
+.app-shell .terrain-stage.is-expanded .terrain-stage__chrome { flex: 0 0 auto; display: flex; flex-direction: row; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; }
+.app-shell .terrain-stage.is-expanded .terrain-stage__chrome h4 { font-size: 1.15rem; }
+.app-shell .terrain-stage.is-expanded .terrain-view-actions { display: flex; flex-wrap: nowrap; }
+.app-shell .terrain-stage.is-expanded .terrain-stage__summary,
+.app-shell .terrain-stage.is-expanded .terrain-stage__eyebrow,
+.app-shell .terrain-stage.is-expanded .terrain-stage__legends { display: none; }
+.app-shell .terrain-stage.is-expanded .terrain-legend-toggle { display: none; }
+.app-shell .terrain-stage.is-expanded .terrain-stage__viewport { flex: 1 1 0; height: 0; min-height: 0; max-height: none; border-radius: .65rem; }
+.app-shell .terrain-stage.is-expanded .terrain-stage__hint { display: block; margin: 0; text-align: center; color: #765942; font-size: .72rem; }
+
+@media (max-width: 720px) {
+  .app-shell .app-header { padding: calc(.45rem + env(safe-area-inset-top, 0px)) .65rem .45rem; gap: .5rem; flex-wrap: nowrap; flex-direction: row; align-items: center; }
+  .app-shell .app-header__brand { gap: .5rem; min-width: 0; }
+  .app-shell .app-header__crest { width: 2.1rem; height: 2.1rem; border-radius: .65rem; flex-shrink: 0; }
+  .app-shell .app-header__titles strong { font-size: 1.1rem; white-space: nowrap; }
+  .app-shell .app-header__titles > span, .desktop-action-label { display: none; }
+  .mobile-action-label { display: inline; }
+  .app-shell .app-header__status { gap: .3rem; flex-wrap: nowrap; flex: 0 0 auto; }
+  .app-shell .app-header__status .status-chip--network { display: none; }
+  .app-shell .app-header__status .status-chip--quiet { font-size: 0; padding: .35rem; min-height: 2.5rem; width: 2.1rem; justify-content: center; }
+  .app-shell .app-header__status .status-chip--quiet svg { font-size: 1.05rem; }
+  .app-shell .app-header__status .status-chip--primary { min-height: 2.5rem; padding: .4rem .65rem; font-size: .76rem; white-space: nowrap; }
+  .app-shell .app-content { padding: .6rem .5rem max(.8rem, env(safe-area-inset-bottom, 0px)); }
+  .app-shell .page-stack { gap: .6rem; }
+  .page-stack > .ui-page-header, .page-stack > .demo-flow-card,
+  .page-stack > .ui-button { display: none; }
+  .presentation-scenarios__toggle { display: block; width: 100%; min-height: 2.65rem; padding: .45rem .75rem; border: 1px solid #d9d0bf; border-radius: .6rem; text-align: left; background: #fffaf0; color: #5b4933; font: inherit; font-size: .82rem; }
+  .presentation-scenarios .presentation-actions { display: none; }
+  .presentation-scenarios.is-open .presentation-actions { display: flex; flex-wrap: wrap; padding: .5rem 0; gap: .4rem; }
+  .presentation-scenarios.is-open .presentation-actions .ui-button { flex: 1 1 45%; white-space: normal; min-height: 2.7rem; font-size: .75rem; }
+  .app-shell .ecology-nav { margin: 0; padding: 0; }
+  .app-shell .ecology-tabs--primary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .25rem; padding: 0; overflow: visible; }
+  .app-shell .ecology-tabs--primary .ecology-tab-btn { min-width: 0; min-height: 2.65rem; padding: .45rem .25rem; font-size: .73rem; justify-content: center; gap: .3rem; }
+  .app-shell .ecology-tab-btn__sub { display: none; }
+  .app-shell .ecology-tabs--primary .ecology-tab-btn svg { font-size: 1rem; }
+  .app-shell .terrain-workspace { display: flex; flex-direction: column; gap: .75rem; }
+  .app-shell .terrain-workspace > * { width: 100%; min-width: 0; }
+  .app-shell .terrain-viewer { order: -1; padding: .6rem; gap: .5rem; border-radius: .85rem; }
+  .app-shell .terrain-stage { gap: .45rem; }
+  .app-shell .terrain-stage__chrome { display: flex; flex-direction: column; align-items: stretch; gap: .45rem; }
+  .app-shell .terrain-stage__chrome h4 { font-size: 1.12rem; }
+  .app-shell .terrain-stage__eyebrow { display: none; }
+  .app-shell .terrain-stage__summary { font-size: .68rem; margin: .2rem 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .terrain-view-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .3rem; }
+  .terrain-view-actions button { min-height: 2.6rem; font-size: .73rem; padding: .4rem .25rem; }
+  .terrain-legend-toggle { display: inline-block; }
+  .app-shell .terrain-stage__legends { display: none; }
+  .app-shell .terrain-stage.is-legend-open:not(.is-expanded) .terrain-stage__legends { display: flex; max-height: 9rem; overflow: auto; gap: .35rem; }
+  .app-shell .terrain-stage__legend-item { padding: .3rem .45rem; font-size: .65rem; }
+  .app-shell .terrain-stage__viewport {
+    height: clamp(19rem, 52vh, 34rem); height: clamp(19rem, 52svh, 34rem);
+    min-height: 0; max-height: none; border-radius: .6rem;
+    touch-action: none;
+  }
+  .terrain-stage__hint { display: block; margin: 0; text-align: center; font-size: .68rem; color: #765942; }
+  .app-shell .terrain-primary-controls { top: .4rem; left: .4rem; right: .4rem; gap: .3rem; max-width: none; }
+  .app-shell .terrain-time-toggle, .app-shell .terrain-help-chip,
+  .app-shell .terrain-layers__button { min-height: 2.5rem; padding: .3rem .5rem; font-size: .7rem; }
+  .app-shell .terrain-layers__button-mode { display: none; }
+  .app-shell .terrain-time-toggle__icon { width: 1.3rem; height: 1.3rem; }
+  .app-shell .terrain-time-toggle__copy small { display: none; }
+  .app-shell .terrain-viewer > .terrain-simulation-note { display: none; }
+  .app-shell .terrain-console { padding: .85rem; gap: .65rem; }
+  .app-shell .terrain-console .signal-panel__header { margin-bottom: .2rem; }
+  .app-shell .terrain-console .signal-panel__header h3 { font-size: 1.15rem; }
+  .app-shell .terrain-console .signal-panel__header p { font-size: .8rem; }
+  .app-shell .terrain-ai-prompt__input { font-size: 1rem; min-height: 5rem; }
+  .app-shell .terrain-ai-prompt__row > .ui-button { width: 100%; min-height: 2.8rem; }
+  .app-shell .terrain-ai-badge { font-size: .8rem; padding: .65rem; }
+  .app-shell .terrain-ai-badge > span:not(.terrain-ai-badge__meta) { display: none; }
+  .app-shell .terrain-preview-notice { font-size: .75rem; }
+  .app-shell .signal-panel { min-width: 0; }
+  .app-shell .ecosystem-report { padding: .85rem; }
+  .app-shell .ecosystem-report__grid { grid-template-columns: minmax(0, 1fr); }
+  .app-shell .ecosystem-report__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell .ecosystem-report__summary-card { padding: .55rem; overflow-wrap: anywhere; }
+  .app-shell .ecosystem-report__summary-card strong { font-size: .83rem; }
+}
+
+@media (max-width: 360px) {
+  .app-shell .app-header__crest { display: none; }
+  .app-shell .ecology-tabs--primary .ecology-tab-btn > svg:first-child { display: none; }
+  .app-shell .ecology-tabs--primary .ecology-tab-btn { white-space: nowrap; font-size: .72rem; }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .app-shell .terrain-stage.is-expanded .terrain-stage__chrome { flex-direction: row; }
+  .app-shell .terrain-stage.is-expanded .terrain-view-actions { display: flex; }
+  .app-shell .terrain-stage.is-expanded .terrain-stage__hint { display: none; }
+}

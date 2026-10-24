@@ -5,6 +5,7 @@ import { appRouter } from "./router";
 import { registerSaraPwa } from "./pwa/register";
 import { injectThemeVariables } from "./theme";
 import "./styles/main.css";
+import "./styles/mobile.css";
 
 injectThemeVariables();
 registerSaraPwa();

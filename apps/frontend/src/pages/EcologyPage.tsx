@@ -88,6 +88,7 @@ export function EcologyPage() {
   const [terrainPromptRequest, setTerrainPromptRequest] = useState<string | null>(null);
   const [selectedOfflineScenario, setSelectedOfflineScenario] = useState<string | null>(null);
   const [exploreOpen, setExploreOpen] = useState(false);
+  const [scenariosOpen, setScenariosOpen] = useState(false);
   const presentationMode = useUiStore((state) => state.presentationMode);
   const demoFlowDismissed = useUiStore((state) => state.demoFlowDismissed);
   const setDemoFlowDismissed = useUiStore((state) => state.setDemoFlowDismissed);
@@ -120,6 +121,10 @@ export function EcologyPage() {
         icon={<Leaf weight="duotone" />}
       />
 
+      <div className={`presentation-scenarios${scenariosOpen ? " is-open" : ""}`}>
+      <button type="button" className="presentation-scenarios__toggle" aria-expanded={scenariosOpen} onClick={() => setScenariosOpen(!scenariosOpen)}>
+        Cenários prontos <span aria-hidden="true">{scenariosOpen ? "−" : "+"}</span>
+      </button>
       <div className="presentation-actions">
         {DEMO_SCENARIOS.map((scenario) => (
           <Button
@@ -132,6 +137,8 @@ export function EcologyPage() {
             {scenario.title}
           </Button>
         ))}
+      </div>
+
       </div>
 
       {showFlow ? (
@@ -173,7 +180,7 @@ export function EcologyPage() {
               aria-current={activeTab === tab.id ? "page" : undefined}
             >
               {tab.icon}
-              <span className="ecology-tab-btn__label">{tab.label}</span>
+              <span className="ecology-tab-btn__label"><span className="desktop-action-label">{tab.label}</span><span className="mobile-action-label">{tab.id === "terreno" ? "Ambiente" : tab.label}</span></span>
               <span className="ecology-tab-btn__sub">{tab.subtitle}</span>
             </button>
           ))}
@@ -204,7 +211,7 @@ export function EcologyPage() {
                 aria-current={activeTab === tab.id ? "page" : undefined}
               >
                 {tab.icon}
-                <span className="ecology-tab-btn__label">{tab.label}</span>
+                <span className="ecology-tab-btn__label"><span className="desktop-action-label">{tab.label}</span><span className="mobile-action-label">{tab.id === "terreno" ? "Ambiente" : tab.label}</span></span>
                 <span className="ecology-tab-btn__sub">{tab.subtitle}</span>
               </button>
             ))}

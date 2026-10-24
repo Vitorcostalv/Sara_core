@@ -1,4 +1,4 @@
-const CACHE_VERSION = "sara-core-pwa-v5";
+const CACHE_VERSION = "sara-core-pwa-v6";
 const APP_SHELL = [
   "/",
   "/ecology",

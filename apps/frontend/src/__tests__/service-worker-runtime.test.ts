@@ -10,7 +10,7 @@ function worker() {
   const cache = { match: vi.fn().mockResolvedValue(undefined), put: vi.fn().mockResolvedValue(undefined), addAll: vi.fn().mockResolvedValue(undefined) };
   const caches = {
     open: vi.fn().mockResolvedValue(cache),
-    keys: vi.fn().mockResolvedValue(["other-app-cache", "sara-core-pwa-v4", "sara-core-pwa-v5"]),
+    keys: vi.fn().mockResolvedValue(["other-app-cache", "sara-core-pwa-v4", "sara-core-pwa-v5", "sara-core-pwa-v6"]),
     delete: vi.fn().mockResolvedValue(true),
   };
   const fetch = vi.fn();
@@ -109,7 +109,7 @@ describe("service worker runtime", () => {
     let completion: Promise<void> | undefined;
     sw.listeners.activate({ waitUntil: (value: Promise<void>) => { completion = value; } });
     await completion;
-    expect(sw.caches.delete.mock.calls).toEqual([["sara-core-pwa-v4"]]);
+    expect(sw.caches.delete.mock.calls).toEqual([["sara-core-pwa-v4"], ["sara-core-pwa-v5"]]);
     expect(sw.claim).toHaveBeenCalledOnce();
   });
 

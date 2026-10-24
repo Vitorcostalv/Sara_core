@@ -108,7 +108,8 @@ export function AppShell({ children }: PropsWithChildren) {
             onClick={() => setPresentationMode(!presentationMode)}
           >
             <PresentationChart weight="duotone" />
-            {presentationMode ? "Sair da apresentação" : "Iniciar apresentação"}
+            <span className="desktop-action-label">{presentationMode ? "Sair da apresentação" : "Iniciar apresentação"}</span>
+            <span className="mobile-action-label">{presentationMode ? "Sair" : "Apresentar"}</span>
           </button>
         </div>
       </header>
