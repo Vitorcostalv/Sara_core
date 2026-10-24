@@ -70,6 +70,9 @@ export interface TerrainFeatureHints {
   requireVisibleCaves?: boolean;
   preferDeepCave?: boolean;
   rockyOutcrops?: boolean;
+  mountainous?: boolean;
+  rivers?: boolean;
+  waterfalls?: boolean;
 }
 
 // ─── Deterministic hashing (mirrors the generator's style, kept local) ──────────
@@ -385,6 +388,34 @@ function smoothstep01(t: number): number {
   return x * x * (3 - 2 * x);
 }
 
+/** A bounded, deterministic river corridor for explicit landscape requests.
+ * Its plateau step creates a real connected drop, not an isolated waterfall prop. */
+export function scenicRiverPath(width: number, height: number, seed: number) {
+  const path: Array<[number,number]> = [];
+  for (let y=1; y<height-1; y++) {
+    const t = (y-1)/Math.max(1,height-3);
+    const x = Math.max(1,Math.min(width-2,Math.round((width-1)*.5 + Math.sin(t*4 + seed%17)*width*.065)));
+    path.push([x,y]);
+  }
+  return path;
+}
+
+export function carveScenicRiver(elevation: number[][], width: number, height: number, seed: number, waterfall: boolean) {
+  if (width < 6 || height < 6) return;
+  const path = scenicRiverPath(width,height,seed);
+  const sourceX = path[0]![0];
+  // Close the upstream rim so the source cannot drain backwards out of the map.
+  for (let x=Math.max(0,sourceX-2);x<=Math.min(width-1,sourceX+2);x++) elevation[0]![x]=Math.max(elevation[0]![x]!,waterfall ? .80 : .59);
+  for (let i=0; i<path.length; i++) {
+    const [x,y] = path[i]!;
+    const t = i/Math.max(1,path.length-1);
+    const bed = waterfall ? .70 - t*.24 - (t >= .5 ? .25 : 0) : .49 - t*.28;
+    // Banks follow the corridor; the core remains below them along the full route.
+    for (const dx of [-2,-1,1,2]) if (x+dx>=0 && x+dx<width) elevation[y]![x+dx] = Math.max(elevation[y]![x+dx]!, bed+.085);
+    elevation[y]![x] = Math.max(.05,bed);
+  }
+}
+
 /** Mark well-fed closed depressions as small lakes before river enrichment. */
 export function markClosedBasins(grid: TerrainGrid): void {
   const { cells, width, height } = grid;
@@ -431,7 +462,7 @@ function lowestNeighbor(
   return best;
 }
 
-function carveRivers(grid: TerrainGrid): RiverField {
+function carveRivers(grid: TerrainGrid, hints?: TerrainFeatureHints): RiverField {
   const { width, height, cells, seed } = grid;
   const waterFlow: number[][] = Array.from({ length: height }, () => new Array<number>(width).fill(0));
 
@@ -448,6 +479,10 @@ function carveRivers(grid: TerrainGrid): RiverField {
   }
   candidates.sort((a, b) => b.score - a.score);
   const sources = candidates.slice(0, sourceBudget);
+  if (hints?.rivers || hints?.waterfalls) {
+    const first = scenicRiverPath(width,height,seed)[0];
+    if (first) sources.unshift({x:first[0],y:first[1],score:10});
+  }
 
   let maxFlow = 0;
   for (const source of sources) {
@@ -921,7 +956,8 @@ function placeObjects(
         if (roll(x, y, 211) < 0.4) out.push("rock");
         if (roll(x, y, 223) < 0.22) out.push("fallen-log");
         if (roll(x, y, 227) < 0.18) out.push("nest");
-        if (waterFlow[y]![x]! > 0.55 && s > 0.5 && roll(x, y, 233) < 0.5) out.push("waterfall");
+        const downstream = lowestNeighbor(cells, width, height, x, y);
+        if (waterFlow[y]![x]! > 0 && downstream && cell.elevation - downstream.elevation > 0.08) out.push("waterfall");
       }
 
       // Biome-driven props.
@@ -990,7 +1026,7 @@ export function enrichTerrain(
   const { width, height, cells } = grid;
 
   const slope = computeSlope(cells, width, height);
-  const { waterFlow, riverDistance } = carveRivers(grid);
+  const { waterFlow, riverDistance } = carveRivers(grid, hints);
 
   const rockiness: number[][] = Array.from({ length: height }, () => new Array<number>(width).fill(0));
   for (let y = 0; y < height; y += 1) {

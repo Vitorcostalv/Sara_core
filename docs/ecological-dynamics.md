@@ -32,3 +32,18 @@ O relatório opcional descreve as condições iniciais e os recursos potenciais.
 - Red Blob Games, Making maps with noise functions: https://www.redblobgames.com/maps/terrain-from-noise/
 
 São referências de técnicas e modelos educativos, não validação empírica dos parâmetros adotados pelo Sara Core.
+
+
+## Paisagem, enquadramento e cachoeiras
+
+O topo do terreno é uma malha contínua de quatro triângulos por célula, com cantos compartilhados. Os centros mantêm as alturas geradas; a fauna usa a mesma interpolação para caminhar sobre as encostas. As laterais mostram solo, e árvores/pedras continuam em lotes instanciados.
+
+A visão inicial é próxima, com botões de zoom; Enquadrar restaura o mapa inteiro. Uma aproximação pode deixar bordas fora da tela para permitir ver os detalhes, e a rotação/pan continuam disponíveis.
+
+Montanhas usam uma máscara de cadeia com cristas e vales. Pedidos explícitos de rio/cachoeira recebem um corredor determinístico, com nascente protegida de drenagem para fora do mapa e desnível conectado a jusante. Esse corredor é uma composição procedural para apresentação, não uma simulação de erosão ou previsão hidrológica. Serras tropicais usam uma escala altimétrica menor que picos alpinos.
+
+As cortinas de cachoeira aparecem nos desníveis entre células conectadas do rio, com textura em movimento, espuma e névoa limitada a 48 quedas. O sistema reaproveita materiais e limita partículas, sem efeitos volumétricos caros.
+
+Referência de renderização em lotes: https://threejs.org/docs/pages/InstancedMesh.html
+
+O botão Queda, junto ao zoom, enquadra a maior cachoeira conectada do cenário; Enquadrar restaura a visão completa.

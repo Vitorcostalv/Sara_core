@@ -106,13 +106,19 @@ function featureHintsFromPrompt(prompt: string): TerrainFeatureHints | undefined
       text
     );
 
-  if (!mentionsCave && !mentionsRockyRelief) return undefined;
+  const waterfalls = /\b(cachoeira|cachoeiras|cascata|cascatas|waterfall|waterfalls)\b/.test(text) && !/\bsem (cachoeira|cachoeiras|cascata|cascatas)\b/.test(text);
+  const rivers = waterfalls || /\b(rio|rios|river|rivers|riacho|riachos)\b/.test(text) && !/\bsem (rio|rios|riacho|riachos)\b/.test(text);
+  const mountainous = /\b(montanha|montanhas|serra|serras|cordilheira|mountain|mountains)\b/.test(text) && !/\bsem (montanha|montanhas|serra|serras)\b/.test(text);
+  if (!mentionsCave && !mentionsRockyRelief && !waterfalls && !rivers) return undefined;
 
   return {
     caveQuantity: mentionsCave ? (mentionsMany ? "many" : mentionsFew ? "few" : "few") : undefined,
     requireVisibleCaves: mentionsCave || undefined,
     preferDeepCave: mentionsDeep || undefined,
     rockyOutcrops: mentionsCave || mentionsRockyRelief || undefined,
+    waterfalls: waterfalls || undefined,
+    rivers: rivers || undefined,
+    mountainous: mountainous || undefined,
   };
 }
 
@@ -205,7 +211,7 @@ export class EcologicalTerrainPromptService {
       width,
       height,
       seed,
-      reliefStyle: classification.reliefStyle,
+      reliefStyle: classification.featureHints?.mountainous && classification.reliefStyle !== "ocean" && classification.reliefStyle !== "polar" ? "mountain" as const : classification.reliefStyle,
       seaLevel: classification.seaLevel,
     };
 

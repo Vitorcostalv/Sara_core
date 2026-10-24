@@ -20,6 +20,6 @@ export function fitTerrainCamera(bounds: TerrainBounds, aspect: number, fov = 38
       depth + Math.abs(corner.dot(right)) / tanHorizontal,
       depth + Math.abs(corner.dot(up)) / tanVertical);
   }
-  distance *= 1.16;
+  distance *= 1.10;
   return { target, position: target.clone().addScaledVector(direction, distance), distance };
 }

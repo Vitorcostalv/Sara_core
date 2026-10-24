@@ -7,6 +7,7 @@
 
 import {
   carveChannels,
+  carveScenicRiver,
   carveWaterBasins,
   markClosedBasins,
   enrichTerrain,
@@ -227,7 +228,9 @@ export class TerrainGeneratorService {
         if (style === "mountain") {
           // Fold in a ridged layer so the relief grows sharp peaks instead of rolling hills.
           const ridge = ridgedNoise(nx * 3.2 + 19, ny * 3.2 + 23, seed + 808);
-          e = Math.min(1, e * 0.4 + ridge * 0.7);
+          const spine = 0.48 + Math.sin(ny * 5 + (seed % 23)) * 0.14;
+          const massif = Math.exp(-Math.pow((nx - spine) / 0.28, 2));
+          e = Math.min(1, e * 0.48 + 0.12 + ridge * massif * 0.58);
         } else if (style === "ocean") {
           // A low-frequency basin layer carves contiguous water with scattered islands.
           const basin = octaveNoise(nx * 1.2 + 5, ny * 1.2 + 9, seed + 404, 2);
@@ -246,6 +249,10 @@ export class TerrainGeneratorService {
       carveWaterBasins(elevation, width, height, seaLevel);
     }
 
+    if (input.featureHints?.rivers || input.featureHints?.waterfalls) {
+      carveScenicRiver(elevation,width,height,seed,Boolean(input.featureHints.waterfalls));
+    }
+
     // ── Pass 2: derive temperature/water/biome/etc. on the (carved) heightmap. ──
     const cells: TerrainCell[][] = [];
     for (let row = 0; row < height; row++) {
@@ -262,7 +269,7 @@ export class TerrainGeneratorService {
         // model real altitude (mountain/polar) get the full 0–4 km column; lowland styles use a
         // gentle scale so a hot-humid lowland prompt (e.g. Amazônia) does not report alpine-cold
         // minimums from procedural elevation noise.
-        const altitudeKm = elev * (style === "mountain" || style === "polar" ? 4 : 1.6);
+        const altitudeKm = elev * (style === "polar" ? 4 : style === "mountain" ? (baseTemperatureC > 18 && input.featureHints?.mountainous ? 2.4 : 4) : 1.6);
         const temperatureC = baseTemperatureC - altitudeKm * LAPSE_RATE + (humidityNoise - 0.5) * 4;
 
         // Humidity and precipitation modulated by noise

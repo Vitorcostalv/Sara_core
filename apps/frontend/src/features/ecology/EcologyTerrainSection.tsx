@@ -46,6 +46,9 @@ import { chooseDefaultRunMode } from "../../demo/run-mode";
 import { readLocalValue, writeLocalValue } from "../../state/storage";
 import { DayNightCycle, formatSimulatedTime } from "./DayNightCycle";
 import { waterSurfaceHeights } from "./terrain-water";
+import { createTerrainSurface } from "./terrain-surface";
+import { WaterfallField } from "./WaterfallField";
+import { TerrainRelief } from "./TerrainRelief";
 import FaunaLayer, { type FaunaEvent } from "./FaunaLayer";
 import { RainSystem } from "./RainSystem";
 import { getSpeciesRenderProfile } from "./faunaRenderProfiles";
@@ -115,7 +118,7 @@ const HOVER_COLOR = 0xf4dc8c;
 const FALLBACK_COLOR = 0x7b6a5b;
 
 // ─── River rendering tunables (the single documented place, frontend side) ──────
-const RIVER_FLOW_MIN = 0.16; // render threshold: below this a cell is a trickle, dropped
+const RIVER_FLOW_MIN = 0.02; // render threshold: below this a cell is a trickle, dropped
 const RIVER_MIN_COMPONENT_CELLS = 3; // drop river fragments smaller than this (prune stubs)
 const RIVER_SURFACE_LIFT = 0.1; // minimum water above the carved channel floor
 const RIVER_WATERFALL_DROP = 0.55; // surface-height delta that spawns a waterfall ribbon
@@ -591,7 +594,7 @@ function buildRiverScene(nodes: Map<string, RiverNode>, seed: number, falls: Ins
     const waterY = waterYOf(key, node);
     const depth = Math.max(0.04, waterY - node.surfaceY);
     const color = blendedWaterColor(depth, 0.42, hashUnit(node.gx, node.gy, seed + 1147));
-    const orderScale = Math.min(1, 0.92 + (order.get(key) ?? 1) * 0.03);
+    const orderScale = Math.min(1, 0.5 + Math.sqrt(node.flow) * 0.5);
     volumes.push({
       x: node.wx,
       y: node.surfaceY + depth / 2,
@@ -631,6 +634,13 @@ function buildRiverScene(nodes: Map<string, RiverNode>, seed: number, falls: Ins
     // Catmull-Rom control points: upstream tangent → node → ds → downstream tangent.
     // Waterfall ribbon at a steep connected drop (now falling into a real channel).
     const drop = Math.abs(node.surfaceY - ds.surfaceY);
+    if (drop <= RIVER_WATERFALL_DROP) {
+      const a = new THREE.Vector3(node.wx,waterYOf(key),node.wz);
+      const b = new THREE.Vector3(ds.wx,waterYOf(dKey),ds.wz);
+      const delta = b.clone().sub(a);
+      const rotation = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1),delta.clone().normalize()));
+      volumes.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.z+b.z)/2,sx:WATER_SIZE*.8,sy:.045,sz:delta.length()+.05,rx:rotation.x,ry:rotation.y,rz:rotation.z,color:0x70b9c9});
+    }
     if (drop > RIVER_WATERFALL_DROP) {
       const lower = node.surfaceY < ds.surfaceY ? node : ds;
       const angle = Math.atan2(ds.wx - node.wx, ds.wz - node.wz);
@@ -777,10 +787,7 @@ function buildSceneData(grid: TerrainGrid): SceneData {
         break;
       }
       case "waterfall": {
-        objWaterfalls.push({
-          x: px, y: surfaceY + (h * 0.4) / 2, z: pz,
-          sx: 0.16 * s, sy: Math.max(0.4, h * 0.4), sz: 0.06 * s, ry, color,
-        });
+        // Only connected river drops create visible waterfall curtains.
         break;
       }
       default:
@@ -798,6 +805,9 @@ function buildSceneData(grid: TerrainGrid): SceneData {
         const floorY = terrainTopY(cell);
         const bankY = minNeighborLandTop(cell);
         const surfaceY = waterLevels.get(`${cell.x},${cell.y}`) ?? Math.max(floorY + 0.04, bankY - WATER_BANK_RECESS);
+        if ((cell.waterFlow ?? 0) > RIVER_FLOW_MIN) riverNodes.set(`${cell.x},${cell.y}`, {
+          gx:cell.x, gy:cell.y, wx:x, wz:z, surfaceY:surfaceY-.04, bankY:surfaceY+.1, flow:cell.waterFlow!,
+        });
         const depth = Math.max(0.04, surfaceY - floorY);
         const waterColor = blendedWaterColor(depth, WATER_HEIGHT * 2.6, hashUnit(cell.x * 41, cell.y * 53, grid.seed));
         water.push({
@@ -1143,6 +1153,15 @@ function buildSceneData(grid: TerrainGrid): SceneData {
   }
 
   // ─── River network (A2): downstream tree → Strahler order → meandering ribbon ──
+  const relief = createTerrainSurface(grid);
+  for (const batch of [pineTrunks, pineCanopies, broadleafTrunks, broadleafCanopies, shrubs, cactusBodies, cactusArmsLeft, cactusArmsRight, rocks, objStones, objLogs, objFoliage, objBlocks, objCrystals]) {
+    for (const item of batch) {
+      const cx = Math.max(0,Math.min(grid.width-1,Math.round(item.x+halfWidth)));
+      const cy = Math.max(0,Math.min(grid.height-1,Math.round(item.z+halfHeight)));
+      const cell = grid.cells[cy]![cx]!;
+      if (!cell.isWater) item.y += relief.heightAt(item.x,item.z) - terrainTopY(cell);
+    }
+  }
   const riverScene = buildRiverScene(riverNodes, grid.seed, riverFalls);
 
   return {
@@ -1180,11 +1199,13 @@ function buildSceneData(grid: TerrainGrid): SceneData {
 }
 
 function TerrainColumns({
+  grid,
   sceneData,
   gradientMap,
   terrainOpacity = 1,
   onInspect,
 }: {
+  grid: TerrainGrid;
   sceneData: SceneData;
   gradientMap: THREE.DataTexture;
   terrainOpacity?: number;
@@ -1198,7 +1219,7 @@ function TerrainColumns({
   });
   const tempColor = useMemo(() => new THREE.Color(), []);
 
-  usePopulateInstancedMesh(landRef, sceneData.land);
+  const terrainColors = useMemo(() => new Map([...sceneData.land, ...sceneData.water].map(item => [`${item.cell.x},${item.cell.y}`, item.color])), [sceneData]);
 
   function updateHover(kind: "land" | "water", index: number) {
     // Only visual highlight; do not expose textual tooltip on hover.
@@ -1256,27 +1277,8 @@ function TerrainColumns({
 
     return (
     <>
-      <instancedMesh
-        ref={landRef}
-        args={instancedArgs(sceneData.land.length)}
-        castShadow
-        receiveShadow
-        onPointerMove={(event) => {
-          event.stopPropagation();
-          if (typeof event.instanceId === "number") updateHover("land", event.instanceId);
-        }}
-        onPointerOut={clearHover}
-        onPointerDown={(event) => {
-          event.stopPropagation();
-          if (typeof event.instanceId === "number") {
-            const inst = sceneData.land[event.instanceId];
-            if (inst) onInspect(inst.cell, [inst.x, inst.tooltipY, inst.z], biomeLabel(inst.cell.biomeSuggestion));
-          }
-        }}
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshToonMaterial gradientMap={gradientMap} transparent={terrainOpacity < 0.99} opacity={terrainOpacity} />
-      </instancedMesh>
+      <TerrainRelief grid={grid} colors={terrainColors} gradientMap={gradientMap} opacity={terrainOpacity}
+        onInspect={cell => onInspect(cell, [(cell.x-(grid.width-1)/2), terrainTopY(cell)+1, (cell.y-(grid.height-1)/2)], biomeLabel(cell.biomeSuggestion))} />
 
       <WaterLayer
         sceneData={sceneData}
@@ -1862,14 +1864,7 @@ function CaveSystemHighlight({ caves }: { caves: CaveInstance[] }) {
 // normal map suggests current; transparent + polygon-offset to avoid z-fighting
 // against the carved banks. Built once from the merged spline geometry.
 function RiverFalls({ falls }: { falls: InstanceSpec[] }) {
-  const ref = useRef<THREE.InstancedMesh>(null!);
-  usePopulateInstancedMesh(ref, falls);
-  return (
-    <instancedMesh ref={ref} args={instancedArgs(falls.length)}>
-      <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color="#dff3fb" transparent opacity={0.55} roughness={0.2} depthWrite={false} />
-    </instancedMesh>
-  );
+  return <WaterfallField falls={falls} />;
 }
 
 function RiverDepthVolumes({ volumes }: { volumes: InstanceSpec[] }) {
@@ -1878,7 +1873,7 @@ function RiverDepthVolumes({ volumes }: { volumes: InstanceSpec[] }) {
   return (
     <instancedMesh ref={ref} args={instancedArgs(volumes.length)} receiveShadow>
       <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial transparent opacity={0.58} roughness={0.5} metalness={0.02} vertexColors depthWrite={false} />
+      <meshStandardMaterial transparent opacity={0.82} roughness={0.35} metalness={0.02} vertexColors depthWrite={false} />
     </instancedMesh>
   );
 }
@@ -2096,7 +2091,7 @@ function AutoOrbitControls({ worldRadius }: { worldRadius: number }) {
       enablePan={false}
       enableDamping
       dampingFactor={0.08}
-      minDistance={worldRadius * 0.55}
+      minDistance={worldRadius * 0.12}
       maxDistance={worldRadius * 12}
       minPolarAngle={0.5}
       maxPolarAngle={1.26}
@@ -2200,6 +2195,7 @@ function TerrainScene({
       />
 
       <TerrainColumns
+        grid={grid}
         sceneData={sceneData}
         gradientMap={gradientMap}
         terrainOpacity={subsoil ? 0.42 : 1}
@@ -2398,6 +2394,9 @@ export function TerrainView({
   const [legendExpanded, setLegendExpanded] = useState(false);
   const [touchInspection, setTouchInspection] = useState(false);
   const [cameraResetKey, setCameraResetKey] = useState(0);
+  const [cameraOverview, setCameraOverview] = useState(false);
+  const [zoomCommand, setZoomCommand] = useState({id:0, factor:1});
+  const [focusCommand,setFocusCommand] = useState<{id:number;point:[number,number,number];distance:number}>({id:0,point:[0,0,0],distance:5});
   const stageRef = useRef<HTMLDivElement>(null);
   useCloseOnAndroidBack(expanded, () => setExpanded(false));
   const cameraBounds = useMemo<TerrainBounds>(() => {
@@ -2533,7 +2532,7 @@ export function TerrainView({
           </p>
         </div>
         <div className="terrain-view-actions" aria-label="Opções de visualização">
-          <button type="button" onClick={() => setCameraResetKey(value => value + 1)}>Enquadrar</button>
+          <button type="button" title="Ver o mapa inteiro" onClick={() => { setCameraOverview(true); setCameraResetKey(value => value + 1); }}>Enquadrar</button>
           <button type="button" className="terrain-legend-toggle" aria-expanded={legendExpanded} onClick={() => setLegendExpanded(!legendExpanded)}>Legenda</button>
           <button type="button" aria-label={expanded ? "Fechar tela cheia" : "Abrir ecossistema em tela cheia"} onClick={() => { setExpanded(!expanded); setGestureHelpOpen(false); setLayersOpen(false); setAnimalsOpen(false); setEventsExpanded(false); }}>
             {expanded ? "Fechar" : "Tela cheia"}
@@ -2612,7 +2611,7 @@ export function TerrainView({
             }}
             onCreated={({ gl }) => {
               gl.toneMapping = THREE.ACESFilmicToneMapping;
-              gl.toneMappingExposure = 1.5;
+              gl.toneMappingExposure = 1.2;
             }}
           >
             {/* If postprocessing is reintroduced later, it belongs here after the scene content. */}
@@ -2669,11 +2668,19 @@ export function TerrainView({
                 }}
               />
             </Suspense>
-            <FitTerrainCamera bounds={cameraBounds} resetKey={cameraResetKey} />
+            <FitTerrainCamera bounds={cameraBounds} resetKey={cameraResetKey} overview={cameraOverview} zoomCommand={zoomCommand} focusCommand={focusCommand} />
           </Canvas>
         </CanvasErrorBoundary>
 
         <div className="terrain-overlay">
+          <div className="terrain-zoom" role="group" aria-label="Zoom do ecossistema">
+            <button type="button" aria-label="Aproximar ecossistema" title="Aproximar" onClick={() => setZoomCommand(value => ({id:value.id+1, factor:0.8}))}>+</button>
+            <button type="button" aria-label="Afastar ecossistema" title="Afastar" onClick={() => setZoomCommand(value => ({id:value.id+1, factor:1.25}))}>−</button>
+            {sceneData.rivers.falls.length > 0 ? <button type="button" className="terrain-zoom__fall" aria-label="Ver maior cachoeira" title="Ver a maior cachoeira" onClick={() => {
+              const fall = sceneData.rivers.falls.reduce((big,current) => current.sy > big.sy ? current : big);
+              setFocusCommand(value => ({id:value.id+1,point:[fall.x,fall.y,fall.z],distance:Math.max(4.5,fall.sy*2.8)}));
+            }}>Queda</button> : null}
+          </div>
           <div className="terrain-primary-controls" aria-label="Controles do visualizador">
             {onToggleLayer ? (
               <LayersControl
@@ -2817,7 +2824,7 @@ export function TerrainView({
           ) : null}
         </div>
       </div>
-      <p className="terrain-stage__hint">Arraste para girar · use dois dedos para aproximar</p>
+      <p className="terrain-stage__hint">Use + e − para explorar · Enquadrar mostra o mapa inteiro</p>
       <details className="terrain-dynamics">
         <summary>Dinâmica: {populationMode === "ecological" ? "ecológica" : "demonstração"}</summary>
         <label>População
@@ -5363,6 +5370,7 @@ function EcologyTerrainSection({
             ))}
           </div>
 
+          <Button variant="secondary" size="sm" disabled={isAiLoading} onClick={() => { const prompt = "Floresta tropical com serra, um rio e uma cachoeira conectada ao rio."; setAiPrompt(prompt); void promptAndGenerate(prompt); }}>Serra e cachoeira</Button>
           {isAiLoading ? <p className="terrain-generation-status" role="status">Identificando o ambiente e preparando terreno, fauna e explicações. Isso pode levar alguns segundos.</p> : null}
           {aiResult && !isAiLoading ? (
             <div className="terrain-ai-badge">
@@ -5998,8 +6006,8 @@ function EcologyTerrainSection({
               <h4>Animais presentes ({report.fauna.species.length})</h4>
               {report.fauna.species.length > 0 ? (
                 <ul className="ecosystem-report__animals">
-                  {report.fauna.species.map((s) => (
-                    <li key={s.scientificName}>
+                  {report.fauna.species.map((s, index) => (
+                    <li key={`${s.scientificName}-${index}`}>
                       <strong>{s.commonName}</strong>
                       <span>
                         {FEEDING_STRATEGY_LABELS[s.feedingStrategy] ?? s.feedingStrategy}

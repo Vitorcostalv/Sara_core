@@ -9,13 +9,13 @@ const LIGHTNING_DURATION_SECONDS = 0.12;
 const BASE_EXPOSURE = 1.5;
 
 const KEY_DAWN = new THREE.Color("#ff9a6a");
-const KEY_DAY = new THREE.Color("#ffcf9a");
+const KEY_DAY = new THREE.Color("#fff0d1");
 const KEY_SUNSET = new THREE.Color("#ff7a4a");
 const AMBIENT_NIGHT = new THREE.Color("#3a4a6a");
-const AMBIENT_DAY = new THREE.Color("#ffe1b8");
+const AMBIENT_DAY = new THREE.Color("#e6eedb");
 const FOG_NIGHT = new THREE.Color("#0d1428");
 const FOG_TWILIGHT = new THREE.Color("#ff9a6a");
-const FOG_DAY = new THREE.Color("#f4d8b6");
+const FOG_DAY = new THREE.Color("#d4e5e7");
 const TURBIDITY_KEYFRAMES: Array<[number, number]> = [
   [0, 0.1],
   [5.5, 6],

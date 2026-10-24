@@ -12,6 +12,7 @@ import { CarcassLayer, type CarcassController, type CarcassRecordInput } from ".
 import { DeathPuffLayer, type DeathPuffController } from "./DeathPuffLayer";
 import { FaunaSpatialIndex } from "./FaunaSpatialIndex";
 
+import { createTerrainSurface } from "./terrain-surface";
 import { swimmingHeight, waterSurfaceHeights } from "./terrain-water";
 import { FoodPatch, SimulationClock, canBreed, canCross, pursuitSeconds, shouldHunt, type PopulationMode } from "./fauna-dynamics";
 
@@ -72,10 +73,12 @@ interface TerrainPoint {
   x: number;
   z: number;
   topY: number;
+  floorY: number;
   food: FoodPatch;
 }
 
 interface TerrainContext {
+  surface: ReturnType<typeof createTerrainSurface>;
   halfWidth: number;
   halfHeight: number;
   landCells: TerrainPoint[];
@@ -137,6 +140,7 @@ function stringHash(value: string) {
 
 function buildTerrainContext(grid: TerrainGrid): TerrainContext {
   const waterLevels = waterSurfaceHeights(grid);
+  const surface = createTerrainSurface(grid);
   const halfWidth = (grid.width - 1) / 2;
   const halfHeight = (grid.height - 1) / 2;
   const cells: TerrainPoint[][] = [];
@@ -162,6 +166,7 @@ function buildTerrainContext(grid: TerrainGrid): TerrainContext {
 
     for (const cell of row) {
       const point: TerrainPoint = {
+        floorY: surface.heightAt((cell.x - halfWidth) * CELL_SIZE,(cell.y - halfHeight) * CELL_SIZE),
         food: new FoodPatch(cell.biomeSuggestion, Boolean(cell.cave && cell.cave.type !== "none")),
         cell,
         x: (cell.x - halfWidth) * CELL_SIZE,
@@ -180,10 +185,10 @@ function buildTerrainContext(grid: TerrainGrid): TerrainContext {
     cells.push(terrainRow);
   }
 
-  return { halfWidth, halfHeight, landCells, waterCells, cells };
+  return { halfWidth, halfHeight, landCells, waterCells, cells, surface };
 }
 
-function sampleTerrainPoint(terrain: TerrainContext, x: number, z: number) {
+function sampleTerrainPoint(terrain: TerrainContext, x: number, z: number, interpolate = true) {
   const cellX = Math.max(
     0,
     Math.min(terrain.cells[0]!.length - 1, Math.round(x / CELL_SIZE + terrain.halfWidth)),
@@ -192,7 +197,10 @@ function sampleTerrainPoint(terrain: TerrainContext, x: number, z: number) {
     0,
     Math.min(terrain.cells.length - 1, Math.round(z / CELL_SIZE + terrain.halfHeight)),
   );
-  return terrain.cells[cellY]![cellX]!;
+  const point = terrain.cells[cellY]![cellX]!;
+  if (!interpolate) return point;
+  const floorY = terrain.surface.heightAt(x,z);
+  return { ...point, floorY, topY: point.cell.isWater ? point.topY : floorY };
 }
 
 function nearestTerrainPoint(points: TerrainPoint[], x: number, z: number): TerrainPoint | null {
@@ -261,13 +269,13 @@ function traversable(terrain: TerrainContext, from: THREE.Vector3, to: THREE.Vec
   if (kind === "bird") return true;
   const distance = Math.hypot(to.x - from.x, to.z - from.z);
   const samples = Math.max(1, Math.ceil(distance / 0.3));
-  let previous = sampleTerrainPoint(terrain, from.x, from.z).cell;
+  let previous = sampleTerrainPoint(terrain, from.x, from.z, false).cell;
   for (let i = 1; i <= samples; i++) {
     const t = i / samples;
     const x = from.x + (to.x - from.x) * t;
     const z = from.z + (to.z - from.z) * t;
     if (Math.abs(x) > terrain.halfWidth || Math.abs(z) > terrain.halfHeight) return false;
-    const next = sampleTerrainPoint(terrain, x, z).cell;
+    const next = sampleTerrainPoint(terrain, x, z, false).cell;
     if (!canCross(previous, next, kind)) return false;
     previous = next;
   }
@@ -367,7 +375,7 @@ function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: 
         : 0;
 
     const baseY = point.cell.isWater
-      ? swimmingHeight(point.topY, LAND_MIN_HEIGHT + point.cell.elevation * HEIGHT_SCALE)
+      ? swimmingHeight(point.topY, point.floorY)
       : point.topY + size * (isPredator(species.category) ? 0.48 : 0.58);
     const position = new THREE.Vector3(
       x,
@@ -413,13 +421,13 @@ function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: 
 }
 
 function terrainTopForAgent(species: SpeciesDefinition, point: TerrainPoint) {
-  if (isFish(species.category)) return swimmingHeight(point.topY, LAND_MIN_HEIGHT + point.cell.elevation * HEIGHT_SCALE);
+  if (isFish(species.category)) return swimmingHeight(point.topY, point.floorY);
   if (isBird(species.category)) return point.topY + 1;
   return point.topY + speciesSize(species.category) * (isPredator(species.category) ? 0.48 : 0.58);
 }
 
 function carcassYFor(species: SpeciesDefinition, point: TerrainPoint) {
-  if (isFish(species.category)) return swimmingHeight(point.topY, LAND_MIN_HEIGHT + point.cell.elevation * HEIGHT_SCALE);
+  if (isFish(species.category)) return swimmingHeight(point.topY, point.floorY);
   return point.topY + 0.06;
 }
 
@@ -871,7 +879,7 @@ function FaunaSpeciesLayer({
         agent.position.y = THREE.MathUtils.lerp(agent.position.y, targetY, 0.08);
       } else {
         const targetY =
-          swimmingHeight(resolvedPoint.topY, LAND_MIN_HEIGHT + resolvedPoint.cell.elevation * HEIGHT_SCALE, Math.sin(agent.timer * 1.8 + agent.flapOffset) * 0.05);
+          swimmingHeight(resolvedPoint.topY, resolvedPoint.floorY, Math.sin(agent.timer * 1.8 + agent.flapOffset) * 0.05);
         agent.position.y = THREE.MathUtils.lerp(agent.position.y, targetY, 0.1);
       }
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { scenicRiverPath } from "./simulation/terrain-features.service";
 import { terrainGeneratorService } from "./simulation/terrain-generator.service";
 import type { TerrainCell, TerrainGrid } from "./simulation/terrain-generator.service";
 import { faunaDefinitionService, getCatalogSpecies } from "./simulation/fauna-definition.service";
@@ -1211,4 +1212,28 @@ test("Wet closed drainage forms freshwater ponds without adding water to dry des
   assert.ok(wet.cells.flat().some(cell => cell.isWater && cell.elevation >= 0.25));
   const dry = terrainGeneratorService.generate({width: 32, height: 24, seed: 2026, baseTemperatureC: 33, basePrecipitationMm: 90, baseHumidityPct: 12});
   assert.ok(dry.cells.flat().every(cell => !cell.isWater || cell.elevation < 0.25));
+});
+
+test("Requested waterfalls retain a descending connected river across phone and desktop maps", () => {
+  for (const [width,height] of [[20,16],[48,36]]) for (const seed of [1,2,4,42,123,2026,51950]) {
+    const grid=terrainGeneratorService.generate({width:width!,height:height!,seed,baseTemperatureC:22,basePrecipitationMm:2100,baseHumidityPct:80,reliefStyle:"mountain",featureHints:{mountainous:true,rivers:true,waterfalls:true}});
+    let previous=Infinity;
+    for (const [x,y] of scenicRiverPath(width!,height!,seed)) {
+      const cell=grid.cells[y]![x]!;
+      assert.ok(cell.elevation<previous, `river must descend at ${x},${y} seed ${seed}`);
+      assert.ok((cell.waterFlow??0)>0, `connected flow at ${x},${y} seed ${seed}`);
+      previous=cell.elevation;
+      if(cell.isWater) break;
+    }
+    assert.ok(grid.cells.flat().some(cell=>cell.objects?.includes("waterfall")), `visible drop for seed ${seed}`);
+    assert.deepEqual(grid,terrainGeneratorService.generate({width:width!,height:height!,seed,baseTemperatureC:22,basePrecipitationMm:2100,baseHumidityPct:80,reliefStyle:"mountain",featureHints:{mountainous:true,rivers:true,waterfalls:true}}));
+  }
+});
+
+test("Tropical serras preserve warmer slopes than the alpine mountain preset", () => {
+  const input={width:24,height:20,seed:42,baseTemperatureC:26,basePrecipitationMm:2100,baseHumidityPct:80,reliefStyle:"mountain" as const};
+  const tropical=terrainGeneratorService.generate({...input,featureHints:{mountainous:true}});
+  const alpine=terrainGeneratorService.generate(input);
+  assert.ok(Math.min(...tropical.cells.flat().map(cell=>cell.temperatureC)) > Math.min(...alpine.cells.flat().map(cell=>cell.temperatureC)));
+  assert.ok(Math.max(...tropical.cells.flat().map(cell=>cell.elevation))-Math.min(...tropical.cells.flat().map(cell=>cell.elevation))>.3);
 });
