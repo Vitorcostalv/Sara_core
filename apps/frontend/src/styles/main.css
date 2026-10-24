@@ -335,6 +335,7 @@ code {
 /* ── Page primitives ───────────────────────────────────────────────────────── */
 
 .page-stack {
+  grid-template-columns: minmax(0, 1fr);
   display: grid;
   gap: 1.75rem;
 }
@@ -2353,4 +2354,16 @@ code {
   }
   .terrain-invasive__chip { top: 0.55rem; right: 0.55rem; max-width: calc(100% - 1.1rem); }
   .terrain-stage__legend-item { padding: 0.38rem 0.55rem; }
+}
+
+/* Live scientific reports must not set the width of the mobile page. */
+.page-stack > *,
+.stack-lg > *,
+.stack-sm > * {
+  min-width: 0;
+}
+
+.plausibility {
+  max-width: 100%;
+  overflow-x: auto;
 }
