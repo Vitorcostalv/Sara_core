@@ -53,6 +53,8 @@ function getInitialApiBaseUrl(): string {
   }
 
   const saved = readLocalValue(storageKey);
+  // Hosted same-origin builds must not inherit another machine's saved API URL.
+  if (defaultApiBaseUrl.startsWith("/") && !defaultApiBaseUrl.startsWith("//")) return defaultApiBaseUrl;
   return saved && saved.trim().length > 0 ? normalizeApiBaseUrl(saved) : defaultApiBaseUrl;
 }
 

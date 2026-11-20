@@ -88,8 +88,34 @@ try {
     throw new Error(`Scene population did not match projection for ${id}: expected ${expected}`);
   };
   page.on("response", (response) => { if (response.status() >= 400) failures.push({ path: new URL(response.url()).pathname, status: response.status() }); });
+  // A failed cold start must not silently load a cached demonstration.
+  const failedStart = await context.newPage();
+  await failedStart.route("**/ecology/simulate-prompt", route => route.abort("failed"));
+  await failedStart.goto(`${web}/ecology`);
+  await failedStart.locator(".terrain-ai-error").waitFor();
+  assert.equal(await failedStart.getByTestId("offline-disclosure").count(), 0);
+  await failedStart.getByRole("button", {name:"Abrir demo offline",exact:true}).click();
+  await failedStart.getByTestId("offline-disclosure").waitFor();
+  await failedStart.close();
+
+  const opening = page.waitForResponse(r => r.url() === `${api}/ecology/simulate-prompt` && r.request().method() === "POST");
   await page.goto(`${web}/ecology`);
-  await page.getByRole("button", { name: /Bioinvas[aã]o/ }).click();
+  const openingData = (await (await opening).json()).data;
+  assert.equal(openingData.kind, "ecosystem");
+  await page.waitForFunction(() => !document.querySelector(".terrain-ai-prompt__input")?.disabled);
+  assert.equal(await page.getByTestId("offline-disclosure").count(), 0);
+  assert.equal(await page.getByTestId("preview-notice").count(), 0);
+  await page.locator(".terrain-ai-prompt__input").fill("Simule uma invasão de javalis no Cerrado");
+  const fromDescription = page.waitForResponse(r => r.url() === `${api}/ecology/simulate-prompt` && r.request().method() === "POST");
+  await page.getByRole("button", {name:"Gerar ecossistema 3D",exact:true}).click();
+  const introduced = (await (await fromDescription).json()).data;
+  assert.equal(introduced.kind, "invasive");
+  assert.equal(introduced.result.invaderProfile.displayName, "Javali");
+  await page.locator(".invasive-phase-tab").last().waitFor();
+  assert.equal(await page.locator("#invasive-species-select").inputValue(), "javali");
+  assert.equal(await page.locator("#invasive-location-select").inputValue(), "cerrado");
+  assert.equal(await page.getByTestId("offline-disclosure").count(), 0);
+  await page.screenshot({path:resolve(artifacts,"invasion-from-description.png"),fullPage:true});
   await page.getByText("Previsão com observações", { exact: true }).click();
   await page.locator("#forecast-observations").fill("{invalid-json");
   await page.getByRole("button", { name: "Gerar previsão experimental" }).click();

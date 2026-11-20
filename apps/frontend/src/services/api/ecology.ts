@@ -364,6 +364,10 @@ export interface EcosystemReportResult extends TerrainPromptResult {
   report: EcosystemReport;
 }
 
+export type PromptSimulationResult =
+  | { kind: "ecosystem"; result: EcosystemReportResult }
+  | { kind: "invasive"; speciesText: string; locationText: string; locationSlug: string; result: InvasiveScenarioResult };
+
 // ─── Invasive species scenario ─────────────────────────────────────────────────
 
 export type InvasionEffect =
@@ -821,6 +825,10 @@ async function ecologyRequest<T>(
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 export const ecologyApi = {
+  simulatePrompt: (payload: { prompt: string; width?: number; height?: number; seed?: number }) =>
+    ecologyRequest<ApiSingle<PromptSimulationResult>>("/ecology/simulate-prompt", {
+      timeoutMs: 180_000, method: "POST", body: payload,
+    }),
   // LLM grounded query
   generate: (payload: {
     prompt: string;

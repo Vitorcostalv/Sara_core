@@ -19,6 +19,7 @@ import { EcologyScenarioSection } from "../features/ecology/EcologyScenarioSecti
 import { EcologySuccessionSection } from "../features/ecology/EcologySuccessionSection";
 import { EcologyTerrainSection } from "../features/ecology/EcologyTerrainSection";
 import { useUiStore } from "../state/ui.store";
+import type { PromptSimulationResult } from "../services/api/ecology";
 
 type EcologyTab = "consulta" | "catalogo" | "terreno" | "cenario" | "evolucao" | "invasora";
 
@@ -86,7 +87,7 @@ const DEMO_FLOW = [
 export function EcologyPage() {
   const [activeTab, setActiveTab] = useState<EcologyTab>("terreno");
   const [terrainPromptRequest, setTerrainPromptRequest] = useState<string | null>(null);
-  const [selectedOfflineScenario, setSelectedOfflineScenario] = useState<string | null>(null);
+  const [invasiveScenario, setInvasiveScenario] = useState<Extract<PromptSimulationResult, {kind: "invasive"}> | null>(null);
   const [exploreOpen, setExploreOpen] = useState(false);
   const [scenariosOpen, setScenariosOpen] = useState(false);
   const presentationMode = useUiStore((state) => state.presentationMode);
@@ -101,15 +102,9 @@ export function EcologyPage() {
     setActiveTab("terreno");
   };
 
-  const handleScenarioClick = (scenarioId: string, prompt: string, kind: "ecosystem" | "invasive") => {
-    if (kind === "invasive") {
-      setActiveTab("invasora");
-      setSelectedOfflineScenario(scenarioId);
-      return;
-    }
-    setTerrainPromptRequest(prompt);
-    setSelectedOfflineScenario(scenarioId);
-    setActiveTab("terreno");
+  const handleScenarioClick = (_scenarioId: string, prompt: string, _kind: "ecosystem" | "invasive") => {
+    // Ready scenarios use the live generator; offline demos require an explicit action.
+    handleGenerateEcosystem(prompt);
   };
 
   return (
@@ -226,16 +221,18 @@ export function EcologyPage() {
       {activeTab === "terreno" && (
         <EcologyTerrainSection
           initialPrompt={terrainPromptRequest}
-          initialOfflineScenarioId={selectedOfflineScenario}
+          onInvasiveResult={(scenario) => {
+            setInvasiveScenario(scenario);
+            setActiveTab("invasora");
+          }}
           onInitialPromptConsumed={() => {
             setTerrainPromptRequest(null);
-            setSelectedOfflineScenario(null);
           }}
         />
       )}
       {activeTab === "cenario" && <EcologyScenarioSection />}
       {activeTab === "evolucao" && <EcologySuccessionSection />}
-      {activeTab === "invasora" && <EcologyInvasiveSection initialOfflineScenarioId={selectedOfflineScenario} />}
+      {activeTab === "invasora" && <EcologyInvasiveSection initialScenario={invasiveScenario} />}
     </div>
   );
 }

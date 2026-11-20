@@ -17,6 +17,7 @@ import { getOfflineInvasiveSnapshot, saveLastScenario } from "../../demo/offline
 
 import { useUiStore } from "../../state/ui.store";
 import { PERFORMANCE_PROFILES } from "../../demo/catalog";
+import type { PromptSimulationResult } from "../../services/api/ecology";
 
 const RATING_LABEL: Record<PlausibilityRating, string> = {
   alto: "Alto",
@@ -55,6 +56,8 @@ interface InvasiveSpeciesOption {
 }
 
 const INVASION_LOCATIONS: InvasionLocationOption[] = [
+  { id: "oceano-polar", label: "Oceano polar", locationText: "oceano polar", description: "Água marinha fria em região polar." },
+  { id: "caverna", label: "Caverna", locationText: "caverna", description: "Ambiente subterrâneo afótico." },
   { id: "cerrado", label: "Cerrado brasileiro", locationText: "cerrado brasileiro", description: "Savana tropical com estação seca, campos e vegetação arbustiva." },
   { id: "caatinga", label: "Caatinga semiárida", locationText: "caatinga semiárida", description: "Ambiente quente e seco, com recursos hídricos limitados." },
   { id: "amazonia", label: "Floresta Amazônica", locationText: "floresta amazônica com rios", description: "Floresta tropical úmida, densa e conectada por rios." },
@@ -104,7 +107,10 @@ function locationById(id: string) {
   return INVASION_LOCATIONS.find((location) => location.id === id);
 }
 
-export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOfflineScenarioId?: string | null } = {}) {
+export function EcologyInvasiveSection({ initialOfflineScenarioId, initialScenario }: {
+  initialOfflineScenarioId?: string | null;
+  initialScenario?: Extract<PromptSimulationResult, {kind: "invasive"}> | null;
+} = {}) {
   const performanceProfile = useUiStore((state) => state.performanceProfile);
   const [selectedSpeciesId, setSelectedSpeciesId] = useState("javali");
   const [selectedLocationId, setSelectedLocationId] = useState("cerrado");
@@ -207,6 +213,20 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
     if (initialOfflineScenarioId === "invasao-javali-cerrado") openOfflineJavali();
   }, [initialOfflineScenarioId]);
 
+  useEffect(() => {
+    if (!initialScenario) return;
+    const data = initialScenario.result;
+    const option = INVASIVE_SPECIES_OPTIONS.find(species => species.scientificName === data.invader.scientificName);
+    if (option) setSelectedSpeciesId(option.id);
+    setSelectedLocationId(initialScenario.locationSlug);
+    setResult(data);
+    setFaunaSpecies([...(data.nativeSpecies ?? []), data.invader]);
+    setPhaseIndex(0);
+    setOfflineDisclosure(null);
+    setError(null);
+    saveLastScenario({scenarioId:"invasao-javali-cerrado",mode:"live",invasiveResult:data});
+  }, [initialScenario]);
+
   const phase = result?.phases[phaseIndex];
   const phaseSpecies = useMemo(() => speciesForInvasionPhase(
     faunaSpecies, result?.invader.id ?? "", phase,
@@ -220,6 +240,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
 
   return (
     <div className="page-stack">
+      {initialScenario && result === initialScenario.result && !offlineDisclosure ? <p className="signal-message" role="status">Descrição interpretada como introdução de {initialScenario.speciesText}. O cenário abaixo mostra a explicação e as fases simuladas.</p> : null}
       <EcologyForecastSection />
       <style>{`
         .invasive-grid { display: grid; gap: 0.7rem; grid-template-columns: 1fr 1fr; }

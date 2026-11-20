@@ -108,6 +108,7 @@ ecologyRoutes.post(
 
 // ─── Fauna ────────────────────────────────────────────────────────────────────
 ecologyRoutes.post("/forecast", validateBody(ecologicalForecastSchema), asyncHandler(ecologyController.forecast.bind(ecologyController)));
+ecologyRoutes.post("/simulate-prompt", validateBody(ecologyEcosystemReportSchema), asyncHandler(ecologyController.simulatePrompt.bind(ecologyController)));
 ecologyRoutes.post(
   "/fauna",
   validateBody(ecologyFaunaSchema),

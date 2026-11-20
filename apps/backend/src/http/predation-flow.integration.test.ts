@@ -62,6 +62,29 @@ test("Full flow: observational forecast validates evidence, returns hindcast met
   });
 });
 
+test("Description routes invasion prompts to the real model and ordinary prompts to ecosystem reports", {skip: !localOnly}, async () => {
+  await serverTest(async base => {
+    for (const [prompt, kind] of [["Invasão de javalis no Cerrado", "invasive"], ["Leões introduzidos na Antártida", "invasive"], ["Floresta amazônica úmida", "ecosystem"]]) {
+      const response = await fetch(`${base}/ecology/simulate-prompt`, {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt,width:20,height:16,seed:41})});
+      assert.equal(response.status,200);
+      const {data} = await response.json() as {data:{kind:string;result:InvasiveScenarioResult & EcosystemReportResult}};
+      assert.equal(data.kind,kind);
+      if (kind === "invasive") {
+        assert.equal(data.result.phases.length,4);
+        assert.ok(data.result.explanation.text.length > 0);
+        assert.ok(data.result.nativeSpecies.length > 0);
+        if (prompt!.includes("Antártida")) {
+          assert.equal(data.result.invaderProfile.habitatCompatible,false);
+          assert.equal(data.result.phases.at(-1)!.invaderPop,0);
+        }
+      } else assert.equal(data.result.biomeSlug,"amazonia");
+    }
+    const incomplete = await fetch(`${base}/ecology/simulate-prompt`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:"Uma invasão no Cerrado"})});
+    assert.equal(incomplete.status,422);
+    assert.equal((await incomplete.json() as {error:{code:string}}).error.code,"INVASION_SPECIES_REQUIRED");
+  });
+});
+
 test("Full flow: API → local PostgreSQL → predation projection → validated response", { skip: !localOnly }, async () => {
   await serverTest(async (base) => {
     for (const [speciesText, locationText] of [["leão", "cerrado"], ["tigre", "floresta amazônica"], ["javali", "cerrado"], ["coelho-europeu", "caatinga"], ["tilápia", "pantanal"], ["leão", "antartida"]]) {

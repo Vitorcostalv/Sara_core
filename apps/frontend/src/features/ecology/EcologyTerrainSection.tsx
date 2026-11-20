@@ -17,7 +17,7 @@ import {
 } from "@react-three/drei";
 import { Moon, Mountains, Sparkle, Sun, WarningCircle } from "@phosphor-icons/react";
 import { Button, EmptyState, ErrorState, LoadingBlock } from "../../components/ui";
-import { checkApiHealth, getApiErrorMessage } from "../../services/api/client";
+import { getApiErrorMessage } from "../../services/api/client";
 import { ecologyApi } from "../../services/api/ecology";
 import type {
   ActivityPeriod,
@@ -27,6 +27,7 @@ import type {
   TerrainCell,
   TerrainGrid,
   TerrainPromptResult,
+  PromptSimulationResult,
 } from "../../services/api/ecology";
 import {
   DEMO_SCENARIOS,
@@ -3557,6 +3558,7 @@ const EMPTY_FORMATIONS: EcosystemReport["formations"] = {
 };
 
 interface EcologyTerrainSectionProps {
+  onInvasiveResult?: (scenario: Extract<PromptSimulationResult, {kind: "invasive"}>) => void;
   /** Prompt vindo de outra aba (ex: chat da Consulta) para gerar um ecossistema ao montar. */
   initialPrompt?: string | null;
   initialOfflineScenarioId?: string | null;
@@ -3565,6 +3567,7 @@ interface EcologyTerrainSectionProps {
 }
 
 function EcologyTerrainSection({
+  onInvasiveResult,
   initialPrompt,
   initialOfflineScenarioId,
   onInitialPromptConsumed,
@@ -3654,7 +3657,7 @@ function EcologyTerrainSection({
   const [faunaError, setFaunaError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiPrompt, setAiPrompt] = useState(getDemoScenario(PREVIEW_SCENARIO_ID).prompt);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<TerrainPromptResult | null>(null);
   const [report, setReport] = useState<EcosystemReport | null>(null);
@@ -3670,7 +3673,6 @@ function EcologyTerrainSection({
     return () => window.cancelAnimationFrame(frame);
   }, [grid]);
   const [offlineDisclosure, setOfflineDisclosure] = useState<string | null>(null);
-  const [previewNotice, setPreviewNotice] = useState<string | null>(null);
   const [fallbackScenarioId, setFallbackScenarioId] = useState<DemoScenarioId | null>(null);
   const presentationMode = useUiStore((state) => state.presentationMode);
   const performanceProfile = useUiStore((state) => state.performanceProfile);
@@ -3684,11 +3686,9 @@ function EcologyTerrainSection({
   const reportFormations = report?.formations ?? EMPTY_FORMATIONS;
   const ecosystemDemos = DEMO_SCENARIOS.filter((scenario) => scenario.kind === "ecosystem");
 
-  // `preview` carrega um cenário só para a abertura não começar vazia: não grava
-  // como último cenário do usuário e se anuncia como exemplo, nunca como resultado ao vivo.
-  const applyOfflineSnapshot = useCallback((scenarioId: DemoScenarioId, options?: { preview?: boolean }) => {
+  // Precomputed examples require an explicit offline action.
+  const applyOfflineSnapshot = useCallback((scenarioId: DemoScenarioId) => {
     if (scenarioId === "invasao-javali-cerrado") return;
-    const isPreview = options?.preview === true;
     const snapshot = getOfflineEcosystemSnapshot(scenarioId);
     const result = snapshot.result;
     setAiResult(result);
@@ -3711,21 +3711,9 @@ function EcologyTerrainSection({
     setFaunaError(null);
     setError(null);
     setAiError(null);
-    setOfflineDisclosure(isPreview ? null : snapshot.meta.disclosure);
-    if (isPreview) {
-      // Deixa o prompt pronto: o botão primário nasce habilitado e a demo começa
-      // com um clique, não com digitação.
-      setAiPrompt(getDemoScenario(scenarioId).prompt);
-    }
-    setPreviewNotice(
-      isPreview
-        ? `Exemplo pré-carregado (${getDemoScenario(scenarioId).title}, cenário offline). Gere um ecossistema para substituí-lo.`
-        : null,
-    );
+    setOfflineDisclosure(snapshot.meta.disclosure);
     setFallbackScenarioId(null);
-    if (!isPreview) {
-      saveLastScenario({ scenarioId, mode: "offline", ecosystemResult: result });
-    }
+    saveLastScenario({ scenarioId, mode: "offline", ecosystemResult: result });
   }, []);
 
   function field(key: keyof TerrainForm) {
@@ -3745,7 +3733,6 @@ function EcologyTerrainSection({
   async function generate() {
     setIsLoading(true);
     setError(null);
-    setPreviewNotice(null);
     setReport(null);
     setFaunaSpecies([]);
     setFaunaLiveCount(0);
@@ -3757,11 +3744,6 @@ function EcologyTerrainSection({
     try {
       if (demoMode === "offline") {
         applyOfflineSnapshot("cerrado-predador-presa");
-        return;
-      }
-      if (demoMode === "auto" && !(await checkApiHealth())) {
-        setFallbackScenarioId("cerrado-predador-presa");
-        setError("Backend indisponível no momento. Tente novamente ou abra uma demonstração offline precomputada.");
         return;
       }
       const manualProfile = PERFORMANCE_PROFILES[performanceProfile];
@@ -3804,12 +3786,13 @@ function EcologyTerrainSection({
     }
   }
 
+  const promptGenerationRef = useRef(0);
   async function promptAndGenerate(overridePrompt?: string) {
     const effectivePrompt = (overridePrompt ?? aiPrompt).trim();
     if (!effectivePrompt) return;
+    const generation = ++promptGenerationRef.current;
     setIsAiLoading(true);
     setAiError(null);
-    setPreviewNotice(null);
     setAiResult(null);
     setReport(null);
     setFaunaEvents([]);
@@ -3820,19 +3803,21 @@ function EcologyTerrainSection({
       const matchingScenario = ecosystemDemos.find((scenario) => scenario.prompt === effectivePrompt);
       const scenarioId = (matchingScenario?.id ?? "amazonia-coerente") as DemoScenarioId;
       if (demoMode === "offline") {
-        applyOfflineSnapshot(scenarioId);
+        if (matchingScenario) applyOfflineSnapshot(matchingScenario.id);
+        else setAiError("O modo offline contém apenas cenários prontos. Selecione Ao vivo para simular esta descrição.");
         return;
       }
-      if (demoMode === "auto" && !(await checkApiHealth())) {
-        setFallbackScenarioId(scenarioId);
-        setAiError("Backend indisponível. Nenhum resultado ao vivo foi substituído; escolha tentar novamente ou demo offline.");
-        return;
-      }
-      const response = await ecologyApi.ecosystemReport({
+      const response = await ecologyApi.simulatePrompt({
         prompt: effectivePrompt,
         ...PERFORMANCE_PROFILES[performanceProfile].terrainSize,
       });
-      const result = response.data;
+      if (generation !== promptGenerationRef.current) return;
+      if (response.data.kind === "invasive") {
+        if (onInvasiveResult) onInvasiveResult(response.data);
+        else setAiError("Abra Bioinvasão para visualizar esta introdução de espécie.");
+        return;
+      }
+      const result = response.data.result;
       setAiResult(result);
       setReport(result.report);
       setForm({
@@ -3858,10 +3843,11 @@ function EcologyTerrainSection({
       setOfflineDisclosure(null);
       saveLastScenario({ scenarioId, mode: "live", ecosystemResult: result });
     } catch (requestError) {
+      if (generation !== promptGenerationRef.current) return;
       setAiError(getApiErrorMessage(requestError));
       setFallbackScenarioId("amazonia-coerente");
     } finally {
-      setIsAiLoading(false);
+      if (generation === promptGenerationRef.current) setIsAiLoading(false);
     }
   }
 
@@ -3870,7 +3856,8 @@ function EcologyTerrainSection({
   const consumedPromptRef = useRef<string | null>(null);
   useEffect(() => {
     const incoming = initialPrompt?.trim();
-    if (!incoming || consumedPromptRef.current === incoming) return;
+    if (!incoming) { consumedPromptRef.current = null; return; }
+    if (consumedPromptRef.current === incoming) return;
     consumedPromptRef.current = incoming;
     setAiPrompt(incoming);
     void promptAndGenerate(incoming);
@@ -3884,7 +3871,7 @@ function EcologyTerrainSection({
     onInitialPromptConsumed?.();
   }, [initialOfflineScenarioId, applyOfflineSnapshot, onInitialPromptConsumed]);
 
-  // Abertura: em vez do estado vazio, mostra um ecossistema de exemplo já renderizado.
+  // Opening requests a live ecosystem; no offline result is shown automatically.
   // O ref garante uma única carga; as props só são lidas na primeira montagem, por
   // isso a lista de dependências fica intencionalmente vazia.
   const previewLoadedRef = useRef(false);
@@ -3892,7 +3879,7 @@ function EcologyTerrainSection({
     if (previewLoadedRef.current) return;
     previewLoadedRef.current = true;
     if (initialPrompt?.trim() || initialOfflineScenarioId?.trim()) return;
-    applyOfflineSnapshot(PREVIEW_SCENARIO_ID, { preview: true });
+    void promptAndGenerate(getDemoScenario(PREVIEW_SCENARIO_ID).prompt);
   }, []);
 
   useEffect(() => {
@@ -5302,13 +5289,13 @@ function EcologyTerrainSection({
             <h3>Simulação 3D de ecossistemas</h3>
             <p>
               {/* Neutro quanto à posição: em telas estreitas o visualizador fica abaixo. */}
-              Descreva um bioma; o relevo, a água, a vegetação e a fauna aparecem no
+              Descreva um bioma ou uma invasão, como “invasão de javalis no Cerrado”; o relevo, a água, a vegetação e a fauna aparecem no
               visualizador 3D. Arraste para orbitar.
             </p>
           </div>
         </div>
 
-        {offlineDisclosure || previewNotice ? (
+        {offlineDisclosure ? (
           <div className="signal-message signal-message--warning" data-testid="offline-disclosure">
             <WarningCircle weight="duotone" />
             <div>
@@ -5318,11 +5305,6 @@ function EcologyTerrainSection({
           </div>
         ) : null}
 
-        {previewNotice ? (
-          <p className="terrain-preview-notice" data-testid="preview-notice">
-            {previewNotice}
-          </p>
-        ) : null}
 
         <div className="terrain-ai-prompt">
           <div className="terrain-ai-prompt__row">
@@ -5379,7 +5361,7 @@ function EcologyTerrainSection({
           {aiResult && !isAiLoading ? (
             <div className="terrain-ai-badge">
               <strong>{aiResult.biomeName}</strong>
-              <small className="terrain-generation-source">{offlineDisclosure || previewNotice ? "Exemplo offline previamente calculado; nenhuma consulta à IA ou ao banco está sendo realizada." : aiResult.source === "llm" ? "Ambiente identificado com IA; clima e espécies seguem o catálogo do projeto." : aiResult.source === "keyword" ? "Ambiente identificado por palavras-chave; geração sem depender da IA." : "Descrição não reconhecida: foi usado um ambiente tropical genérico. Descreva o bioma para obter um resultado mais próximo."}</small>
+              <small className="terrain-generation-source">{offlineDisclosure ? "Exemplo offline previamente calculado; nenhuma consulta à IA ou ao banco está sendo realizada." : aiResult.source === "llm" ? "Ambiente identificado com IA; clima e espécies seguem o catálogo do projeto." : aiResult.source === "keyword" ? "Ambiente identificado por palavras-chave; geração sem depender da IA." : "Descrição não reconhecida: foi usado um ambiente tropical genérico. Descreva o bioma para obter um resultado mais próximo."}</small>
               <span>{aiResult.interpretation}</span>
               <span className="terrain-ai-badge__meta">
                 {aiResult.terrainParams.baseTemperatureC}°C · {aiResult.terrainParams.basePrecipitationMm}mm · {aiResult.terrainParams.baseHumidityPct}% umidade

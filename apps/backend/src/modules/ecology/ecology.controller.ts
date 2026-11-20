@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import type { EcologicalForecastInput } from "@sara/shared-types";
 import { forecastEcology } from "./simulation/ecological-forecast.service";
+import { promptSimulationService } from "./prompt-simulation.service";
 import { sendOk, sendPaginated } from "../../core/http/response";
 import { AppError } from "../../core/errors/app-error";
 import { ecologicalLlmService } from "./llm/ecological-llm.service";
@@ -30,6 +31,9 @@ import type {
 } from "./ecology.schemas";
 
 export class EcologyController {
+  async simulatePrompt(req: Request, res: Response): Promise<void> {
+    sendOk(res, await promptSimulationService.generate(req.body as EcologyEcosystemReportInput));
+  }
   async forecast(req: Request, res: Response): Promise<void> {
     sendOk(res, forecastEcology(req.body as EcologicalForecastInput));
   }
