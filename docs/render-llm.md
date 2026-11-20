@@ -1,5 +1,9 @@
 # LLM própria no Render (experimental)
 
+Atualização: a integração de todos os fluxos com `LLM_PROVIDER=render`, seus
+limites, validação e rollback estão em [own-model-release.md](deployment/own-model-release.md).
+As seções abaixo registram a implantação inicial, limitada à classificação.
+
 O serviço `sara-core-llm` roda Qwen2.5-0.5B-Instruct Q4_0 em CPU, com llama.cpp b11861. Modelo e executor têm revisões e SHA-256 fixos no Dockerfile. O contexto é de 2048 tokens, uma requisição simultânea e até 128 tokens de saída. Não existe GPU nem disco persistente e nenhum segredo do banco ou Gemini vai para o Render.
 
 ## Integração

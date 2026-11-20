@@ -41,7 +41,7 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).optional(),
   CORS_ORIGIN: z.string().optional(),
   CORS_ORIGINS: z.string().optional(),
-  LLM_PROVIDER: z.enum(["disabled", "gemini", "grok"]).default("disabled"),
+  LLM_PROVIDER: z.enum(["disabled", "gemini", "grok", "render"]).default("disabled"),
   LLM_CLOUD_ENABLED: z.enum(["true", "false"]).default("true"),
   LLM_API_KEY: z.string().optional(),
   LLM_RENDER_ENABLED: z.enum(["true", "false"]).default("false"),

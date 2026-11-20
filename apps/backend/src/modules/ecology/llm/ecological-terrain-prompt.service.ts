@@ -309,8 +309,9 @@ export class EcologicalTerrainPromptService {
     }
     // 1. LLM constrangido ao enum (slug rejeitado se não houver preset correspondente).
     let inferenceFailure: TerrainPromptResult["inferenceFailure"];
-    const provider = env.llmCloudEnabled ? createLlmProvider(env.llmProvider) : null;
-    if ((provider && env.llmApiKey) || (env.renderLlmEnabled && env.renderLlmBaseUrl && env.renderLlmApiKey)) {
+    const provider = env.llmCloudEnabled && env.llmProvider !== "render" ? createLlmProvider(env.llmProvider) : null;
+    const ownEnabled = env.renderLlmEnabled || env.llmProvider === "render";
+    if ((provider && env.llmApiKey) || (ownEnabled && env.renderLlmBaseUrl && env.renderLlmApiKey)) {
       try {
         const generation = await generateWithLocalFallback(provider, {
           systemPrompt: SYSTEM_PROMPT,
@@ -321,7 +322,7 @@ export class EcologicalTerrainPromptService {
           timeoutMs: Math.min(env.llmTimeoutMs, 15_000),
           maxOutputTokens: 128,
           responseSchema: {type:"object",properties:{biomeSlug:{type:"string",enum:biomePresetService.listAll().map(p=>p.slug)},displayName:{type:"string"},interpretation:{type:"string"}},required:["biomeSlug","displayName","interpretation"],additionalProperties:false},
-        }, {enabled:env.renderLlmEnabled,baseUrl:env.renderLlmBaseUrl,apiKey:env.renderLlmApiKey,timeoutMs:env.renderLlmTimeoutMs}, text=>{
+        }, {enabled:ownEnabled,baseUrl:env.renderLlmBaseUrl,apiKey:env.renderLlmApiKey,timeoutMs:env.renderLlmTimeoutMs}, text=>{
           const parsed=tryParseLlmJson(text);
           return Boolean(parsed && biomePresetService.findBySlug(parsed.biomeSlug));
         }, localClassifierRequest(), text=>normalizeLocalClassification(text,prompt));

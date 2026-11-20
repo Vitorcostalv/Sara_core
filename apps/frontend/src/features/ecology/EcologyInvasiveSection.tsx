@@ -918,7 +918,9 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId, initialScenar
               </StatusPill>
             </div>
             {result.predationReasoning ? <StatusPill tone={result.predationReasoning.source === "llm" ? "info" : "neutral"}>
-              {result.predationReasoning.source === "llm" ? "Explicação da LLM" : "Explicação por regras locais"}
+              {result.predationReasoning.source === "llm" ?
+                result.predationReasoning.provider === "render" ? "Explicação da LLM própria · Qwen" : "Explicação da LLM"
+                : "Explicação por regras locais"}
             </StatusPill> : null}
             <p>{result.explanation.text}</p>
 

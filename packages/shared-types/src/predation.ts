@@ -30,6 +30,8 @@ export interface PredationProjection {
 
 export interface PredationReasoning {
   source: "rules" | "llm";
+  provider?: string;
+  model?: string;
   summary: string;
   actionIds: string[];
   warnings: string[];

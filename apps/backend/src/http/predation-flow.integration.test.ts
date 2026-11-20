@@ -143,6 +143,50 @@ test("Full flow: ecological LLM inspection includes predation rules and sourced 
   });
 });
 
+test("Own model answers grounded questions and explains scenarios over HTTP with cloud disabled",{skip:!localOnly},async()=>{
+ const before={...env};const request=globalThis.fetch;const roles:string[]=[];
+ Object.assign(env,{llmProvider:"render",llmCloudEnabled:false,renderLlmApiKey:"own-test-key",renderLlmBaseUrl:"https://own.test/v1"});
+ globalThis.fetch=(async(input,init)=>{
+  if(new URL(String(input)).hostname==="127.0.0.1")return request(input,init);
+  assert.equal(String(input),"https://own.test/v1/chat/completions");
+  assert.equal(new Headers(init?.headers).get("Authorization"),"Bearer own-test-key");
+  const body=JSON.parse(String(init?.body));assert.equal(body.model,"sara-qwen-0.5b");
+  const scenario=Boolean(body.response_format);roles.push(scenario?"predation":"question");
+  return Response.json({choices:[{message:{content:scenario?JSON.stringify({summary:"Habitat incompatível impede o estabelecimento nesta simulação."}):"Alimento finito e mortalidade limitam o crescimento."},finish_reason:"stop"}]});
+ }) as typeof fetch;
+ try{
+  await serverTest(async base=>{
+   const response=await fetch(`${base}/ecology/generate`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:"Como funciona a predação no cerrado?",ecosystems:["cerrado"]})});
+   assert.equal(response.status,200);const {data}=await response.json() as {data:EcologicalLlmResult};
+   assert.equal(data.provider,"render");assert.equal(data.model,"sara-qwen-0.5b");assert.ok(data.answer);assert.ok(data.factsUsed<=3);
+   const result=await fetch(`${base}/ecology/simulate-prompt`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:"Leões introduzidos na Antártida",width:12,height:10,seed:41})});
+   assert.equal(result.status,200);const invasion=await result.json() as {data:{result:InvasiveScenarioResult}};
+   assert.equal(invasion.data.result.predationReasoning.source,"llm");
+   assert.equal(invasion.data.result.predationReasoning.provider,"render");
+   assert.equal(invasion.data.result.phases.at(-1)!.invaderPop,0);
+  });
+  assert.deepEqual(roles,["question","predation"]);
+ }finally{Object.assign(env,before);globalThis.fetch=request;}
+});
+
+test("Own classification ignores legacy cloud credentials even if the cloud flag is enabled",{skip:!localOnly},async()=>{
+ const before={...env};const request=globalThis.fetch;let calls=0;
+ Object.assign(env,{llmProvider:"render",llmCloudEnabled:true,renderLlmEnabled:false,
+  renderLlmApiKey:"own-test-key",renderLlmBaseUrl:"https://own.test/v1",
+  llmApiKey:"cloud-secret",llmBaseUrl:"https://cloud.test"});
+ globalThis.fetch=(async(input,init)=>{
+  if(new URL(String(input)).hostname==="127.0.0.1")return request(input,init);
+  calls++;assert.equal(String(input),"https://own.test/v1/chat/completions");
+  assert.equal(new Headers(init?.headers).get("Authorization"),"Bearer own-test-key");
+  return new Response("private upstream error",{status:503});
+ }) as typeof fetch;
+ try{await serverTest(async base=>{
+  const response=await fetch(`${base}/ecology/prompt-terrain`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:"an unlabelled landscape for own exclusive mode",width:4,height:4,seed:41})});
+  assert.equal(response.status,200);const payload=await response.json() as {data:{source:string;inferenceFailure:{status:number}}};
+  assert.equal(payload.data.source,"default");assert.equal(payload.data.inferenceFailure.status,503);
+ });assert.equal(calls,1);}finally{Object.assign(env,before);globalThis.fetch=request;}
+});
+
 test("Quota containment suspends text but preserves live scenarios with zero external calls",{skip:!localOnly},async()=>{
  const before={llmCloudEnabled:env.llmCloudEnabled,llmProvider:env.llmProvider,llmApiKey:env.llmApiKey};
  const request=globalThis.fetch;let externalCalls=0;

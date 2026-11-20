@@ -1,5 +1,6 @@
 import { env } from "../../config/env";
 import { pool } from "../../database/postgres";
+import { textLlmRuntime } from "../llm/text-runtime";
 
 const processStartedAt = Date.now();
 
@@ -15,6 +16,7 @@ interface DatabaseHealth {
 export class HealthService {
   async getStatus() {
     const database = await this.checkDatabase();
+    const runtime = textLlmRuntime();
 
     return {
       status: database.ok ? "ok" : "degraded",
@@ -31,13 +33,13 @@ export class HealthService {
         forecastModel: "observational-log-trend-v1",
         predationModel: "food-web-v1",
         llmProvider: env.llmProvider,
-        llmConfigured: env.llmCloudEnabled && env.llmProvider !== "disabled" && Boolean(env.llmApiKey),
+        llmConfigured: Boolean(runtime.provider && runtime.apiKey && runtime.baseUrl),
         cloudLlmEnabled: env.llmCloudEnabled,
         llmRoles: {
-          questions: env.llmCloudEnabled ? env.llmProvider : "suspended",
-          predationExplanation: env.llmCloudEnabled ? env.llmProvider : "rules",
+          questions: runtime.permitted ? env.llmProvider : "suspended",
+          predationExplanation: runtime.permitted ? env.llmProvider : "rules",
           ownModel: "sara-qwen-0.5b",
-          ownModelRole: "biome-classifier",
+          ownModelRole: runtime.own ? "biomes-questions-predation" : "biome-classifier",
           ownModelTimeoutMs: env.renderLlmTimeoutMs,
         },
         renderClassifierConfigured: env.renderLlmEnabled && Boolean(env.renderLlmBaseUrl && env.renderLlmApiKey),

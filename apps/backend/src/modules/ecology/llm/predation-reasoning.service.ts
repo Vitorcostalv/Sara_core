@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PredationProjection, PredationReasoning } from "@sara/shared-types";
-import { env } from "../../../config/env";
+import { textLlmRuntime } from "../../llm/text-runtime";
+import { buildOwnPredationPrompts } from "./own-model-prompts";
 import { AppError } from "../../../core/errors/app-error";
 import { createLlmProvider, type LlmProvider } from "../../llm/llm.provider";
 import { PREDATION_POLICY } from "../simulation/predation-dynamics.service";
@@ -32,16 +33,21 @@ export class PredationReasoningService {
       source: "rules", summary: projection.actions.map((action) => action.reason).join(" "),
       actionIds: expected, warnings: warning ? [warning] : [],
     });
-    if (!env.llmCloudEnabled) return fallback("Provedor externo suspenso temporariamente. Esta explicação usa as regras da simulação.");
-    const provider: LlmProvider | null = this.providerFactory(env.llmProvider);
-    if (!provider || !env.llmApiKey) return fallback();
+    const runtime = textLlmRuntime(this.providerFactory);
+    if (!runtime.permitted) return fallback("Provedor externo suspenso temporariamente. Esta explicação usa as regras da simulação.");
+    const provider: LlmProvider | null = runtime.provider;
+    if (!provider || !runtime.apiKey || !runtime.baseUrl) return fallback();
     try {
       const result = await provider.generateText({
-        ...buildPredationPrompts(projection),
-        model: env.llmModel || provider.defaultModel, apiKey: env.llmApiKey,
-        baseUrl: (env.llmBaseUrl ?? provider.defaultBaseUrl).replace(/\/+$/, ""),
-        timeoutMs: Math.min(env.llmTimeoutMs, 30_000),
-        responseSchema: {
+        ...(runtime.own ? buildOwnPredationPrompts(projection) : buildPredationPrompts(projection)),
+        model: runtime.model, apiKey: runtime.apiKey,
+        baseUrl: runtime.baseUrl.replace(/\/+$/, ""),
+        timeoutMs: runtime.own ? runtime.timeoutMs : Math.min(runtime.timeoutMs, 30_000),
+        ...(runtime.own ? {maxOutputTokens: 128} : {}),
+        responseSchema: runtime.own ? {
+          type: "object", additionalProperties: false, required: ["summary"],
+          properties: {summary: {type: "string"}},
+        } : {
           type: "object", additionalProperties: false, required: ["summary", "actionIds"],
           properties: {
             // Large dynamic enums + array bounds can exceed a provider's schema
@@ -53,12 +59,19 @@ export class PredationReasoningService {
       });
       const text = result.text.trim();
       const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(text);
-      const parsed = responseSchema.parse(JSON.parse(fenced?.[1] ?? text));
+      const raw = JSON.parse(fenced?.[1] ?? text);
+      // The own model writes only prose. Action IDs are never delegated to it.
+      if (runtime.own) {
+        const parsed = responseSchema.omit({actionIds:true}).parse(raw);
+        return {source: "llm", provider: provider.name, model: runtime.model,
+          summary: parsed.summary, actionIds: expected, warnings: []};
+      }
+      const parsed = responseSchema.parse(raw);
       const accepted = new Set(parsed.actionIds);
       if (accepted.size !== parsed.actionIds.length || accepted.size !== expected.length || expected.some((id) => !accepted.has(id))) {
         return fallback("A LLM alterou ou omitiu ações; explicação determinística preservada.");
       }
-      return { source: "llm", summary: parsed.summary, actionIds: expected, warnings: [] };
+      return { source: "llm", provider: provider.name, model: runtime.model, summary: parsed.summary, actionIds: expected, warnings: [] };
     } catch (error) {
       const details = error instanceof AppError ? error.details as { status?: unknown } | undefined : undefined;
       const cause = typeof details?.status === "number" ? `provedor HTTP ${details.status}` :

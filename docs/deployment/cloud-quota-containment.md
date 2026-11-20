@@ -1,5 +1,10 @@
 # Contenção da quota do provedor externo
 
+Este documento descreve a contenção nos commits `c541070` e `86ba7a3`.
+A migração posterior para o modelo próprio está em
+[own-model-release.md](own-model-release.md); nesse modo perguntas voltam a
+usar a Render, mantendo o provedor externo desativado.
+
 A instalação é híbrida: Qwen2.5-0.5B na Render classifica biomas; Gemini responde
 consultas e explica projeções. O ping da Render não renova a quota do Gemini.
 O modelo próprio tem contexto de 2048 tokens e saída de até 128 tokens nesta

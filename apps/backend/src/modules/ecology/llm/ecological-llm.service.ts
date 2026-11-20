@@ -1,8 +1,9 @@
-import { env } from "../../../config/env";
 import { PREDATION_POLICY } from "../simulation/predation-dynamics.service";
 import { AppError } from "../../../core/errors/app-error";
 import { logger } from "../../../logging/logger";
-import { createLlmProvider, type LlmGenerateTextOutput } from "../../llm/llm.provider";
+import { type LlmGenerateTextOutput } from "../../llm/llm.provider";
+import { textLlmRuntime } from "../../llm/text-runtime";
+import { buildOwnQuestionPrompts } from "./own-model-prompts";
 import type { GroundingCategory } from "../ecology.schemas";
 import {
   ecologicalContextBuilderService,
@@ -95,19 +96,17 @@ function normalizeBaseUrl(url: string): string {
 
 export class EcologicalLlmService {
   async generate(input: EcologicalLlmInput): Promise<EcologicalLlmResult> {
+    const runtime = textLlmRuntime();
     const builtContext = await ecologicalContextBuilderService.buildContext({
       prompt: input.prompt,
       ecosystems: input.ecosystems,
       categories: input.categories,
-      maxFacts: input.maxFacts,
+      maxFacts: runtime.own ? Math.min(input.maxFacts ?? 3, 3) : input.maxFacts,
       includeInspection: input.includeInspection ?? false,
     });
 
-    const provider = createLlmProvider(env.llmProvider);
+    const { provider, model } = runtime;
     const providerName = provider?.name ?? "disabled";
-    const model = provider
-      ? env.llmModel || provider.defaultModel
-      : env.llmModel || "not-configured";
 
     const baseResult: Omit<EcologicalLlmResult, "answer"> = {
       provider: providerName,
@@ -137,7 +136,7 @@ export class EcologicalLlmService {
       return { ...baseResult, answer: null };
     }
 
-    if (!env.llmCloudEnabled) {
+    if (!runtime.permitted) {
       throw new AppError("LLM_CLOUD_SUSPENDED", 503,
         "As respostas em texto estão temporariamente pausadas por contenção da quota do provedor. Cenários e previsões continuam disponíveis.");
     }
@@ -161,7 +160,7 @@ export class EcologicalLlmService {
         "LLM provider is disabled. Configure LLM_PROVIDER and credentials."
       );
     }
-    if (!env.llmApiKey) {
+    if (!runtime.apiKey || !runtime.baseUrl) {
       throw new AppError(
         "LLM_API_KEY_MISSING",
         503,
@@ -169,19 +168,21 @@ export class EcologicalLlmService {
       );
     }
 
-    const systemPrompt = buildSystemPrompt(builtContext.queryType);
-    const userPrompt = buildUserPrompt(input.prompt, builtContext.contextPreview);
+    const prompts = runtime.own ? buildOwnQuestionPrompts(input.prompt, builtContext) : {
+      systemPrompt: buildSystemPrompt(builtContext.queryType),
+      userPrompt: buildUserPrompt(input.prompt, builtContext.contextPreview),
+    };
 
     const callStart = Date.now();
     let generation: LlmGenerateTextOutput;
     try {
       generation = await provider.generateText({
-        systemPrompt,
-        userPrompt,
+        ...prompts,
         model,
-        apiKey: env.llmApiKey,
-        baseUrl: normalizeBaseUrl(env.llmBaseUrl ?? provider.defaultBaseUrl),
-        timeoutMs: env.llmTimeoutMs,
+        apiKey: runtime.apiKey,
+        baseUrl: normalizeBaseUrl(runtime.baseUrl),
+        timeoutMs: runtime.timeoutMs,
+        ...(runtime.own ? {maxOutputTokens: 128} : {}),
       });
     } catch (err) {
       ecoLlmLogger.error({ err }, "Ecological LLM provider call failed");
@@ -208,7 +209,13 @@ export class EcologicalLlmService {
       "Ecological LLM generation completed"
     );
 
-    return { ...baseResult, answer: generation.text };
+    let answer = generation.text;
+    if (runtime.own) {
+      // Disclaimers are imposed by the backend, never left to a small model.
+      if (builtContext.queryType === "speculative") answer = `${SPECULATIVE_DISCLAIMER}\n${answer}`;
+      if (builtContext.queryType === "modeling") answer = `${MODELING_DISCLAIMER}\n${answer}`;
+    }
+    return { ...baseResult, answer };
   }
 }
 
