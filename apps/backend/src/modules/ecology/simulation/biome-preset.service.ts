@@ -27,6 +27,7 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     keywords: ["cerrado", "cerradão", "savana brasileira", "savana do brasil", "savannah brasileiro"],
   },
   pantanal: {
+    minWaterCoveragePct: 15,
     displayName: "Pantanal",
     baseTemperatureC: 26,
     basePrecipitationMm: 1200,

@@ -25,7 +25,7 @@ test("Reported prompts preserve polar sea and cave identity across seeds and map
 });
 
 test("Wet presets produce actual water and compatible salinity before deriving terrain features", async () => {
-  for (const [prompt, slug, minimum] of [["Floresta amazônica úmida", "amazonia", 8], ["Manguezal costeiro", "mangue", 25]] as const) {
+  for (const [prompt, slug, minimum] of [["Floresta amazônica úmida", "amazonia", 8], ["Manguezal costeiro", "mangue", 25], ["Pantanal com áreas inundáveis", "pantanal", 15]] as const) {
     for (const seed of [1, 4, 41, 123, 2026]) {
       const result = await ecologicalTerrainPromptService.generate({ prompt, width: 32, height: 24, seed });
       assert.equal(result.biomeSlug, slug);

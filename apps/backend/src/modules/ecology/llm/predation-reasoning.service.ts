@@ -43,8 +43,10 @@ export class PredationReasoningService {
         responseSchema: {
           type: "object", additionalProperties: false, required: ["summary", "actionIds"],
           properties: {
-            summary: { type: "string", minLength: 1, maxLength: 1600 },
-            actionIds: { type: "array", maxItems: 200, items: { type: "string", ...(expected.length ? { enum: expected } : {}) } },
+            // Large dynamic enums + array bounds can exceed a provider's schema
+            // complexity limit. The exact IDs and limits are checked below.
+            summary: { type: "string" },
+            actionIds: { type: "array", items: { type: "string" } },
           },
         },
       });
