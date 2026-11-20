@@ -3684,6 +3684,15 @@ function EcologyTerrainSection({
   }>({});
   const simulatedTimeRef = useRef(12);
   const reportFormations = report?.formations ?? EMPTY_FORMATIONS;
+  const generationSourceMessage = offlineDisclosure
+    ? "Exemplo offline previamente calculado; nenhuma consulta à IA ou ao banco está sendo realizada."
+    : aiResult?.inferenceFailure
+      ? "O modelo próprio não concluiu a classificação nesta tentativa. Foi usado um ambiente padrão; escolha um bioma explícito ou tente novamente."
+      : aiResult?.source === "llm"
+        ? "Ambiente identificado com IA; clima e espécies seguem o catálogo do projeto."
+        : aiResult?.source === "keyword"
+          ? "Ambiente identificado por palavras-chave; geração sem depender da IA."
+          : "Descrição não reconhecida: foi usado um ambiente tropical genérico. Descreva o bioma para obter um resultado mais próximo.";
   const ecosystemDemos = DEMO_SCENARIOS.filter((scenario) => scenario.kind === "ecosystem");
 
   // Precomputed examples require an explicit offline action.
@@ -5361,7 +5370,7 @@ function EcologyTerrainSection({
           {aiResult && !isAiLoading ? (
             <div className="terrain-ai-badge">
               <strong>{aiResult.biomeName}</strong>
-              <small className="terrain-generation-source">{offlineDisclosure ? "Exemplo offline previamente calculado; nenhuma consulta à IA ou ao banco está sendo realizada." : aiResult.source === "llm" ? "Ambiente identificado com IA; clima e espécies seguem o catálogo do projeto." : aiResult.source === "keyword" ? "Ambiente identificado por palavras-chave; geração sem depender da IA." : "Descrição não reconhecida: foi usado um ambiente tropical genérico. Descreva o bioma para obter um resultado mais próximo."}</small>
+              <small className="terrain-generation-source">{generationSourceMessage}</small>
               <span>{aiResult.interpretation}</span>
               <span className="terrain-ai-badge__meta">
                 {aiResult.terrainParams.baseTemperatureC}°C · {aiResult.terrainParams.basePrecipitationMm}mm · {aiResult.terrainParams.baseHumidityPct}% umidade

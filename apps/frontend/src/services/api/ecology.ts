@@ -90,6 +90,7 @@ export interface DomainCoverageStats {
 export type ReliefStyle = "default" | "ocean" | "mountain" | "polar";
 
 export interface TerrainPromptResult {
+  inferenceFailure?: {provider:"render";reason:"timeout"|"http-error"|"invalid-output";status?:number};
   biomeName: string;
   biomeSlug: string;
   interpretation: string;

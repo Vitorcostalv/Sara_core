@@ -16,7 +16,7 @@ export class RenderLlmProvider implements LlmProvider {
       ...(input.responseSchema ? {response_format:{type:"json_schema",json_schema:{name:"ecology",strict:true,schema:input.responseSchema}}} : {})}),
       signal:AbortSignal.timeout(input.timeoutMs),
     });
-    if (!response.ok) throw new AppError("LLM_RENDER_UNAVAILABLE",502,`Render inference returned HTTP ${response.status}`);
+    if (!response.ok) throw new AppError("LLM_RENDER_UNAVAILABLE",502,`Render inference returned HTTP ${response.status}`,{provider:this.name,status:response.status});
     const body = await response.json() as {choices?:Array<{message?:{content?:string};finish_reason?:string}>};
     const choice=body.choices?.[0];
     const text=choice?.message?.content?.trim();

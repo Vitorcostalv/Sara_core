@@ -47,7 +47,7 @@ const EnvSchema = z.object({
   LLM_RENDER_ENABLED: z.enum(["true", "false"]).default("false"),
   LLM_RENDER_BASE_URL: z.string().url().optional(),
   LLM_RENDER_API_KEY: z.string().optional(),
-  LLM_RENDER_TIMEOUT_MS: z.coerce.number().int().min(500).max(10000).default(10000),
+  LLM_RENDER_TIMEOUT_MS: z.coerce.number().int().min(500).max(45000).default(10000),
   LLM_MODEL: z.string().default(""),
   LLM_BASE_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(45_000),

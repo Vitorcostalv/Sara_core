@@ -24,6 +24,13 @@ Estar configurado não comprova inferência disponível. `/health/ping` mantém
 health remoto, `cooldown` não faz nova sondagem e `failed` indica falha da sondagem.
 Essa sondagem não certifica qualidade ou autenticação da inferência.
 
+A janela de inferência própria em produção foi ampliada para 45 segundos
+durante a contenção: o teste de implantação anterior já registrava cerca de
+34 segundos na primeira inferência em CPU, acima do antigo limite de 10.
+Com fallback externo habilitado continua valendo o orçamento combinado anterior.
+Falhas locais são identificadas em `inferenceFailure` e não ficam memorizadas
+como classificação padrão permanente, permitindo nova tentativa após recuperação.
+
 ## Verificação sem consumir Gemini
 
 1. Health saudável e `cloudLlmEnabled=false`.

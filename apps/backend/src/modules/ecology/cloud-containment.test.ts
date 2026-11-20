@@ -18,3 +18,21 @@ test("Render classifies an unlabelled description while the configured Gemini pr
   assert.equal(result.biomeSlug,"cerrado");assert.equal(result.inference?.provider,"render");assert.equal(calls,1);
  } finally {globalThis.fetch=request;Object.assign(env,before);}
 });
+
+test("a timed-out own inference is disclosed and can recover on the same description",async()=>{
+ const before={llmCloudEnabled:env.llmCloudEnabled,llmProvider:env.llmProvider,llmApiKey:env.llmApiKey,renderLlmEnabled:env.renderLlmEnabled,renderLlmBaseUrl:env.renderLlmBaseUrl,renderLlmApiKey:env.renderLlmApiKey};
+ const request=globalThis.fetch;let calls=0;
+ Object.assign(env,{llmCloudEnabled:false,llmProvider:"gemini",llmApiKey:"cloud-unused",renderLlmEnabled:true,renderLlmBaseUrl:"https://own-model.invalid/v1",renderLlmApiKey:"own-only"});
+ globalThis.fetch=(async(url)=>{
+  assert.equal(String(url),"https://own-model.invalid/v1/chat/completions");calls++;
+  if(calls===1)throw new DOMException("deadline","TimeoutError");
+  return Response.json({choices:[{message:{content:'{"biomeSlug":"cerrado"}'},finish_reason:"stop"}]});
+ }) as typeof fetch;
+ try {
+  const input={prompt:"Warm air, scattered small trees over golden grasses and prolonged seasonal drought",width:4,height:4,seed:41};
+  const first=await ecologicalTerrainPromptService.generate(input);
+  assert.equal(first.source,"default");assert.equal(first.inferenceFailure?.reason,"timeout");
+  const second=await ecologicalTerrainPromptService.generate(input);
+  assert.equal(second.inference?.provider,"render");assert.equal(second.inferenceFailure,undefined);assert.equal(calls,2);
+ }finally{globalThis.fetch=request;Object.assign(env,before);}
+});

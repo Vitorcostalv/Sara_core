@@ -38,6 +38,7 @@ export class HealthService {
           predationExplanation: env.llmCloudEnabled ? env.llmProvider : "rules",
           ownModel: "sara-qwen-0.5b",
           ownModelRole: "biome-classifier",
+          ownModelTimeoutMs: env.renderLlmTimeoutMs,
         },
         renderClassifierConfigured: env.renderLlmEnabled && Boolean(env.renderLlmBaseUrl && env.renderLlmApiKey),
       },

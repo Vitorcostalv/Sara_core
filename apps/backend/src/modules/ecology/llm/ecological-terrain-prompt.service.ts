@@ -1,5 +1,6 @@
 import { localClassifierRequest, normalizeLocalClassification } from "./terrain-local-classifier";
 import { env } from "../../../config/env";
+import { AppError } from "../../../core/errors/app-error";
 import { logger } from "../../../logging/logger";
 import { generateWithLocalFallback } from "../../llm/local-fallback";
 import { createLlmProvider } from "../../llm/llm.provider";
@@ -18,6 +19,7 @@ export interface TerrainPromptInput {
 }
 
 export interface TerrainPromptResult {
+  inferenceFailure?: {provider:"render";reason:"timeout"|"http-error"|"invalid-output";status?:number};
   biomeName: string;
   biomeSlug: string;
   interpretation: string;
@@ -44,6 +46,7 @@ interface LlmBiomeExtraction {
 
 // Classification (independente de width/height/seed) — derivada do bioma canônico.
 interface BiomeClassification {
+  inferenceFailure?: TerrainPromptResult["inferenceFailure"];
   minWaterCoveragePct?: number;
   source: TerrainPromptResult["source"];
   inference?: TerrainPromptResult["inference"];
@@ -261,6 +264,7 @@ export class EcologicalTerrainPromptService {
       terrain,
       source: classification.source,
       ...(classification.inference ? {inference:classification.inference} : {}),
+      ...(classification.inferenceFailure ? {inferenceFailure:classification.inferenceFailure} : {}),
     };
   }
 
@@ -304,6 +308,7 @@ export class EcologicalTerrainPromptService {
       return result;
     }
     // 1. LLM constrangido ao enum (slug rejeitado se não houver preset correspondente).
+    let inferenceFailure: TerrainPromptResult["inferenceFailure"];
     const provider = env.llmCloudEnabled ? createLlmProvider(env.llmProvider) : null;
     if ((provider && env.llmApiKey) || (env.renderLlmEnabled && env.renderLlmBaseUrl && env.renderLlmApiKey)) {
       try {
@@ -334,6 +339,9 @@ export class EcologicalTerrainPromptService {
           terrainPromptLogger.warn({ biomeSlug: parsed.biomeSlug }, "LLM returned an unknown biome slug — rejected, falling back to keyword");
         }
       } catch (err) {
+        if(err instanceof AppError && err.code === "LLM_OWN_UNAVAILABLE") {
+          inferenceFailure={provider:"render",...err.details as {reason:"timeout"|"http-error"|"invalid-output";status?:number}};
+        }
         terrainPromptLogger.warn({ err }, "LLM biome extraction failed, falling back to keyword match");
       }
     }
@@ -373,8 +381,9 @@ export class EcologicalTerrainPromptService {
           basePrecipitationMm: 1400,
           baseHumidityPct: 65,
         };
-    cacheClassification(cacheKey, result);
-    return result;
+    // A transient failed inference must not permanently cache the default and
+    // prevent this description from reaching a recovered own model next time.
+    return inferenceFailure ? {...result,inferenceFailure,interpretation:"A classificação pelo modelo próprio não foi concluída nesta tentativa. Foi usado um ambiente padrão; escolha um bioma explícito ou tente novamente."} : result;
   }
 }
 

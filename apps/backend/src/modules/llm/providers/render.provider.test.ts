@@ -7,6 +7,18 @@ import type { LlmProvider, LlmGenerateTextInput } from "../llm.provider";
 const input:LlmGenerateTextInput={systemPrompt:"Use grounded facts",userPrompt:"Amazônia",apiKey:"cloud-test",baseUrl:"https://cloud.test",model:"cloud-model",timeoutMs:1000,responseSchema:{type:"object"}};
 const local={enabled:true,baseUrl:"https://local.test/v1",apiKey:"local-test",timeoutMs:500};
 
+test("own-only classification gets its CPU budget while cloud fallback keeps the original deadline",async()=>{
+ const request=globalThis.fetch;const timeout=AbortSignal.timeout;const deadlines:number[]=[];
+ globalThis.fetch=(async()=>Response.json({choices:[{message:{content:"valid"},finish_reason:"stop"}]})) as typeof fetch;
+ AbortSignal.timeout=(milliseconds:number)=>{deadlines.push(milliseconds);return timeout(milliseconds);};
+ const primary:LlmProvider={name:"gemini",defaultModel:"x",defaultBaseUrl:"x",async generateText(){throw new Error("cloud must not run");}};
+ try {
+  await generateWithLocalFallback(null,input,{...local,timeoutMs:45000});
+  await generateWithLocalFallback(primary,input,{...local,timeoutMs:45000});
+  assert.deepEqual(deadlines,[45000,input.timeoutMs]);
+ }finally{globalThis.fetch=request;AbortSignal.timeout=timeout;}
+});
+
 test("own inference remains independent when cloud fallback is suspended",async()=>{
  const before=globalThis.fetch; let calls=0;
  globalThis.fetch=(async(url,init)=>{
