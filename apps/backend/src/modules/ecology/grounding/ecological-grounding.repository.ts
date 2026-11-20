@@ -46,6 +46,7 @@ export interface EcosystemRow {
 }
 
 export interface SpeciesRow {
+  trophic_role_slug?: string | null;
   id: string;
   scientific_name: string;
   common_name: string | null;
@@ -330,7 +331,7 @@ export class EcologicalGroundingRepository {
       `SELECT
         sp.id, sp.scientific_name, sp.common_name, sp.native_range,
         sp.conservation_status, sp.intraspecific_notes,
-        tr.label AS trophic_role_label,
+        tr.label AS trophic_role_label, tr.slug AS trophic_role_slug,
         tr.trophic_level,
         (
           SELECT string_agg(e.slug, ',')
@@ -353,6 +354,7 @@ export class EcologicalGroundingRepository {
       native_range: r.native_range,
       conservation_status: r.conservation_status,
       trophic_role_label: r.trophic_role_label,
+      trophic_role_slug: r.trophic_role_slug,
       trophic_level: r.trophic_level,
       intraspecific_notes: r.intraspecific_notes,
       ecosystem_slugs: r.ecosystem_slugs_raw ? r.ecosystem_slugs_raw.split(",") : [],

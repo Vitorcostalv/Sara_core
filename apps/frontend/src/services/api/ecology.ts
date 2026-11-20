@@ -32,6 +32,12 @@ export interface EcosystemRow {
 }
 
 export interface SpeciesRow {
+  catalog_sources?: Array<"grounding" | "simulation" | "bioinvasion">;
+  simulation_profile_ids?: string[];
+  simulation_names?: string[];
+  simulation_biomes?: string[];
+  invasion_profile_names?: string[];
+  invasion_presets?: string[];
   id: string;
   scientific_name: string;
   common_name: string | null;
@@ -79,6 +85,8 @@ export interface ModelingApproachRow {
 }
 
 export interface DomainCoverageStats {
+  categoryCounts?: Record<string, number>;
+  speciesCatalog?: {total:number;scientificRecords:number;simulationProfiles:number;simulationSpecies:number;sharedSpecies:number;bioinvasionProfiles?:number;bioinvasionSpecies?:number};
   totalFacts?: number;
   activeFacts?: number;
   byCategory?: Record<string, number>;
@@ -870,10 +878,11 @@ export const ecologyApi = {
   getEcosystem: (slug: string) =>
     ecologyRequest<ApiSingle<EcosystemRow>>(`/ecology/ecosystems/${slug}`),
 
-  listSpecies: (params?: { ecosystem?: string; trophicRole?: string; page?: number; pageSize?: number }) => {
+  listSpecies: (params?: { ecosystem?: string; trophicRole?: string; search?: string; page?: number; pageSize?: number }) => {
     const qs = new URLSearchParams();
     if (params?.ecosystem) qs.set("ecosystem", params.ecosystem);
     if (params?.trophicRole) qs.set("trophicRole", params.trophicRole);
+    if (params?.search) qs.set("search", params.search);
     if (params?.page) qs.set("page", String(params.page));
     if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
     const suffix = qs.toString() ? `?${qs.toString()}` : "";

@@ -7,8 +7,36 @@ import type { InvasiveScenarioResult } from "../modules/ecology/simulation/invas
 import type { EcologicalLlmResult } from "../modules/ecology/llm/ecological-llm.service";
 import { syntheticForecastExample, type EcologicalForecastResult } from "@sara/shared-types";
 import type { EcosystemReportResult } from "../modules/ecology/ecosystem-report.service";
+import { listCatalogSpecies } from "../modules/ecology/simulation/fauna-definition.service";
+import { ecologicalGroundingRepository } from "../modules/ecology/grounding/ecological-grounding.repository";
+import {INVADER_PROFILES} from "../modules/ecology/simulation/invasive-scenario.service";
 const database = new URL(env.databaseUrl!);
 const localOnly = env.nodeEnv === "test" && database.hostname === "127.0.0.1" && database.pathname === "/sara_test";
+
+test("Species API exposes every simulation profile, preserves scientific records and paginates the full catalog", {skip:!localOnly},async()=>{
+ await serverTest(async base=>{
+  const scientificTotal=(await ecologicalGroundingRepository.listSpecies({limit:1,offset:0})).total;
+  const scientificFacts=(await ecologicalGroundingRepository.getDomainCoverageStats()).categoryCounts.species;
+  const rows: Array<{id:string;scientific_name:string;simulation_profile_ids:string[];catalog_sources:string[]}> = [];let total=Infinity;
+  for(let page=1;rows.length<total;page++){
+   const response=await fetch(`${base}/ecology/species?page=${page}&pageSize=12`);assert.equal(response.status,200);
+   const payload=await response.json() as {data:typeof rows;meta:{total:number}};
+   total=payload.meta.total;rows.push(...payload.data);if(rows.length>=total)break;
+   assert.ok(payload.data.length>0,"pagination stalled before reaching the declared total");
+  }
+  assert.equal(new Set(rows.map(s=>s.id)).size,total);
+  assert.deepEqual(rows.flatMap(s=>s.simulation_profile_ids).sort(),listCatalogSpecies().map(s=>s.id).sort());
+  for(const profile of INVADER_PROFILES)assert.ok(rows.some(s=>s.scientific_name===profile.scientificName));
+  assert.ok(rows.some(s=>s.scientific_name==="Caryocar brasiliense"));
+  assert.equal(rows.filter(s=>s.scientific_name==="Panthera onca").length,1);
+  const search=await fetch(`${base}/ecology/species?search=puma-andino`);
+  assert.equal((await search.json() as {data:typeof rows}).data[0]!.scientific_name,"Puma concolor");
+  const coverage=await fetch(`${base}/ecology/coverage`);
+  const {data}=await coverage.json() as {data:{speciesCatalog:{total:number;simulationProfiles:number;scientificRecords:number};categoryCounts:{species:number}}};
+  assert.equal(data.speciesCatalog.total,total);assert.equal(data.speciesCatalog.simulationProfiles,listCatalogSpecies().length);
+  assert.equal(data.speciesCatalog.scientificRecords,scientificTotal);assert.equal(data.categoryCounts.species,scientificFacts);
+ });
+});
 
 test("Production report: the seven tester prompts preserve ecosystem identity through the HTTP report flow", { skip: !localOnly }, async () => {
   await serverTest(async base => {

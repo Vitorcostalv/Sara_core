@@ -82,6 +82,7 @@ export const ecologyListArtificialProjectsSchema = ecologyListEcosystemsSchema.p
 
 // GET /ecology/species
 export const ecologyListSpeciesSchema = z.object({
+  search: z.string().trim().max(120).optional(),
   ecosystem: ecosystemSlugSchema.optional(),
   trophicRole: z.string().trim().optional(),
   page: z.coerce.number().int().min(1).default(1),

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, Circle, Cube, Drop, TreeStructure } from "@phosphor-icons/react";
 import { EmptyState, ErrorState, LoadingBlock, StatusPill } from "../../components/ui";
 import { getApiErrorMessage } from "../../services/api/client";
@@ -146,37 +146,59 @@ function SpeciesPanel() {
   const [items, setItems] = useState<SpeciesRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const requestGeneration = useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (p: number) => {
+    const generation=++requestGeneration.current;
     setIsLoading(true);
     setError(null);
     try {
-      const res = await ecologyApi.listSpecies({ page: p, pageSize: 12 });
+      const res = await ecologyApi.listSpecies({ page: p, pageSize: 12, search: appliedSearch || undefined });
+      if(generation!==requestGeneration.current)return;
       setItems(res.data);
       setTotal(res.meta.total);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      if(generation===requestGeneration.current)setError(getApiErrorMessage(err));
     } finally {
-      setIsLoading(false);
+      if(generation===requestGeneration.current)setIsLoading(false);
     }
-  }, []);
+  }, [appliedSearch]);
 
   useEffect(() => {
     void load(page);
+    return ()=>{requestGeneration.current++;};
   }, [load, page]);
-
-  if (isLoading) return <LoadingBlock label="Carregando espécies..." />;
-  if (error) return <ErrorState title="Erro" message={error} onRetry={() => void load(page)} />;
-  if (items.length === 0) return <EmptyState icon={<Circle />} title="Nenhuma espécie" description="Nenhuma espécie encontrada no banco." />;
 
   return (
     <div className="page-stack">
+      <form className="form-actions" onSubmit={event=>{
+        event.preventDefault();setPage(1);setAppliedSearch(search.trim());
+      }}>
+        <label className="ui-input-field">
+          <span className="ui-input-field__label">Buscar espécie por nome comum ou científico</span>
+          <input className="ui-input" value={search} maxLength={120} onChange={event=>setSearch(event.target.value)} />
+        </label>
+        <button className="ui-button ui-button--secondary" type="submit" disabled={isLoading}>Buscar</button>
+      </form>
+      <p role="status" data-testid="species-catalog-summary">
+        {isLoading ? "Carregando espécies..." : error ? "Não foi possível carregar o catálogo." :
+          `${total} ${total===1 ? "espécie" : "espécies"}${appliedSearch ? total===1 ? " encontrada" : " encontradas" : " no catálogo completo"}`}
+      </p>
+      <p>Inclui os registros científicos e todas as espécies da simulação e da bioinvasão. Os ambientes de simulação indicam compatibilidade no modelo, sem comprovar ocorrência natural.</p>
+      {isLoading ? <LoadingBlock label="Carregando espécies..." /> : error ?
+        <ErrorState title="Erro" message={error} onRetry={() => void load(page)} /> : items.length === 0 ?
+        <EmptyState icon={<Circle />} title="Nenhuma espécie" description="Nenhuma espécie encontrada para esta busca." /> : <>
       <div className="catalog-grid">
         {items.map((sp) => (
           <article key={sp.id} className="catalog-card">
             <div className="catalog-card__pills">
+              {sp.catalog_sources?.includes("grounding") ? <StatusPill tone="success">Registro científico</StatusPill> : null}
+              {sp.catalog_sources?.includes("simulation") ? <StatusPill tone="info">Na simulação</StatusPill> : null}
+              {sp.catalog_sources?.includes("bioinvasion") ? <StatusPill tone="info">Na bioinvasão</StatusPill> : null}
               {sp.trophic_role_label ? (
                 <StatusPill tone={trophicTone(sp.trophic_role_label)}>
                   {sp.trophic_role_label}
@@ -202,18 +224,24 @@ function SpeciesPanel() {
             {sp.common_name ? (
               <p className="catalog-card__sub">{sp.common_name}</p>
             ) : null}
+            {(sp.simulation_names?.length ?? 0) > 1 ? <p className="catalog-card__sub">Perfis: {sp.simulation_names!.join(" · ")}</p> : null}
             {sp.ecosystem_slugs.length > 0 ? (
               <div className="catalog-card__pills" style={{ marginTop: "0.35rem" }}>
-                {sp.ecosystem_slugs.slice(0, 3).map((slug) => (
+                {sp.ecosystem_slugs.map((slug) => (
                   <StatusPill key={slug} tone="neutral">
                     {slug}
                   </StatusPill>
                 ))}
-                {sp.ecosystem_slugs.length > 3 ? (
-                  <StatusPill tone="neutral">+{sp.ecosystem_slugs.length - 3}</StatusPill>
-                ) : null}
               </div>
             ) : null}
+            {sp.simulation_biomes?.length ? <div>
+              <p className="catalog-card__sub">Ambientes da simulação</p>
+              <div className="catalog-card__pills">{sp.simulation_biomes.map(biome=><StatusPill key={biome} tone="neutral">{biome}</StatusPill>)}</div>
+            </div> : null}
+            {sp.invasion_presets?.length ? <div>
+              <p className="catalog-card__sub">Ambientes compatíveis na bioinvasão</p>
+              <div className="catalog-card__pills">{sp.invasion_presets.map(biome=><StatusPill key={biome} tone="neutral">{biome}</StatusPill>)}</div>
+            </div> : null}
           </article>
         ))}
       </div>
@@ -221,7 +249,7 @@ function SpeciesPanel() {
       {total > 12 ? (
         <div className="ui-pagination">
           <span className="ui-pagination__summary">
-            Página {page} · {total} espécies
+            Página {page} de {Math.ceil(total / 12)} · {total} espécies
           </span>
           <div className="ui-pagination__actions">
             <button
@@ -243,6 +271,7 @@ function SpeciesPanel() {
           </div>
         </div>
       ) : null}
+      </>}
     </div>
   );
 }
@@ -473,11 +502,17 @@ function CoveragePanel() {
   if (error) return <ErrorState title="Erro" message={error} />;
   if (!stats) return null;
 
-  const byCategory = stats.byCategory ?? {};
+  const byCategory = stats.categoryCounts ?? stats.byCategory ?? {};
 
   return (
     <div className="page-stack">
       <div className="coverage-grid">
+        {stats.speciesCatalog ? <>
+          <div className="coverage-stat"><span className="coverage-stat__value">{stats.speciesCatalog.total}</span><span className="coverage-stat__label">Espécies no catálogo completo</span></div>
+          <div className="coverage-stat"><span className="coverage-stat__value">{stats.speciesCatalog.simulationProfiles}</span><span className="coverage-stat__label">Perfis de simulação</span></div>
+          <div className="coverage-stat"><span className="coverage-stat__value">{stats.speciesCatalog.scientificRecords}</span><span className="coverage-stat__label">Registros científicos de espécies</span></div>
+          {stats.speciesCatalog.bioinvasionProfiles !== undefined ? <div className="coverage-stat"><span className="coverage-stat__value">{stats.speciesCatalog.bioinvasionProfiles}</span><span className="coverage-stat__label">Perfis de bioinvasão</span></div> : null}
+        </> : null}
         {stats.totalFacts !== undefined ? (
           <div className="coverage-stat">
             <span className="coverage-stat__value">{stats.totalFacts}</span>
@@ -493,11 +528,12 @@ function CoveragePanel() {
         {Object.entries(byCategory).map(([cat, count]) => (
           <div key={cat} className="coverage-stat">
             <span className="coverage-stat__value">{count}</span>
-            <span className="coverage-stat__label">{cat}</span>
+            <span className="coverage-stat__label">Fatos científicos · {cat}</span>
           </div>
         ))}
       </div>
 
+      <p>As contagens por categoria são de fatos científicos. O catálogo completo inclui também as espécies e os perfis de simulação.</p>
       {Object.keys(stats).filter((k) => !["totalFacts", "activeFacts", "byCategory"].includes(k)).length > 0 ? (
         <details className="signal-panel technical-details">
           <summary className="technical-details__summary">

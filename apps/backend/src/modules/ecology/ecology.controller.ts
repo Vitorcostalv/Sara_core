@@ -8,6 +8,7 @@ import { ecologicalLlmService } from "./llm/ecological-llm.service";
 import { ecologicalTerrainPromptService } from "./llm/ecological-terrain-prompt.service";
 import { ecosystemReportService } from "./ecosystem-report.service";
 import { ecologicalGroundingRepository } from "./grounding/ecological-grounding.repository";
+import { speciesCatalogService } from "./species-catalog.service";
 import { ecologicalContextBuilderService } from "./grounding/ecological-context-builder.service";
 import { terrainGeneratorService } from "./simulation/terrain-generator.service";
 import { successionSimulatorService } from "./simulation/succession-simulator.service";
@@ -80,9 +81,10 @@ export class EcologyController {
     const q = req.query as unknown as EcologyListSpeciesInput;
     const page = q.page ?? 1;
     const pageSize = q.pageSize ?? 20;
-    const { rows, total } = await ecologicalGroundingRepository.listSpecies({
+    const { rows, total } = await speciesCatalogService.list({
       ecosystemSlug: q.ecosystem,
       trophicRole: q.trophicRole,
+      search: q.search,
       limit: pageSize,
       offset: (page - 1) * pageSize,
     });
@@ -113,7 +115,7 @@ export class EcologyController {
 
   // GET /ecology/coverage
   async getDomainCoverage(_req: Request, res: Response): Promise<void> {
-    const stats = await ecologicalGroundingRepository.getDomainCoverageStats();
+    const stats = await speciesCatalogService.coverage();
     sendOk(res, stats);
   }
 

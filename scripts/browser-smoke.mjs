@@ -173,6 +173,27 @@ try {
   assert.equal(incompatible.phases.at(-1).invaderPop, 0);
   await page.locator(".invasive-phase-tab").last().click();
   await page.screenshot({ path: resolve(artifacts, "incompatible-local.png"), fullPage: true });
+  await page.getByRole("button",{name:/Explorar/}).click();
+  await page.getByRole("button",{name:/^Dados/}).click();
+  const catalogResponse=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/ecology/species"));
+  await page.getByRole("button",{name:"Espécies",exact:true}).click();
+  const catalog=(await (await catalogResponse).json());
+  assert.ok(catalog.meta.total>100);
+  await page.getByTestId("species-catalog-summary").getByText(`${catalog.meta.total} espécies no catálogo completo`,{exact:true}).waitFor();
+  const nextSpecies=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/ecology/species")&&new URL(r.url()).searchParams.get("page")==="2");
+  await page.getByRole("button",{name:"Próxima",exact:true}).click();
+  assert.equal((await nextSpecies).status(),200);
+  await page.getByLabel("Buscar espécie por nome comum ou científico").fill("puma-andino");
+  const foundSpecies=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/ecology/species")&&new URL(r.url()).searchParams.get("search")==="puma-andino");
+  await page.getByRole("button",{name:"Buscar",exact:true}).click();
+  const found=(await (await foundSpecies).json());assert.equal(found.meta.total,1);assert.equal(found.meta.page,1);
+  await page.getByText("Puma concolor",{exact:true}).waitFor();
+  await page.setViewportSize({width:390,height:844});
+  const catalogBox=await page.locator(".catalog-grid").boundingBox();assert.ok(catalogBox&&catalogBox.width<=390);
+  await page.screenshot({path:resolve(artifacts,"species-catalog-mobile.png"),fullPage:true});
+  await page.setViewportSize({width:1440,height:1000});
+  await page.getByRole("button",{name:"Cobertura",exact:true}).click();
+  await page.getByText("Espécies no catálogo completo",{exact:true}).waitFor();
   assert.deepEqual(errors, []);
   assert.deepEqual(failures, []);
   await writeFile(resolve(artifacts, "browser-result.json"), JSON.stringify({
