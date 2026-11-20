@@ -41,6 +41,11 @@ apps/frontend/android/capacitor-cordova-android-plugins/build/
 **/build/
 
 # Logs temporários
+.tmp/test-postgres/
+.tmp/verification/
+.tmp/release-candidate/
+.tmp/release-changes.patch
+.tmp/release-untracked.json
 tmp-*.log
 
 # Local/private documentation — never commit

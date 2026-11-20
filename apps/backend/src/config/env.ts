@@ -37,7 +37,8 @@ function parseTrustProxy(value: unknown) {
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   BACKEND_HOST: z.string().default("0.0.0.0"),
-  BACKEND_PORT: z.coerce.number().int().positive().default(3333),
+  BACKEND_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  PORT: z.coerce.number().int().min(1).max(65535).optional(),
   CORS_ORIGIN: z.string().optional(),
   CORS_ORIGINS: z.string().optional(),
   LLM_PROVIDER: z.enum(["disabled", "gemini", "grok"]).default("disabled"),
@@ -119,7 +120,7 @@ if (corsOrigins.length === 0) {
 export const env = {
   nodeEnv: parsed.data.NODE_ENV,
   host: parsed.data.BACKEND_HOST,
-  port: parsed.data.BACKEND_PORT,
+  port: parsed.data.BACKEND_PORT ?? parsed.data.PORT ?? 3333,
   corsOrigins,
   apiJsonMaxBytes: parsed.data.API_JSON_MAX_BYTES,
   authMode,

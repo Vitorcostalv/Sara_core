@@ -8,6 +8,10 @@
     "packages/*"
   ],
   "scripts": {
+    "verify:production": "node --import tsx scripts/verify-production.mjs",
+    "test:local": "node scripts/test-local.mjs",
+    "test:browser": "node scripts/test-local.mjs --browser",
+    "keep-alive": "node scripts/keep-alive.mjs",
     "free-ports": "node scripts/free-ports.mjs 3333 5180",
     "predev": "node scripts/free-ports.mjs 3333 5180",
     "dev": "concurrently -n backend,frontend -c cyan,magenta \"npm run dev -w @sara/backend\" \"npm run dev -w @sara/frontend\"",
@@ -39,9 +43,11 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "concurrently": "^9.1.2",
+    "embedded-postgres": "^18.7.0-beta.19",
     "eslint": "^10.2.1",
     "globals": "^17.5.0",
     "qrcode": "^1.5.4",
+    "playwright-core": "^1.65.1",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.59.0"
   },

@@ -1,4 +1,5 @@
 import { logger } from "../../../logging/logger";
+import { PREDATION_POLICY } from "../simulation/predation-dynamics.service";
 import type { GroundingCategory } from "../ecology.schemas";
 import {
   classifyEcologicalQuery,
@@ -91,6 +92,7 @@ function buildContextPreview(facts: EcologicalGroundingFactPreview[], queryType:
     "- Domain: environmental_ecology — scientific ecosystem data only.",
     "- Do not invent species, ecosystems, or ecological facts outside this context.",
     "- If context is insufficient, say exactly: Não encontrei informação suficiente no banco para responder com segurança.",
+    PREDATION_POLICY,
   ];
 
   if (queryType === "speculative") {

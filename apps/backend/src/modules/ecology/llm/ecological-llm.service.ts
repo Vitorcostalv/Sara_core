@@ -1,4 +1,5 @@
 import { env } from "../../../config/env";
+import { PREDATION_POLICY } from "../simulation/predation-dynamics.service";
 import { AppError } from "../../../core/errors/app-error";
 import { logger } from "../../../logging/logger";
 import { createLlmProvider, type LlmGenerateTextOutput } from "../../llm/llm.provider";
@@ -53,6 +54,7 @@ function buildSystemPrompt(queryType: EcologicalQueryType): string {
     "Do not use outside knowledge, fill gaps, or speculate beyond the provided facts.",
     "Keep answers concise, factual, and traceable to the provided context.",
     "When citing a fact, include the citation_key if available.",
+    PREDATION_POLICY,
   ];
 
   if (queryType === "speculative") {

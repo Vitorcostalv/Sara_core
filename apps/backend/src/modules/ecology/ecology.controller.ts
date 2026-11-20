@@ -1,4 +1,6 @@
 import type { Request, Response } from "express";
+import type { EcologicalForecastInput } from "@sara/shared-types";
+import { forecastEcology } from "./simulation/ecological-forecast.service";
 import { sendOk, sendPaginated } from "../../core/http/response";
 import { AppError } from "../../core/errors/app-error";
 import { ecologicalLlmService } from "./llm/ecological-llm.service";
@@ -28,6 +30,9 @@ import type {
 } from "./ecology.schemas";
 
 export class EcologyController {
+  async forecast(req: Request, res: Response): Promise<void> {
+    sendOk(res, forecastEcology(req.body as EcologicalForecastInput));
+  }
   // POST /ecology/generate
   async generate(req: Request, res: Response): Promise<void> {
     const payload = req.body as EcologyGroundedQueryInput;

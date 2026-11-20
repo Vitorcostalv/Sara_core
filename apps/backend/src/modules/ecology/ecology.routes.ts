@@ -17,6 +17,7 @@ import {
   ecologyPromptTerrainSchema,
   ecologyEcosystemReportSchema,
   ecologyInvasiveSchema,
+  ecologicalForecastSchema,
 } from "./ecology.schemas";
 
 export const ecologyRoutes = Router();
@@ -106,6 +107,7 @@ ecologyRoutes.post(
 );
 
 // ─── Fauna ────────────────────────────────────────────────────────────────────
+ecologyRoutes.post("/forecast", validateBody(ecologicalForecastSchema), asyncHandler(ecologyController.forecast.bind(ecologyController)));
 ecologyRoutes.post(
   "/fauna",
   validateBody(ecologyFaunaSchema),

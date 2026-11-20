@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { isHabitableCell } from "./faunaHabitat";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type {
@@ -240,28 +241,8 @@ function animalKind(category: SpeciesDefinition["category"]): AnimalKind {
   return "ground";
 }
 
-const CAVE_PSEUDO_BIOME = "caverna";
-
-function hasCave(point: TerrainPoint) {
-  return point.cell.cave !== undefined && point.cell.cave.type !== "none";
-}
-
 function isHabitablePoint(species: SpeciesDefinition, point: TerrainPoint) {
-  // Cave species use the "caverna" pseudo-biome: they spawn on cells that expose a
-  // cave, not on cells whose biomeSuggestion equals "caverna" (none ever do).
-  if (species.habitableBiomes.includes(CAVE_PSEUDO_BIOME)) {
-    if (!hasCave(point)) return false;
-    if (isFish(species.category)) {
-      return point.cell.cave?.type === "river-cave" || (point.cell.riverDistance ?? 99) <= 1 || point.cell.cave!.humidity >= 0.85;
-    }
-    if (isGroundAnimal(species.category) && point.cell.isWater) return false;
-    return true;
-  }
-  if (isFish(species.category)) {
-    return point.cell.isWater && species.habitableBiomes.includes(point.cell.biomeSuggestion);
-  }
-  if (isGroundAnimal(species.category) && point.cell.isWater) return false;
-  return species.habitableBiomes.includes(point.cell.biomeSuggestion);
+  return isHabitableCell(species, point.cell);
 }
 
 /** Check the segment before moving/attacking so shorelines and cliffs are barriers. */
@@ -289,9 +270,7 @@ function habitatPool(species: SpeciesDefinition, terrain: TerrainContext) {
       : terrain.landCells;
   const filtered = preferred.filter((point) => isHabitablePoint(species, point));
 
-  if (filtered.length > 0) return filtered;
-  if (isFish(species.category)) return terrain.waterCells;
-  return terrain.landCells.length > 0 ? terrain.landCells : [...terrain.waterCells];
+  return filtered;
 }
 
 function speciesSize(category: SpeciesDefinition["category"]) {
@@ -350,6 +329,7 @@ function resolvePredationParams(species: SpeciesDefinition): ResolvedPredationPr
 
 function spawnAgents(species: SpeciesDefinition, terrain: TerrainContext, seed: number): FaunaAgent[] {
   const pool = habitatPool(species, terrain);
+  if (pool.length === 0) return [];
   const speciesSeed = stringHash(species.id) ^ seed;
   const agents: FaunaAgent[] = [];
   if (pool.length === 0) return agents;
@@ -511,6 +491,7 @@ function FaunaSpeciesLayer({
   stepCallbacks,
 }: FaunaSpeciesLayerProps) {
   const initialAgents = useMemo(() => spawnAgents(species, terrain, grid.seed), [grid.seed, species, terrain]);
+  const compatiblePoints = useMemo(() => habitatPool(species, terrain), [species, terrain]);
   const agentsRef = useRef<FaunaAgent[]>(initialAgents);
   const lastCountRef = useRef(species.populationTarget);
   const respawnClockRef = useRef(0);
@@ -604,6 +585,8 @@ function FaunaSpeciesLayer({
       if (!agent.active) continue;
       liveCount += 1;
 
+      let eaten = 0;
+      if (!species.populationManaged) {
       const localPoint = sampleTerrainPoint(terrain, agent.position.x, agent.position.z);
       const needs = species.resourceNeeds ?? [];
       const effort = agent.state === "hunting" || agent.state === "fleeing" ? 1.8 : 1;
@@ -611,7 +594,7 @@ function FaunaSpeciesLayer({
       // Feeding competes for a finite local resource; omnivores really eat rather than
       // receiving a permanent metabolic discount when no prey remains.
       const canFeed = agent.state !== "fleeing" && agent.state !== "hunting" && isHabitablePoint(species, localPoint);
-      const eaten = canFeed && agent.hunger > 0.12 ? localPoint.food.consume(needs, dt * 0.09, now) : 0;
+      eaten = canFeed && agent.hunger > 0.12 ? localPoint.food.consume(needs, dt * 0.09, now) : 0;
       agent.hunger = Math.max(0, agent.hunger - eaten);
       if (agent.hunger >= predation.starvationThreshold) {
         const position = killAgent(agent, species, "starvation");
@@ -620,6 +603,7 @@ function FaunaSpeciesLayer({
         continue;
       }
 
+      }
       const steering = new THREE.Vector3();
       const separation = new THREE.Vector3();
       const alignment = new THREE.Vector3();
@@ -739,7 +723,7 @@ function FaunaSpeciesLayer({
         agent.huntTargetKey = targetKey;
         agent.huntTargetUntil = now + HUNT_TARGET_MEMORY_SECONDS;
 
-        if (distance < predation.attackRange) {
+        if (distance < predation.attackRange && !species.populationManaged && !otherSpecies.populationManaged) {
           otherAgent.health -= dt * predation.damageRate;
           if (otherAgent.health <= 0) {
             const position = killAgent(otherAgent, otherSpecies, "predation", species);
@@ -851,19 +835,14 @@ function FaunaSpeciesLayer({
 
       let resolvedPoint = sampleTerrainPoint(terrain, agent.position.x, agent.position.z);
 
-      if (isFish(species.category) && !resolvedPoint.cell.isWater && terrain.waterCells.length > 0) {
-        const waterPoint = nearestTerrainPoint(terrain.waterCells, agent.position.x, agent.position.z);
-        if (waterPoint) {
-          agent.position.x = THREE.MathUtils.lerp(agent.position.x, waterPoint.x, 0.35);
-          agent.position.z = THREE.MathUtils.lerp(agent.position.z, waterPoint.z, 0.35);
-          resolvedPoint = sampleTerrainPoint(terrain, agent.position.x, agent.position.z);
-        }
-      } else if (isGroundAnimal(species.category) && resolvedPoint.cell.isWater && terrain.landCells.length > 0) {
-        const landPoint = nearestTerrainPoint(terrain.landCells, agent.position.x, agent.position.z);
-        if (landPoint) {
-          agent.position.x = THREE.MathUtils.lerp(agent.position.x, landPoint.x, 0.28);
-          agent.position.z = THREE.MathUtils.lerp(agent.position.z, landPoint.z, 0.28);
-          resolvedPoint = sampleTerrainPoint(terrain, agent.position.x, agent.position.z);
+      if (!isHabitablePoint(species, resolvedPoint)) {
+        const habitat = nearestTerrainPoint(compatiblePoints, agent.position.x, agent.position.z);
+        if (habitat) {
+          agent.position.x = habitat.x;
+          agent.position.z = habitat.z;
+          agent.velocity.x *= -0.5;
+          agent.velocity.z *= -0.5;
+          resolvedPoint = habitat;
         }
       }
 
@@ -889,7 +868,7 @@ function FaunaSpeciesLayer({
     }
 
     liveCount = agents.filter(agent => agent.active).length;
-    if (populationMode === "demonstration" && liveCount < Math.ceil(species.populationTarget * RESPAWN_THRESHOLD)) {
+    if (!species.populationManaged && populationMode === "demonstration" && liveCount < Math.ceil(species.populationTarget * RESPAWN_THRESHOLD)) {
       respawnClockRef.current += dt;
       if (respawnClockRef.current >= RESPAWN_INTERVAL_SECONDS) {
         const deadAgent = agents.find((a) => !a.active);

@@ -224,6 +224,27 @@ export class EcologicalTerrainPromptService {
       featureHints: classification.featureHints,
       waterKind: classification.biomeSlug === "mangue" ? "brackish" : undefined,
     });
+    // Climate similarity is not biogeographic identity. A warm/wet patch in an
+    // Amazon or Pantanal scenario must not become Atlantic Forest endemism.
+    for (const row of terrain.cells) {
+      for (const cell of row) {
+        const forest = ["mata-atlantica", "floresta-tropical-umida", "floresta-tropical-seca"].includes(cell.biomeSuggestion);
+        if (["amazonia", "floresta-tropical"].includes(classification.biomeSlug) && cell.biomeSuggestion === "mata-atlantica") {
+          cell.biomeSuggestion = "floresta-tropical-umida";
+        } else if (classification.biomeSlug === "mata-atlantica" && forest) {
+          cell.biomeSuggestion = "mata-atlantica";
+        } else if (["cerrado", "caatinga"].includes(classification.biomeSlug) && cell.biomeSuggestion === "mata-atlantica") {
+          cell.biomeSuggestion = "floresta-tropical-seca";
+        } else if (classification.biomeSlug === "pantanal" && (forest || ["savana-tropical", "lago"].includes(cell.biomeSuggestion))) {
+          cell.biomeSuggestion = "pantanal";
+        } else if (classification.biomeSlug === "mangue" && (forest || cell.isWater)) {
+          if (cell.elevation <= 0.5 || cell.isWater) {
+            cell.biomeSuggestion = "manguezal";
+            cell.salinityPsu = 18;
+          } else if (cell.biomeSuggestion === "mata-atlantica") cell.biomeSuggestion = "floresta-tropical-seca";
+        }
+      }
+    }
 
     return {
       biomeName: classification.biomeName,

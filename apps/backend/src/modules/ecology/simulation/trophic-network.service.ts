@@ -59,7 +59,12 @@ export class TrophicNetworkResolver {
 
     for (const predator of species) {
       // Active links: prey that survived scenario resolution.
-      for (const preyId of predator.preySpeciesIds) {
+      for (const preyId of new Set(predator.preySpeciesIds)) {
+        if (preyId === predator.id || !presentIds.has(preyId)) {
+          prunedLinks.push({ predatorId: predator.id, predatorName: predator.commonName, preyId,
+            reason: preyId === predator.id ? "autopredação não modelada" : "presa ausente do cenário" });
+          continue;
+        }
         links.push({
           predatorId: predator.id,
           predatorName: predator.commonName,
@@ -87,7 +92,9 @@ export class TrophicNetworkResolver {
       // a genuine contradiction. Catalog carnivores that never declare prey (birds/fish feeding on
       // unmodeled small prey) are resource-implicit leaves, not contradictions.
       const orphanedPredator =
-        s.feedingStrategy === "carnivore" && s.preySpeciesIds.length === 0 && catalogDietFor(s.id).length > 0;
+        s.feedingStrategy === "carnivore" &&
+        !s.preySpeciesIds.some((id) => id !== s.id && presentIds.has(id)) &&
+        (catalogDietFor(s.id).length > 0 || s.preySpeciesIds.length > 0);
       const consumerWithoutResource =
         s.feedingStrategy !== "carnivore" && s.preySpeciesIds.length === 0 && unsupportedResourceNames.has(s.commonName);
       if (orphanedPredator || consumerWithoutResource) {
@@ -124,7 +131,7 @@ export class TrophicNetworkResolver {
       prunedLinks,
       unsupportedSpecies,
       levels,
-      producers: base.filter((s) => s.preySpeciesIds.length === 0).map((s) => s.commonName),
+      producers: (resources?.resourceBase ?? []).filter((r) => r.availability > 0).map((r) => r.label),
       warnings,
       pyramidConsistent,
     };

@@ -1,5 +1,36 @@
 import { z } from "zod";
 
+export const ecologicalForecastSchema = z.object({
+  speciesIds: z.array(z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80)).min(1).max(8),
+  unit: z.enum(["individuals", "individuals-per-km2"]),
+  source: z.object({
+    name: z.string().trim().min(3).max(200),
+    samplingProtocol: z.string().trim().min(10).max(1500),
+    comparableSampling: z.literal(true),
+    kind: z.enum(["field", "synthetic"]),
+  }).strict(),
+  observations: z.array(z.object({
+    date: z.string().datetime({ offset: true }),
+    populations: z.record(z.number().finite().min(0).max(1_000_000)),
+  }).strict()).min(12).max(240),
+  horizonDays: z.number().int().min(1).max(90),
+}).strict().superRefine((input, ctx) => {
+  const ids = new Set(input.speciesIds);
+  if (ids.size !== input.speciesIds.length) ctx.addIssue({ code: "custom", message: "Espécies duplicadas." });
+  let previous = -Infinity;
+  for (const [index, observation] of input.observations.entries()) {
+    const time = Date.parse(observation.date);
+    if (time - previous < 86_400_000) ctx.addIssue({ code: "custom", path: ["observations", index, "date"], message: "Ordene as observações com pelo menos um dia de intervalo." });
+    previous = time;
+    if (Object.keys(observation.populations).length !== ids.size || input.speciesIds.some((id) => !Object.hasOwn(observation.populations, id))) {
+      ctx.addIssue({ code: "custom", path: ["observations", index, "populations"], message: "Informe exatamente as espécies selecionadas em todas as observações." });
+    }
+  }
+  if (input.observations.length === 0) return;
+  const span = (Date.parse(input.observations.at(-1)!.date) - Date.parse(input.observations[0]!.date)) / 86_400_000;
+  if (input.horizonDays > span) ctx.addIssue({ code: "custom", path: ["horizonDays"], message: "O horizonte não pode ultrapassar a duração do histórico disponível." });
+});
+
 export const GROUNDING_CATEGORIES = [
   "concept",
   "ecosystem",

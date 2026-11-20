@@ -35,7 +35,7 @@ describe("shared TerrainView styles", () => {
   });
 
   it("keeps the events button visible before the first fauna event", () => {
-    expect(terrainSource).toContain("{showEvents ? (\n            <EventHub");
+    expect(terrainSource).toMatch(/\{showEvents \? \(\r?\n\s+<EventHub/);
     expect(terrainSource).not.toContain("showEvents && faunaEventsState.length > 0");
   });
 });

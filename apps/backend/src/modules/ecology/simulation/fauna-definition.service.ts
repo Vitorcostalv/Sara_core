@@ -1,6 +1,7 @@
 import { logger } from "../../../logging/logger";
 import type { TerrainGrid } from "./terrain-generator.service";
 import { resourceNeedsFor, type ResourceType } from "./resource-base";
+import { ADDITIONAL_SPECIES } from "./fauna-catalog-expansion";
 
 const faunaLogger = logger.child({ module: "fauna-definition" });
 
@@ -136,7 +137,7 @@ export interface FaunaResult {
 // The raw catalog omits the derived fields (diet, and usually trophicLevel — derived from
 // category). trophicLevel can be overridden when category doesn't imply it (e.g. a "fish"-category
 // marine apex like the orca), so each entry still declares its prey once via preySpeciesIds.
-type RawSpecies = Omit<
+export type RawSpecies = Omit<
   SpeciesDefinition,
   | "trophicLevel"
   | "diet"
@@ -366,6 +367,7 @@ const PREDATION_OVERRIDES: Record<string, PredationProfile> = {
 };
 
 const RAW_CATALOG: RawSpecies[] = [
+  ...ADDITIONAL_SPECIES,
   // ── Herbívoros grandes ──────────────────────────────────────────────────────
   {
     id: "capivara",
@@ -468,7 +470,7 @@ const RAW_CATALOG: RawSpecies[] = [
     commonName: "Mocó",
     scientificName: "Kerodon rupestris",
     category: "herbivore-small",
-    habitableBiomes: ["caatinga", "deserto-quente"],
+    habitableBiomes: ["caatinga"],
     preySpeciesIds: [],
     populationTarget: 8,
     movementProfile: { maxSpeed: 2.8, turnRate: 3.2, fleeMultiplier: 2.8 },
@@ -1086,7 +1088,7 @@ const RAW_CATALOG: RawSpecies[] = [
     commonName: "Bugio-ruivo",
     scientificName: "Alouatta guariba",
     category: "herbivore-small",
-    habitableBiomes: ["floresta-tropical-umida", "mata-atlantica"],
+    habitableBiomes: ["mata-atlantica"],
     preySpeciesIds: [],
     feedingStrategy: "herbivore",
     populationTarget: 7,
@@ -1328,7 +1330,13 @@ function taxonGroupFor(raw: RawSpecies): TaxonGroup {
 
 // Derives diet (= preySpeciesIds) and trophicLevel so each raw entry declares prey only once.
 // An explicit raw.trophicLevel wins over the category-based default.
-const SPECIES_CATALOG: SpeciesDefinition[] = RAW_CATALOG.map((raw) => {
+const PANTANAL_RESIDENTS = new Set([
+  "capivara", "anta", "veado-campeiro", "paca", "prea", "onca-pintada", "onca-parda",
+  "ema", "tuiuiu", "garca-branca", "tucano-toco", "arara-azul", "pacu", "piranha", "formiga-cortadeira",
+]);
+const SPECIES_CATALOG: SpeciesDefinition[] = RAW_CATALOG.map((entry) => {
+  const raw = PANTANAL_RESIDENTS.has(entry.id)
+    ? { ...entry, habitableBiomes: [...new Set([...entry.habitableBiomes, "pantanal"])] } : entry;
   const feedingStrategy = feedingStrategyFor(raw);
   return {
     ...raw,
@@ -1467,11 +1475,22 @@ function scaleBucketPopulation(species: SpeciesDefinition[], budget: number): Sp
   if (species.length === 0) return species;
   const total = species.reduce((sum, entry) => sum + entry.populationTarget, 0);
   if (total <= budget) return species;
-  const scale = budget / total;
-  return species.map((entry) => ({
-    ...entry,
-    populationTarget: Math.max(1, Math.round(entry.populationTarget * scale)),
-  }));
+  // Reserve one agent per species, then apportion the remaining budget using
+  // largest remainders. Independent rounding could exceed the cap as diversity grows.
+  const remaining = Math.max(0, budget - species.length);
+  const weightTotal = total - species.length;
+  const quotas = species.map((entry, index) => {
+    const quota = weightTotal > 0 ? remaining * (entry.populationTarget - 1) / weightTotal : 0;
+    return { index, count: 1 + Math.floor(quota), remainder: quota - Math.floor(quota) };
+  });
+  let unallocated = budget - quotas.reduce((sum, quota) => sum + quota.count, 0);
+  const ranked = [...quotas].sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+  for (const quota of ranked) {
+    if (unallocated <= 0) break;
+    quota.count += 1;
+    unallocated -= 1;
+  }
+  return species.map((entry, index) => ({ ...entry, populationTarget: quotas[index]!.count }));
 }
 
 function scalePopulationsByTrophicPyramid(species: SpeciesDefinition[]): SpeciesDefinition[] {
@@ -1497,6 +1516,7 @@ function scalePopulationsByTrophicPyramid(species: SpeciesDefinition[]): Species
 }
 
 interface FaunaGridContext {
+  grid: TerrainGrid;
   totalCells: number;
   avgTemperatureC: number;
   waterCoveragePct: number;
@@ -1568,6 +1588,7 @@ function buildFaunaGridContext(grid: TerrainGrid, meaningfulBiomes: string[]): F
   const safeTotal = Math.max(1, totalCells);
   const safeWater = Math.max(1, waterCells);
   return {
+    grid,
     totalCells,
     avgTemperatureC: temperatureSum / safeTotal,
     waterCoveragePct: (waterCells / safeTotal) * 100,
@@ -1607,6 +1628,23 @@ function isSpeciesCompatibleWithGrid(species: SpeciesDefinition, context: FaunaG
   if (species.habitableBiomes.includes(CAVE_PSEUDO_BIOME)) {
     if (context.caveCells < 2) return false;
     if (species.id === "peixe-cego" && context.floodedCaveCells < 1) return false;
+  } else {
+    // A biome label alone does not provide habitat: fish need actual water in a
+    // matching biome, and terrestrial fauna need exposed land. Check salinity
+    // locally so mixed freshwater/coastal grids do not dilute one another.
+    const freshwater = species.category === "fish" &&
+      !species.habitableBiomes.some((b) => OCEAN_BIOMES.has(b) || b === "manguezal");
+    const hasHabitat = context.grid.cells.some((row) => row.some((cell) =>
+      species.habitableBiomes.includes(cell.biomeSuggestion) &&
+      (species.category === "fish"
+        ? cell.isWater && (!freshwater || cell.salinityPsu <= 5)
+        : species.category === "bird" || !cell.isWater)
+    ));
+    if (!hasHabitat) return false;
+    if (species.habitatProfile.waterDependency === "high" && context.waterCoveragePct === 0) return false;
+    if (species.id === "soldadinho-do-araripe" && !context.grid.cells.some((row) =>
+      row.some((cell) => cell.biomeSuggestion === "caatinga" && !cell.isWater && cell.humidityPct >= 70 && (cell.riverDistance ?? 99) <= 1)
+    )) return false;
   }
 
   if (POLAR_MARINE_SPECIES.has(species.id)) {
@@ -1651,7 +1689,7 @@ export class FaunaDefinitionService {
       }
     }
 
-    const threshold = Math.max(1, Math.floor(total * 0.05)); // ≥5% das células para "contar"
+    const threshold = Math.max(1, Math.ceil(total * 0.05)); // ≥5% das células para "contar"
     let meaningful = Array.from(counts.entries())
       .filter(([, c]) => c >= threshold)
       .map(([biome]) => biome);

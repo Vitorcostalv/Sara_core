@@ -4,6 +4,10 @@ import {
   type TerrainPromptResult,
 } from "../llm/ecological-terrain-prompt.service";
 import { faunaDefinitionService } from "./fauna-definition.service";
+import { getCatalogSpecies } from "./fauna-definition.service";
+import { projectPredationScenario } from "./predation-dynamics.service";
+import { predationReasoningService } from "../llm/predation-reasoning.service";
+import type { PredationProjection, PredationReasoning } from "@sara/shared-types";
 import type {
   FaunaCategory,
   FeedingStrategy,
@@ -41,7 +45,7 @@ export interface InvasiveScenarioInput {
   seed?: number;
 }
 
-export type InvasionEffect = "predation" | "competition" | "none";
+export type InvasionEffect = "predation" | "competition" | "trophic-cascade" | "none";
 
 export interface NativeImpact {
   speciesId: string;
@@ -109,6 +113,8 @@ export interface AffectedResource {
 }
 
 export interface InvasiveScenarioResult {
+  predationDynamics: PredationProjection;
+  predationReasoning: PredationReasoning;
   terrain: TerrainGrid;
   resolvedBiomes: string[];
   invader: SpeciesDefinition;
@@ -118,6 +124,7 @@ export interface InvasiveScenarioResult {
     displayName: string;
     scientificName: string;
     nativeBiomes: string[];
+    habitatCompatible: boolean;
     survives: boolean;
     scenarioType: InvasiveScenarioType;
     functionalRole: InvasiveFunctionalRole;
@@ -735,14 +742,14 @@ export function projectNativeImpacts(
   invaderResourceNeeds: ResourceType[],
 ): NativeImpact[] {
   return natives.map((native) => {
-    if (survives && profile.preyCategories.includes(native.category)) {
+    if (survives && canInvaderPreyOn(profile, native)) {
       return {
         speciesId: native.id,
         commonName: native.commonName,
         effect: "predation",
         populationDelta: -Math.max(1, Math.round(native.populationTarget * 0.55)),
         baselinePopulation: native.populationTarget,
-        reason: `Presa compatível com a estratégia alimentar de ${profile.displayName}.`,
+        reason: `Elo de predação candidato do perfil de ${profile.displayName}; hipótese de simulação, não ocorrência comprovada.`,
       };
     }
 
@@ -751,7 +758,7 @@ export function projectNativeImpacts(
     );
     const sharesFoodBase =
       profile.feedingStrategy === "carnivore"
-        ? native.feedingStrategy === "carnivore"
+        ? native.preySpeciesIds.some((id) => natives.some((prey) => prey.id === id && canInvaderPreyOn(profile, prey)))
         : sharedResources.length > 0;
 
     if (survives && profile.competesCategories.includes(native.category) && sharesFoodBase) {
@@ -779,6 +786,26 @@ export function projectNativeImpacts(
         : "A invasora não se estabelece neste cenário.",
     };
   });
+}
+
+// Closed candidate edges. These are explicit educational hypotheses for introductions,
+// not a claim of documented predation on every named species in every location.
+const CANDIDATE_PREY: Record<string, string[]> = {
+  "Panthera leo": ["capivara", "anta", "veado-campeiro", "veado-mateiro", "queixada", "caititu", "prea"],
+  "Panthera tigris": ["capivara", "anta", "veado-mateiro", "queixada", "caititu", "paca"],
+  "Canis lupus": ["alce", "rena", "veado-campeiro", "marmota", "lemingue", "prea"],
+  "Sus scrofa": ["formiga-cortadeira", "sapo-cururu"],
+  "Cichla ocellaris": ["lambari", "peixe-glacial"],
+  "Lithobates catesbeianus": ["sapo-cururu", "formiga-cortadeira"],
+  "Felis catus": ["prea", "lemingue", "codorna-amarela", "saira-sete-cores", "avoante"],
+  "Canis lupus familiaris": ["prea", "paca", "veado-campeiro", "veado-mateiro"],
+  "Rattus rattus": ["formiga-cortadeira"],
+  "Pterois volitans": ["peixe-palhaco", "lambari"],
+  "Neogale vison": ["lambari", "prea", "lemingue", "sapo-cururu", "codorna-amarela"],
+};
+
+export function canInvaderPreyOn(profile: InvaderProfile, prey: SpeciesDefinition): boolean {
+  return (CANDIDATE_PREY[profile.scientificName] ?? []).includes(prey.id);
 }
 
 // ─── Movement defaults by category (mirror the catalog) ──────────────────────
@@ -890,11 +917,14 @@ export class InvasiveScenarioService {
     const profile = resolveProfile(input.speciesText);
     const consequences = consequencesFor(profile);
     const intendedBiome = terrainResult.biomeSlug;
-    const survives =
-      profile.compatiblePresets.length > 0 && profile.compatiblePresets.includes(intendedBiome);
+    const suitableCells = terrainResult.terrain.cells.some((row) => row.some((cell) =>
+      profile.category === "fish"
+        ? cell.isWater && (profile.scientificName === "Pterois volitans" ? cell.salinityPsu >= 12 : cell.salinityPsu <= 5)
+        : profile.category === "bird" || !cell.isWater));
+    const survives = suitableCells && profile.compatiblePresets.length > 0 && profile.compatiblePresets.includes(intendedBiome);
 
     // 3. Impactos sobre os nativos.
-    const preyNatives = natives.filter((n) => profile.preyCategories.includes(n.category));
+    const preyNatives = natives.filter((n) => canInvaderPreyOn(profile, n));
     const invaderResourceNeeds = resourceNeedsFor({
       category: profile.category,
       feedingStrategy: profile.feedingStrategy,
@@ -924,7 +954,7 @@ export class InvasiveScenarioService {
       mass: massFor(profile.category),
       awarenessRange: awarenessRangeFor(profile.category),
       predation: predationFor(profile.category, predatedIds),
-      populationTarget: survives ? 8 : 2,
+      populationTarget: 2,
       taxonGroup: profile.taxonGroup ?? taxonGroupFor(profile.category),
       nativeStatus: "introduced",
       resourceNeeds: invaderResourceNeeds,
@@ -969,7 +999,36 @@ export class InvasiveScenarioService {
       predation: predationFor(profile.category, consolidatedPredatedIds),
     };
 
-    const phases = buildPhases(survives, nativeImpacts);
+    const nativeSpecies = community.nativeSpecies.map((native) => {
+      // Reuse an existing catalog edge only when the introduced species is the same
+      // taxon as its declared prey. Never infer a predator from its size/category.
+      const eatsInvader = native.preySpeciesIds.some((id) =>
+        getCatalogSpecies(id)?.scientificName === invader.scientificName);
+      if (!eatsInvader) return native;
+      const preySpeciesIds = [...new Set([...native.preySpeciesIds, invader.id])];
+      return { ...native, preySpeciesIds, diet: [...preySpeciesIds] };
+    });
+    const resourceAssessment = resourceAvailabilityEvaluator.assessFromGrid(terrainResult.terrain, nativeSpecies);
+    const predationDynamics = projectPredationScenario({
+      natives: nativeSpecies, invader, habitatCompatible: survives, resources: resourceAssessment.resourceBase,
+    });
+    const labels = ["Introdução", "Interações iniciais", "Resposta da rede", "Resultado projetado"];
+    const phases: InvasionPhase[] = predationDynamics.snapshots.map((snapshot, index) => ({
+      label: labels[index]!, tSeconds: snapshot.tSeconds,
+      invaderPop: snapshot.populations[invader.id] ?? 0,
+      nativeDeltas: Object.fromEntries(nativeSpecies.map((native) => [native.id,
+        Math.max(-native.populationTarget, (snapshot.populations[native.id] ?? 0) - (snapshot.controlPopulations[native.id] ?? 0))])),
+    }));
+    const lastPhase = phases[phases.length - 1]!;
+    const establishes = survives && lastPhase.invaderPop > 0;
+    nativeImpacts = nativeImpacts.map((impact) => {
+      const populationDelta = lastPhase.nativeDeltas[impact.speciesId] ?? 0;
+      return { ...impact, populationDelta,
+        effect: populationDelta === 0 ? "none" : impact.effect === "none" ? "trophic-cascade" : impact.effect,
+        reason: `${impact.reason} Variação relativa ao controle sem introdução; efeitos indiretos são calculados pela rede.`,
+      };
+    });
+    const predationReasoning = await predationReasoningService.explain(predationDynamics);
 
     // 6. Grounding científico.
     // Ground the explanation in the scenario explicitly selected by the user. Residual
@@ -998,7 +1057,14 @@ export class InvasiveScenarioService {
     };
 
     const plausibility = buildPlausibility(profile, survives, terrainResult.biomeName, preyNatives.length, scientific);
-    const explanationText = buildExplanationText(
+    if (survives && !establishes) {
+      plausibility.overall = "baixo";
+      plausibility.criteria = plausibility.criteria.map((criterion) => criterion.label === "Capacidade de estabelecimento"
+        ? { ...criterion, rating: "baixo", detail: "O habitat é compatível, mas a população não persiste com o alimento e as interações projetadas." } : criterion);
+    }
+    const explanationText = survives && !establishes
+      ? `${profile.displayName} encontra habitat compatível em ${terrainResult.biomeName}, mas não persiste ao final desta projeção. Disponibilidade de alimento e interações da rede limitam o estabelecimento; isso não é uma previsão de campo.`
+      : buildExplanationText(
       profile,
       terrainResult.biomeName,
       survives,
@@ -1007,18 +1073,20 @@ export class InvasiveScenarioService {
     );
 
     // 7. Impacto ecológico nomeado (só é ativo quando o invasor consegue se estabelecer).
-    const affectedResources = buildAffectedResources(invader.resourceNeeds, community.resourceBase);
+    const affectedResources = buildAffectedResources(invader.resourceNeeds, resourceAssessment);
     const impactMechanisms = survives
       ? buildImpactMechanisms(profile, nativeImpacts, affectedResources)
       : [];
 
-    const establishmentScore = establishmentPlausibilityScore(survives, profile, preyNatives.length, scientific);
+    const establishmentScore = establishmentPlausibilityScore(establishes, profile, preyNatives.length, scientific);
 
     return {
+      nativeSpecies,
+      predationDynamics,
+      predationReasoning,
       terrain: terrainResult.terrain,
       resolvedBiomes,
       invader,
-      nativeSpecies: community.nativeSpecies,
       community: {
         resourceBase: community.resourceBase,
         defenses: community.defenses,
@@ -1029,7 +1097,8 @@ export class InvasiveScenarioService {
         displayName: profile.displayName,
         scientificName: profile.scientificName,
         nativeBiomes: profile.compatiblePresets,
-        survives,
+        habitatCompatible: survives,
+        survives: establishes,
         scenarioType: consequences.scenarioType,
         functionalRole: profile.functionalRole,
         functionalRoleLabel: INVASIVE_FUNCTIONAL_ROLE_LABELS[profile.functionalRole],
@@ -1040,14 +1109,15 @@ export class InvasiveScenarioService {
       impactMechanisms,
       affectedResources,
       establishmentPlausibility: { score: establishmentScore, label: plausibilityBand(establishmentScore) },
-      spreadPressure: spreadPressureFor(survives, profile),
+      spreadPressure: spreadPressureFor(establishes, profile),
       plausibility,
-      explanation: { ...scientific, text: explanationText },
-      uncertainties: buildUncertainties(profile, survives, scientific),
+      explanation: { ...scientific, text: `${explanationText}\n\n${predationReasoning.summary}` },
+      uncertainties: [...buildUncertainties(profile, survives, scientific), ...predationDynamics.warnings, ...predationReasoning.warnings],
       mvpAssumptions: [
         ...(profile.establishmentNote ? [`Requisito de estabelecimento: ${profile.establishmentNote}`] : []),
-        "Estabelecimento é decidido por compatibilidade de bioma (intenção do local), não por modelo climático contínuo.",
-        "Impactos sobre nativos são frações determinísticas da população-alvo, não dinâmica populacional integrada.",
+        "Compatibilidade considera o bioma pretendido e células habitáveis; estabelecimento também depende de alimento e interações.",
+        "Populações e recursos são integrados por passos fixos; impactos são comparados ao controle sem introdução.",
+        "Elos candidatos de introdução são hipóteses explícitas e não comprovam relações naturais no local.",
         "Mecanismos de impacto vêm de um perfil por espécie inspirado em GISD/CABI/EICAT, não de dados de ocorrência ao vivo.",
       ],
       limitations: buildLimitations(profile, terrainResult, scientific),

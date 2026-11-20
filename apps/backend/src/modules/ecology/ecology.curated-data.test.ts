@@ -100,18 +100,18 @@ test("Curated: every predator has at least one plausible prey co-occurring in so
 // ─── Trophic pruning (active links only when both sides exist) ───────────────────
 
 test("Curated: a predator is pruned when none of its prey is present in the resolved biomes", () => {
-  // jacaré-do-pantanal lives in pantanal+lago; its prey (capivara/piranha/pacu) need `lago`.
-  const pantanalOnly = faunaDefinitionService.resolveBiomes(["pantanal"]);
+  // Biguá can occupy mangrove, but its explicitly modeled freshwater prey do not.
+  const mangroveOnly = faunaDefinitionService.resolveBiomes(["manguezal"]);
   assert.ok(
-    !pantanalOnly.species.some((s) => s.id === "jacare-do-pantanal"),
-    "jacaré must be pruned when no prey is present in pantanal-only"
+    !mangroveOnly.species.some((s) => s.id === "bigua"),
+    "biguá must be pruned when no modeled prey is present"
   );
-  const withWater = faunaDefinitionService.resolveBiomes(["pantanal", "lago"]);
-  const jacare = withWater.species.find((s) => s.id === "jacare-do-pantanal");
-  assert.ok(jacare, "jacaré should survive once its aquatic prey is present");
+  const withWater = faunaDefinitionService.resolveBiomes(["manguezal", "lago"]);
+  const bigua = withWater.species.find((s) => s.id === "bigua");
+  assert.ok(bigua, "biguá should survive once its aquatic prey is present");
   const presentIds = new Set(withWater.species.map((s) => s.id));
-  for (const preyId of jacare!.preySpeciesIds) {
-    assert.ok(presentIds.has(preyId), `jacaré prey ${preyId} must be present`);
+  for (const preyId of bigua!.preySpeciesIds) {
+    assert.ok(presentIds.has(preyId), `biguá prey ${preyId} must be present`);
   }
   // Trophic resolver reports active links referencing only present prey.
   const report = trophicNetworkResolver.resolve(withWater.species);

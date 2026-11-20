@@ -10,6 +10,8 @@ import type {
   TerrainCell,
 } from "../../services/api/ecology";
 import { buildCompactFaunaGrid, TerrainView } from "./EcologyTerrainSection";
+import { speciesForInvasionPhase } from "./invasivePhase";
+import { EcologyForecastSection } from "./EcologyForecastSection";
 import type { FaunaEvent } from "./FaunaLayer";
 import { getOfflineInvasiveSnapshot, saveLastScenario } from "../../demo/offline";
 
@@ -34,6 +36,7 @@ const EFFECT_LABEL: Record<string, string> = {
   "habitat-alteration": "Alteração de habitat",
   disease: "Doença",
   "resource-pressure": "Pressão sobre recursos",
+  "trophic-cascade": "Efeito indireto na cadeia alimentar",
   none: "Sem impacto direto",
 };
 
@@ -175,7 +178,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
         const faunaResponse = await ecologyApi.fauna({ grid: buildCompactFaunaGrid(data.terrain) });
         natives = faunaResponse.data.species;
       }
-      if (natives.length === 0) {
+      if (natives.length === 0 && !data.nativeSpecies) {
         setFaunaSpecies([]);
         setError("O cenário foi gerado, mas o consolidador não encontrou uma comunidade nativa funcional. A invasora não será exibida sozinha.");
         return;
@@ -205,6 +208,9 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
   }, [initialOfflineScenarioId]);
 
   const phase = result?.phases[phaseIndex];
+  const phaseSpecies = useMemo(() => speciesForInvasionPhase(
+    faunaSpecies, result?.invader.id ?? "", phase,
+  ), [faunaSpecies, result?.invader.id, phase]);
   const impactById = useMemo(() => {
     const map = new Map<string, InvasiveScenarioResult["nativeImpacts"][number]>();
     for (const impact of result?.nativeImpacts ?? []) map.set(impact.speciesId, impact);
@@ -214,6 +220,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
 
   return (
     <div className="page-stack">
+      <EcologyForecastSection />
       <style>{`
         .invasive-grid { display: grid; gap: 0.7rem; grid-template-columns: 1fr 1fr; }
         .invasive-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -491,7 +498,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
             <TerrainView
               performanceProfile={performanceProfile}
               grid={result.terrain}
-              faunaSpecies={faunaSpecies}
+              faunaSpecies={phaseSpecies}
               faunaPaused={false}
               faunaSpeedMultiplier={1}
               showFauna
@@ -529,13 +536,19 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
                   populationDelta: entry.populationDelta,
                 })),
                 simulatedNotes:
-                  result.simulationScope?.simulated ?? [
-                    "presença visual da invasora",
-                    "interação local com fauna nativa",
-                    "eventos de predação e fuga",
+                  result.predationDynamics ? [
+                    "populações da fase calculadas pela rede alimentar",
+                    "movimento e fuga em habitats compatíveis",
+                  ] : result.simulationScope?.simulated ?? [
+                    "presenca visual da invasora",
+                    "interacao local com fauna nativa",
+                    "eventos de predacao e fuga",
                   ],
                 explanationOnlyNotes:
-                  result.simulationScope?.explanationOnly ?? [
+                  result.predationDynamics ? [
+                    "o avanço entre fases representa a mudança populacional",
+                    "mortalidade contínua fora da projeção não é aplicada",
+                  ] : result.simulationScope?.explanationOnly ?? [
                     "efeitos ecossistemicos de longo prazo",
                   ],
               }}
@@ -629,7 +642,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
                       </span>
                       <span className="invasive-delta-row__value">
                         {phase.invaderPop}
-                        <small>{phaseIndex === 0 ? "introduzidos" : `+${phase.invaderPop - result.phases[0]!.invaderPop} desde a introdução`}</small>
+                        <small>{phaseIndex === 0 ? "introduzidos" : `${phase.invaderPop - result.phases[0]!.invaderPop > 0 ? "+" : ""}${phase.invaderPop - result.phases[0]!.invaderPop} desde a introdução`}</small>
                       </span>
                     </div>
                     {Object.entries(phase.nativeDeltas).length === 0 ? (
@@ -806,7 +819,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
 
             {result.consequences ? (
               <div style={{ marginTop: "1rem" }}>
-                <h4 style={{ marginBottom: "0.35rem" }}>Consequências em cadeia</h4>
+                <h4 style={{ marginBottom: "0.35rem" }}>Consequências potenciais do perfil</h4>
                 <p className="invasive-consequence-intro">{result.consequences.summary}</p>
                 {result.consequences.causalChains.length > 0 ? (
                   <div className="invasive-chains">
@@ -863,6 +876,7 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
                 ))}
                 {(result.mvpAssumptions ?? []).map((a) => (
                   <div key={a} className="signal-message signal-message--neutral">
+                    <WarningCircle weight="duotone" />
                     <div>
                       <span>Premissa: {a}</span>
                     </div>
@@ -882,6 +896,9 @@ export function EcologyInvasiveSection({ initialOfflineScenarioId }: { initialOf
                 {result.explanation.coverage === "sufficient" ? "Cobertura suficiente" : "Cobertura limitada"}
               </StatusPill>
             </div>
+            {result.predationReasoning ? <StatusPill tone={result.predationReasoning.source === "llm" ? "info" : "neutral"}>
+              {result.predationReasoning.source === "llm" ? "Explicação da LLM" : "Explicação por regras locais"}
+            </StatusPill> : null}
             <p>{result.explanation.text}</p>
 
             {result.explanation.facts.length > 0 ? (

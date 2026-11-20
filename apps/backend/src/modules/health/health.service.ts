@@ -22,6 +22,13 @@ export class HealthService {
       environment: env.nodeEnv,
       timestamp: new Date().toISOString(),
       uptimeSeconds: Math.floor((Date.now() - processStartedAt) / 1000),
+      capabilities: {
+        forecastModel: "observational-log-trend-v1",
+        predationModel: "food-web-v1",
+        llmProvider: env.llmProvider,
+        llmConfigured: env.llmProvider !== "disabled" && Boolean(env.llmApiKey),
+        renderClassifierConfigured: env.renderLlmEnabled && Boolean(env.renderLlmBaseUrl && env.renderLlmApiKey),
+      },
       database,
     };
   }

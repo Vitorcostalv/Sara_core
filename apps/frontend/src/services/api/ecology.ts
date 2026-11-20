@@ -434,6 +434,8 @@ export interface InvaderConsequences {
 }
 
 export interface InvasiveScenarioResult {
+  predationDynamics?: import("@sara/shared-types").PredationProjection;
+  predationReasoning?: import("@sara/shared-types").PredationReasoning;
   terrain: TerrainGrid;
   resolvedBiomes: string[];
   invader: SpeciesDefinition;
@@ -459,6 +461,7 @@ export interface InvasiveScenarioResult {
     displayName: string;
     scientificName: string;
     nativeBiomes: string[];
+    habitatCompatible?: boolean;
     survives: boolean;
     scenarioType?: InvaderConsequences["scenarioType"];
     /** Função ecológica dominante (grande predador, filtrador aquático, ...). */
@@ -722,6 +725,8 @@ export interface PredationProfile {
 }
 
 export interface SpeciesDefinition {
+    /** Viewer-only: phase projections own population changes, rather than local boid mortality. */
+    populationManaged?: boolean;
   id: string;
   commonName: string;
   scientificName: string;
@@ -770,7 +775,7 @@ export interface FaunaResult {
 
 async function ecologyRequest<T>(
   endpoint: string,
-  options: { method?: "GET" | "POST"; body?: unknown } = {}
+  options: { method?: "GET" | "POST"; body?: unknown; timeoutMs?: number } = {}
 ): Promise<T> {
   const response = await fetchWithTimeout(buildApiUrl(endpoint), {
     method: options.method ?? "GET",
@@ -779,7 +784,7 @@ async function ecologyRequest<T>(
         ? buildApiHeaders({ "Content-Type": "application/json" })
         : buildApiHeaders(),
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
+    }, options.timeoutMs);
 
   if (!response.ok) {
     let errorPayload: ApiErrorResponse | null = null;
@@ -817,6 +822,7 @@ export const ecologyApi = {
     includeInspection?: boolean;
   }) =>
     ecologyRequest<ApiSingle<EcologicalLlmResult>>("/ecology/generate", {
+      timeoutMs: 180_000,
       method: "POST",
       body: payload,
     }),
@@ -932,12 +938,14 @@ export const ecologyApi = {
 
   promptTerrain: (payload: { prompt: string; width?: number; height?: number; seed?: number }) =>
     ecologyRequest<ApiSingle<TerrainPromptResult>>("/ecology/prompt-terrain", {
+      timeoutMs: 180_000,
       method: "POST",
       body: payload,
     }),
 
   ecosystemReport: (payload: { prompt: string; width?: number; height?: number; seed?: number }) =>
     ecologyRequest<ApiSingle<EcosystemReportResult>>("/ecology/ecosystem-report", {
+      timeoutMs: 180_000,
       method: "POST",
       body: payload,
     }),
@@ -950,7 +958,12 @@ export const ecologyApi = {
     seed?: number;
   }) =>
     ecologyRequest<ApiSingle<InvasiveScenarioResult>>("/ecology/invasive", {
+      timeoutMs: 180_000,
       method: "POST",
       body: payload,
+    }),
+  forecast: (payload: import("@sara/shared-types").EcologicalForecastInput) =>
+    ecologyRequest<ApiSingle<import("@sara/shared-types").EcologicalForecastResult>>("/ecology/forecast", {
+      method: "POST", body: payload,
     }),
 };

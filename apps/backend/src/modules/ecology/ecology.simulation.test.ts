@@ -3,7 +3,8 @@ import test from "node:test";
 import { scenicRiverPath } from "./simulation/terrain-features.service";
 import { terrainGeneratorService } from "./simulation/terrain-generator.service";
 import type { TerrainCell, TerrainGrid } from "./simulation/terrain-generator.service";
-import { faunaDefinitionService, getCatalogSpecies } from "./simulation/fauna-definition.service";
+import { faunaDefinitionService, getCatalogSpecies, listCatalogSpecies } from "./simulation/fauna-definition.service";
+import { ADDITIONAL_SPECIES } from "./simulation/fauna-catalog-expansion";
 import { biomePresetService } from "./simulation/biome-preset.service";
 import { biomeMappingService } from "./simulation/biome-mapping.service";
 import { successionSimulatorService } from "./simulation/succession-simulator.service";
@@ -786,6 +787,86 @@ function gridOf(dominant: string, strays: string[] = [], overrides: Partial<Terr
   }
   return { width, height, seed: 1, baseTemperatureC: 24, basePrecipitationMm: 1200, cells, simulationNote: "test" };
 }
+
+test("Fauna: expansion adds exactly 70 distinct species with valid, reachable food chains", () => {
+  const catalog = listCatalogSpecies();
+  const ids = new Set(catalog.map((s) => s.id));
+  assert.equal(ADDITIONAL_SPECIES.length, 70);
+  assert.equal(ids.size, catalog.length);
+  for (const entry of catalog) {
+    assert.ok(entry.habitableBiomes.length > 0);
+    assert.ok(entry.habitatProfile.primary.length > 0, `${entry.id} lacks a habitat`);
+    for (const prey of entry.preySpeciesIds) {
+      assert.ok(ids.has(prey), `${entry.id} references unknown prey ${prey}`);
+      assert.notEqual(prey, entry.id);
+    }
+  }
+  for (const entry of ADDITIONAL_SPECIES) {
+    assert.equal(catalog.filter((s) => s.scientificName === entry.scientificName).length, 1,
+      `${entry.id} duplicates an existing species`);
+    assert.ok(entry.habitableBiomes.some((biome) =>
+      faunaDefinitionService.resolveBiomes([biome]).species.some((s) => s.id === entry.id)
+    ), `${entry.id} is always removed by prey pruning`);
+  }
+});
+
+test("Fauna: new Atlantic Forest endemics do not leak into Amazonia, savanna or Caatinga", () => {
+  for (const biome of ["floresta-tropical-umida", "savana-tropical", "caatinga"]) {
+    const ids = new Set(faunaDefinitionService.resolveBiomes([biome]).species.map((s) => s.id));
+    for (const id of ["mico-leao-dourado", "muriqui-do-sul", "jacutinga", "preguica-de-coleira", "bugio"]) {
+      assert.ok(!ids.has(id), `${id} leaked into ${biome}`);
+    }
+  }
+  assert.ok(!faunaDefinitionService.resolveBiomes(["deserto-quente"]).species.some((s) => s.id === "moco"));
+});
+
+test("Fauna: fish require matching water cells with appropriate local salinity", () => {
+  const dry = gridOf("floresta-tropical-umida");
+  assert.ok(!faunaDefinitionService.resolve(dry).species.some((s) => s.category === "fish"));
+  const fresh = gridOf("floresta-tropical-umida");
+  fresh.cells[0]![0]!.isWater = true;
+  fresh.cells[0]![0]!.salinityPsu = 0;
+  assert.ok(faunaDefinitionService.resolve(fresh).species.some((s) => s.id === "tambaqui"));
+  fresh.cells[0]![0]!.salinityPsu = 35;
+  assert.ok(!faunaDefinitionService.resolve(fresh).species.some((s) => s.id === "tambaqui"));
+  // Fresh water in another biome is not sufficient.
+  fresh.cells[0]![0]!.biomeSuggestion = "lago";
+  fresh.cells[0]![0]!.salinityPsu = 0;
+  assert.ok(!faunaDefinitionService.resolve(fresh).species.some((s) => s.id === "tambaqui"));
+});
+
+test("Fauna: soldadinho requires a humid riparian enclave within the Caatinga", () => {
+  const grid = gridOf("caatinga", [], { humidityPct: 25 });
+  grid.cells[0]![0]!.isWater = true;
+  assert.ok(!faunaDefinitionService.resolve(grid).species.some((s) => s.id === "soldadinho-do-araripe"));
+  grid.cells[0]![1]!.humidityPct = 80;
+  grid.cells[0]![1]!.riverDistance = 1;
+  assert.ok(faunaDefinitionService.resolve(grid).species.some((s) => s.id === "soldadinho-do-araripe"));
+});
+
+test("Regional fauna: Amazon and Cerrado prompts do not introduce Atlantic Forest endemics", async () => {
+  for (const prompt of ["amazonia", "cerrado"]) {
+    const result = await ecologicalTerrainPromptService.generate({ prompt, width: 24, height: 18, seed: 41 });
+    const species = faunaDefinitionService.resolve(result.terrain).species;
+    for (const id of ["mico-leao-dourado", "muriqui-do-sul", "preguica-de-coleira", "bugio"]) {
+      assert.ok(!species.some((s) => s.id === id), `${id} leaked into ${prompt}`);
+    }
+  }
+});
+
+test("Regional fauna: Pantanal actually exposes wetland and freshwater species", async () => {
+  const result = await ecologicalTerrainPromptService.generate({ prompt: "pantanal", width: 24, height: 18, seed: 41 });
+  const species = faunaDefinitionService.resolve(result.terrain).species;
+  for (const id of ["capivara", "lambari", "dourado", "pintado"]) assert.ok(species.some((s) => s.id === id), `${id} is unreachable in Pantanal`);
+  assert.ok(!species.some((s) => s.id === "mico-leao-dourado"));
+});
+
+test("Regional fauna: mangrove prompts provide brackish water and mangrove fauna", async () => {
+  const result = await ecologicalTerrainPromptService.generate({ prompt: "manguezal", width: 24, height: 18, seed: 41 });
+  const species = faunaDefinitionService.resolve(result.terrain).species;
+  for (const id of ["caranguejo-uca", "aratu-vermelho", "guara"]) assert.ok(species.some((s) => s.id === id), `${id} is unreachable in mangrove`);
+  assert.ok(result.terrain.cells.flat().some((c) => c.isWater && c.salinityPsu > 5));
+});
 
 test("Fauna: a single stray deserto-frio cell does not inject montane apex into a tropical forest", () => {
   const grid = gridOf("floresta-tropical-umida", ["deserto-frio"]); // 1 stray of 100 cells (1%)

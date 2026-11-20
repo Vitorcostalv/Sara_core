@@ -1297,7 +1297,6 @@ function TerrainColumns({
 
 function WaterDepthVolumes({
   sceneData,
-  gradientMap,
   waterRef,
   updateHover,
   clearHover,

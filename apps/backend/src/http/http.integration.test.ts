@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
+import { pool } from "../database/postgres";
 import { createApp } from "../app";
 import { env } from "../config/env";
 import { ecologicalLlmService } from "../modules/ecology/llm/ecological-llm.service";
@@ -31,6 +32,7 @@ test("HTTP integration: artificial projects validate pagination before querying 
     ecologicalGroundingRepository.listArtificialProjects = originalList;
   }
 });
+after(async () => { await pool.end(); });
 
 async function withTestServer(callback: (baseUrl: string) => Promise<void>) {
   const app = createApp();
@@ -88,6 +90,10 @@ test("HTTP integration: health stays public while ecology.generate requires the 
     await withTestServer(async (baseUrl) => {
       const healthResponse = await fetch(`${baseUrl}/api/v1/health`);
       assert.equal(healthResponse.status, 200);
+      const pingResponse = await fetch(`${baseUrl}/api/v1/health/ping`);
+      assert.equal(pingResponse.status, 200);
+      assert.equal(pingResponse.headers.get("cache-control"), "no-store");
+      assert.deepEqual(await pingResponse.json(), { message: "oi" });
 
       const unauthorizedResponse = await fetch(`${baseUrl}/api/v1/ecology/generate`, {
         method: "POST",

@@ -7,17 +7,17 @@ import type { LlmProvider, LlmGenerateTextInput } from "../llm.provider";
 const input:LlmGenerateTextInput={systemPrompt:"Use grounded facts",userPrompt:"Amazônia",apiKey:"cloud-test",baseUrl:"https://cloud.test",model:"cloud-model",timeoutMs:1000,responseSchema:{type:"object"}};
 const local={enabled:true,baseUrl:"https://local.test/v1",apiKey:"local-test",timeoutMs:500};
 test("local inference uses server authentication, structured output and bounded tokens",async()=>{
- const before=globalThis.fetch;let payload:any;
+ const before=globalThis.fetch;let payload:{max_tokens?:number;response_format?:{type:string};stream?:boolean}={};
  globalThis.fetch=(async(url,init)=>{
    assert.equal(String(url),"https://local.test/v1/chat/completions");
-   assert.equal((init!.headers as any).Authorization,"Bearer local-test");
+   assert.equal(new Headers(init!.headers).get("Authorization"),"Bearer local-test");
    assert.equal(init!.redirect,"error");payload=JSON.parse(String(init!.body));
    return Response.json({choices:[{message:{content:'{"biomeSlug":"cerrado"}'},finish_reason:"stop"}]});
  }) as typeof fetch;
  try {
    const result=await new RenderLlmProvider().generateText({...input,baseUrl:local.baseUrl,apiKey:local.apiKey});
    assert.equal(result.provider,"render");assert.equal(payload.max_tokens,128);
-   assert.equal(payload.response_format.type,"json_schema");assert.equal(payload.stream,false);
+   assert.equal(payload.response_format?.type,"json_schema");assert.equal(payload.stream,false);
  }finally{globalThis.fetch=before;}
 });
 for(const scenario of ["http","empty","truncated","invalid","timeout"]) test(`local ${scenario} falls back exactly once without reusing the local credential`,async()=>{

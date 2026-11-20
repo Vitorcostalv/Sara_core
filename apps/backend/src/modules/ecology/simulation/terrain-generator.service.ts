@@ -164,7 +164,7 @@ function toBiomeSuggestion(tempC: number, precipMm: number, elevation: number): 
 }
 
 // Marine styles have explicit water chemistry; rainfall never determines salinity.
-function classifyWaterBiome(style: ReliefStyle, tempC: number, precipMm: number): string {
+function classifyWaterBiome(style: ReliefStyle, tempC: number, _precipMm: number): string {
   if (style === "polar") return "oceano-polar";
   if (style === "ocean") return tempC < 1 ? "oceano-polar" : "oceano-pelagico";
   return "lago"; // Rainfall cannot turn a continental basin into an ocean.
