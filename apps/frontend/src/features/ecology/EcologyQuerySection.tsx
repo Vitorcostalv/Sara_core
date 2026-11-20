@@ -258,6 +258,9 @@ export function EcologyQuerySection({ onGenerateEcosystem }: EcologyQuerySection
               </div>
 
               <div className="summary-list">
+                {result.responseMode === "grounded-extractive" ? <div>
+                  <strong>LLM própria</strong><span>Seleção de evidências · Qwen</span>
+                </div> : null}
                 <div>
                   <strong>Fatos usados</strong>
                   <span>{result.factsUsed}</span>

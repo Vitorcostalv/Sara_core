@@ -495,6 +495,7 @@ export interface InvasiveScenarioResult {
 // ─── Ecology LLM result ───────────────────────────────────────────────────────
 
 export interface EcologicalLlmResult {
+  responseMode?: "grounded-extractive";
   provider: string;
   model: string;
   answer: string | null;

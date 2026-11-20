@@ -151,8 +151,8 @@ test("Own model answers grounded questions and explains scenarios over HTTP with
   assert.equal(String(input),"https://own.test/v1/chat/completions");
   assert.equal(new Headers(init?.headers).get("Authorization"),"Bearer own-test-key");
   const body=JSON.parse(String(init?.body));assert.equal(body.model,"sara-qwen-0.5b");
-  const scenario=Boolean(body.response_format);roles.push(scenario?"predation":"question");
-  return Response.json({choices:[{message:{content:scenario?JSON.stringify({summary:"Habitat incompatível impede o estabelecimento nesta simulação."}):"Alimento finito e mortalidade limitam o crescimento."},finish_reason:"stop"}]});
+  const scenario=JSON.parse(body.messages[1].content).question.includes("resultado educacional");roles.push(scenario?"predation":"question");
+  return Response.json({choices:[{message:{content:JSON.stringify({evidenceIds:[0]})},finish_reason:"stop"}]});
  }) as typeof fetch;
  try{
   await serverTest(async base=>{

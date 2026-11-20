@@ -32,6 +32,7 @@ export interface PredationReasoning {
   source: "rules" | "llm";
   provider?: string;
   model?: string;
+  responseMode?: "grounded-extractive";
   summary: string;
   actionIds: string[];
   warnings: string[];

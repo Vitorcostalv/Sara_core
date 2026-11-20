@@ -23,13 +23,24 @@ proveniência e cobertura. A inspeção mostra o contexto recuperado; a inferên
 recebe os trechos compactados. Isso limita a profundidade de perguntas amplas.
 Sem cobertura suficiente, a API informa a falta de evidência sem chamar o modelo.
 
-A explicação recebe um resumo causal do motor: resultado, populações inicial
-e final da introduzida, número de elos e reguladores, causas únicas e incerteza
-de alimento implícito. Não recebe todos os snapshots nem rótulos arbitrários.
-O modelo devolve apenas `summary`; IDs das ações e populações ficam no backend.
-JSON inválido, campos extras, truncamento e falha preservam explicação `rules`.
-Um resumo generativo ainda pode errar; testes de transporte não certificam
-conhecimento ecológico. Não apresentar o sistema como previsão de campo validada.
+O primeiro teste real rejeitou o uso de prosa livre: o modelo pequeno podia
+combinar fatos em explicações causais incorretas. O modo publicado é
+`responseMode=grounded-extractive`: a LLM seleciona até dois IDs de evidências
+e o backend retorna os trechos originais. Essa é uma resposta extrativa,
+não uma redação científica autônoma. O aviso aparece na interface.
+
+Perguntas sobre crescimento e predação recebem também regras identificadas
+como `food-web-v1` e exemplos do catálogo identificados como didáticos, sem
+afirmar ocorrência de campo. Fatos do banco conservam sua chave de fonte.
+Uma seleção vazia informa insuficiência; seleção inventada, duplicada ou com
+campos extras é rejeitada. A relevância da seleção ainda pode falhar.
+
+A explicação recebe o resultado educacional, as populações inicial/final da
+introduzida, quantidade de reguladores e causas únicas do motor. Seleciona
+causas existentes; a causa principal do resultado sempre é preservada.
+IDs de ações e populações nunca são delegados ao modelo. Falha ou saída
+inválida preserva explicação `rules`, sem fallback para API externa.
+Não apresentar o sistema como previsão de campo validada.
 
 ## Conferência em produção
 

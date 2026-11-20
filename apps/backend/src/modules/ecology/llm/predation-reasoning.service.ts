@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { PredationProjection, PredationReasoning } from "@sara/shared-types";
 import { textLlmRuntime } from "../../llm/text-runtime";
-import { buildOwnPredationPrompts } from "./own-model-prompts";
+import { buildOwnPredationPrompts, selectOwnEvidence, OWN_EXTRACTIVE_NOTICE } from "./own-model-prompts";
 import { AppError } from "../../../core/errors/app-error";
 import { createLlmProvider, type LlmProvider } from "../../llm/llm.provider";
 import { PREDATION_POLICY } from "../simulation/predation-dynamics.service";
@@ -38,16 +38,14 @@ export class PredationReasoningService {
     const provider: LlmProvider | null = runtime.provider;
     if (!provider || !runtime.apiKey || !runtime.baseUrl) return fallback();
     try {
+      const ownPrompts = runtime.own ? buildOwnPredationPrompts(projection) : null;
       const result = await provider.generateText({
-        ...(runtime.own ? buildOwnPredationPrompts(projection) : buildPredationPrompts(projection)),
+        ...(ownPrompts ?? buildPredationPrompts(projection)),
         model: runtime.model, apiKey: runtime.apiKey,
         baseUrl: runtime.baseUrl.replace(/\/+$/, ""),
         timeoutMs: runtime.own ? runtime.timeoutMs : Math.min(runtime.timeoutMs, 30_000),
-        ...(runtime.own ? {maxOutputTokens: 128} : {}),
-        responseSchema: runtime.own ? {
-          type: "object", additionalProperties: false, required: ["summary"],
-          properties: {summary: {type: "string"}},
-        } : {
+        ...(runtime.own ? {maxOutputTokens: 48} : {}),
+        responseSchema: ownPrompts?.responseSchema ?? {
           type: "object", additionalProperties: false, required: ["summary", "actionIds"],
           properties: {
             // Large dynamic enums + array bounds can exceed a provider's schema
@@ -62,9 +60,13 @@ export class PredationReasoningService {
       const raw = JSON.parse(fenced?.[1] ?? text);
       // The own model writes only prose. Action IDs are never delegated to it.
       if (runtime.own) {
-        const parsed = responseSchema.omit({actionIds:true}).parse(raw);
-        return {source: "llm", provider: provider.name, model: runtime.model,
-          summary: parsed.summary, actionIds: expected, warnings: []};
+        const selected=selectOwnEvidence(result.text,ownPrompts!.evidence);
+        if(!selected.length)return fallback("A LLM própria não selecionou uma causa; explicação por regras preservada.");
+        // Include the motor's primary outcome even when the model emphasizes
+        // secondary effects. Never let selected prose contradict establishment.
+        const summary=[...new Set([projection.actions[0]!.reason,...selected])].join(" ");
+        return {source: "llm", provider: provider.name, model: runtime.model, responseMode:"grounded-extractive",
+          summary, actionIds: expected, warnings: [OWN_EXTRACTIVE_NOTICE]};
       }
       const parsed = responseSchema.parse(raw);
       const accepted = new Set(parsed.actionIds);

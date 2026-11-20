@@ -3,7 +3,7 @@ import { AppError } from "../../../core/errors/app-error";
 import { logger } from "../../../logging/logger";
 import { type LlmGenerateTextOutput } from "../../llm/llm.provider";
 import { textLlmRuntime } from "../../llm/text-runtime";
-import { buildOwnQuestionPrompts } from "./own-model-prompts";
+import { buildOwnQuestionPrompts, selectOwnEvidence, OWN_EXTRACTIVE_NOTICE } from "./own-model-prompts";
 import type { GroundingCategory } from "../ecology.schemas";
 import {
   ecologicalContextBuilderService,
@@ -32,6 +32,7 @@ export interface EcologicalLlmInput {
 }
 
 export interface EcologicalLlmResult {
+  responseMode?: "grounded-extractive";
   provider: string;
   model: string;
   answer: string | null;
@@ -182,7 +183,7 @@ export class EcologicalLlmService {
         apiKey: runtime.apiKey,
         baseUrl: normalizeBaseUrl(runtime.baseUrl),
         timeoutMs: runtime.timeoutMs,
-        ...(runtime.own ? {maxOutputTokens: 128} : {}),
+        ...(runtime.own ? {maxOutputTokens: 48} : {}),
       });
     } catch (err) {
       ecoLlmLogger.error({ err }, "Ecological LLM provider call failed");
@@ -211,11 +212,19 @@ export class EcologicalLlmService {
 
     let answer = generation.text;
     if (runtime.own) {
+      const ownPrompts = buildOwnQuestionPrompts(input.prompt,builtContext);
+      try {
+        const selected=selectOwnEvidence(generation.text,ownPrompts.evidence);
+        answer=selected.length ? selected.join("\n\n") : INSUFFICIENT_GROUNDING_MESSAGE;
+      } catch {
+        throw new AppError("LLM_OWN_INVALID",502,"O modelo próprio não selecionou evidências válidas. Tente novamente com uma pergunta mais específica.");
+      }
       // Disclaimers are imposed by the backend, never left to a small model.
       if (builtContext.queryType === "speculative") answer = `${SPECULATIVE_DISCLAIMER}\n${answer}`;
       if (builtContext.queryType === "modeling") answer = `${MODELING_DISCLAIMER}\n${answer}`;
     }
-    return { ...baseResult, answer };
+    return { ...baseResult, answer, ...(runtime.own ? {responseMode:"grounded-extractive" as const,
+      warnings:[...baseResult.warnings,OWN_EXTRACTIVE_NOTICE]} : {}) };
   }
 }
 

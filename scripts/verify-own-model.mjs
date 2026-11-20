@@ -23,6 +23,10 @@ try{
  ]){
   const {payload:{data},durationMs}=await call("/ecology/generate",{prompt,ecosystems:["cerrado"]});
   assert.equal(data.provider,"render");assert.equal(data.model,"sara-qwen-0.5b");assert.ok(data.answer?.trim());
+  assert.equal(data.responseMode,"grounded-extractive");
+  if(prompt.startsWith("O que limita"))assert.match(data.answer,/alimento.*mortalidade.*capacidade de suporte/i);
+  if(prompt.startsWith("Um predador"))assert.match(data.answer,/→.*→/);
+  if(prompt.startsWith("É inevitável"))assert.match(data.answer,/não.*(devasta|implica)/i);
   const check={kind:"question",prompt,durationMs,provider:data.provider,model:data.model,answer:data.answer,groundingCoverage:data.groundingCoverage,contextPreview:data.contextPreview};
   checks.push(check);console.log(JSON.stringify(check));
  }
@@ -31,6 +35,7 @@ try{
   assert.equal(data.kind,"invasive");const result=data.result,reasoning=result.predationReasoning;
   assert.equal(reasoning.source,"llm",JSON.stringify(reasoning));assert.equal(reasoning.provider,"render");
   assert.equal(reasoning.model,"sara-qwen-0.5b");
+  assert.equal(reasoning.responseMode,"grounded-extractive");
   const populations=result.phases.map(p=>p.invaderPop);
   assert.ok(populations.every(p=>Number.isFinite(p)&&p>=0&&p<=100));
   if(prompt.includes("Antártida"))assert.equal(populations.at(-1),0);
