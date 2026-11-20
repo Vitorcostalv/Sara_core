@@ -17,9 +17,16 @@ module.exports = function handler(req, res) {
       .filter(Boolean).map(host => `https://${host}`)
       .concat((process.env.CORS_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean))
   );
-  if (req.headers['sec-fetch-site'] === 'cross-site' ||
+  // A health link opened from chat/docs is a cross-site navigation, not an
+  // application request. Permit only public liveness/readiness navigation;
+  // mutation, catalog and project routes retain the origin boundary.
+  const publicHealthNavigation = ['GET', 'HEAD'].includes(req.method) &&
+    !req.headers.origin && req.headers['sec-fetch-mode'] === 'navigate' &&
+    /^\/api\/v1\/health(?:\/ping)?\/?$/.test(new URL(req.url, 'http://localhost').pathname);
+  if ((!publicHealthNavigation && req.headers['sec-fetch-site'] === 'cross-site') ||
       (req.headers.origin && !origins.has(req.headers.origin))) {
     res.statusCode = 403;
+    res.setHeader('Content-Type', 'application/json');
     return res.end(JSON.stringify({ error: { code: 'ORIGIN_DENIED', message: 'Origem não autorizada.' } }));
   }
   if (!['GET', 'POST', 'OPTIONS', 'HEAD'].includes(req.method)) {

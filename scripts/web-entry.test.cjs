@@ -46,3 +46,34 @@ test('cloud runtime loads the compiled shared resource catalog without a TypeScr
   assert.equal(resources.biomeFamily('lago'), 'freshwater');
   assert.equal(resources.FAMILY_RESOURCES.ocean.plancton, 1);
 });
+
+test('public health links allow external navigation while protected routes still reject it', async () => {
+  const server = http.createServer(handler).listen(0, '127.0.0.1');
+  await new Promise(r => server.once('listening', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const navigation = { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate' };
+  // Fetch forces Sec-Fetch-Mode=cors. Use HTTP to reproduce browser navigation.
+  const request = (path, method = 'GET', headers = navigation) => new Promise((resolve, reject) => {
+    const req = http.request(`${base}/api?__sara_path=${path}`, { method, headers }, res => {
+      res.resume();
+      res.once('end', () => resolve(res.statusCode));
+    });
+    req.on('error', reject); req.end();
+  });
+  try {
+    for (const path of ['health', 'health/', 'health/ping']) {
+      for (const method of ['GET', 'HEAD']) {
+        assert.equal(await request(path, method), 200);
+      }
+    }
+    for (const path of ['ecology/species', 'ecology/artificial-projects', 'health/private']) {
+      assert.equal(await request(path), 403);
+    }
+    assert.equal(await request('health', 'POST'), 403);
+    assert.equal(await request('health', 'GET', { ...navigation, Origin: 'https://unrelated.example' }), 403);
+    assert.equal(await request('health', 'GET', { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'cors' }), 403);
+  } finally {
+    server.closeAllConnections();
+    await new Promise(r => server.close(r));
+  }
+});
