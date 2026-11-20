@@ -64,6 +64,7 @@ export class GeminiLlmProvider implements LlmProvider {
         temperature: 0.2,
         responseMimeType: input.responseSchema ? "application/json" : "text/plain",
         ...(input.responseSchema ? { responseJsonSchema: input.responseSchema } : {}),
+        ...(input.responseSchema && /^gemini-2\.5-flash(?:$|-)/.test(input.model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
       },
     });
 

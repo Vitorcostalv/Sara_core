@@ -9,10 +9,11 @@ test("GeminiLlmProvider requests native structured JSON when a schema is supplie
     const payload = JSON.parse(String(init?.body));
     assert.equal(payload.generationConfig.responseMimeType, "application/json");
     assert.deepEqual(payload.generationConfig.responseJsonSchema, schema);
+    assert.deepEqual(payload.generationConfig.thinkingConfig, { thinkingBudget: 0 });
     return Response.json({ candidates: [{ content: { parts: [{ text: '{"summary":"ok"}' }] } }] });
   }) as typeof fetch;
   try {
-    const result = await new GeminiLlmProvider().generateText({ systemPrompt: "policy", userPrompt: "data", model: "mock", apiKey: "test", baseUrl: "https://mock.invalid", timeoutMs: 1000, responseSchema: schema });
+    const result = await new GeminiLlmProvider().generateText({ systemPrompt: "policy", userPrompt: "data", model: "gemini-2.5-flash", apiKey: "test", baseUrl: "https://mock.invalid", timeoutMs: 1000, responseSchema: schema });
     assert.deepEqual(JSON.parse(result.text), { summary: "ok" });
   } finally { globalThis.fetch = originalFetch; }
 });

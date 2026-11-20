@@ -2,6 +2,35 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError, buildApiUrl, checkApiHealth, fetchWithTimeout, getApiErrorMessage } from "../services/api/client";
 import { ecologyApi } from "../services/api/ecology";
 import type { ApiErrorResponse } from "@sara/shared-types";
+import { syntheticForecastExample } from "@sara/shared-types";
+
+it("forecast recovers from one transient network failure with the identical observation payload", async () => {
+  const payload = syntheticForecastExample();
+  const request = vi.fn().mockRejectedValueOnce(new TypeError("Failed to fetch"))
+    .mockResolvedValueOnce(Response.json({ data: { modelVersion: "test" } }));
+  vi.stubGlobal("fetch", request);
+  expect(await ecologyApi.forecast(payload)).toEqual({ data: { modelVersion: "test" } });
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(request.mock.calls[0][1].body).toBe(request.mock.calls[1][1].body);
+});
+
+it("forecast rejects unknown species explicitly without retrying validation errors", async () => {
+  const request = vi.fn().mockResolvedValue(Response.json({error:{code:"FORECAST_SPECIES_UNKNOWN",message:"Espécie não catalogada: inventada"}}, {status:422}));
+  vi.stubGlobal("fetch", request);
+  try { await ecologyApi.forecast(syntheticForecastExample()); throw new Error("Expected rejection"); }
+  catch (error) { expect(getApiErrorMessage(error)).toContain("Espécie inexistente no catálogo (HTTP 422)"); }
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+it("network retries stay bounded and do not repeat other simulation POSTs", async () => {
+  const request = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+  vi.stubGlobal("fetch", request);
+  await expect(ecologyApi.forecast(syntheticForecastExample())).rejects.toThrow("Failed to fetch");
+  expect(request).toHaveBeenCalledTimes(2);
+  request.mockClear();
+  await expect(ecologyApi.invasive({speciesText:"leão",locationText:"cerrado"})).rejects.toThrow("Failed to fetch");
+  expect(request).toHaveBeenCalledTimes(1);
+});
 
 afterEach(() => {
   delete window.__SARA_RUNTIME__;

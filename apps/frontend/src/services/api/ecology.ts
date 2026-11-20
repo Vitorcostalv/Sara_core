@@ -775,9 +775,9 @@ export interface FaunaResult {
 
 async function ecologyRequest<T>(
   endpoint: string,
-  options: { method?: "GET" | "POST"; body?: unknown; timeoutMs?: number } = {}
+  options: { method?: "GET" | "POST"; body?: unknown; timeoutMs?: number; retryNetwork?: boolean } = {}
 ): Promise<T> {
-  const response = await fetchWithTimeout(buildApiUrl(endpoint), {
+  const send = () => fetchWithTimeout(buildApiUrl(endpoint), {
     method: options.method ?? "GET",
     headers:
       options.body !== undefined
@@ -785,6 +785,15 @@ async function ecologyRequest<T>(
         : buildApiHeaders(),
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     }, options.timeoutMs);
+
+  let response: Response;
+  try { response = await send(); }
+  catch (error) {
+    if (!options.retryNetwork || !(error instanceof TypeError)) throw error;
+    // Only observational forecasting opts in: this endpoint is side-effect free.
+    await new Promise(resolve => window.setTimeout(resolve, 250));
+    response = await send();
+  }
 
   if (!response.ok) {
     let errorPayload: ApiErrorResponse | null = null;
@@ -964,6 +973,6 @@ export const ecologyApi = {
     }),
   forecast: (payload: import("@sara/shared-types").EcologicalForecastInput) =>
     ecologyRequest<ApiSingle<import("@sara/shared-types").EcologicalForecastResult>>("/ecology/forecast", {
-      method: "POST", body: payload,
+      method: "POST", body: payload, timeoutMs: 30_000, retryNetwork: true,
     }),
 };

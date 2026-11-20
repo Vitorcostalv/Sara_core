@@ -109,7 +109,7 @@ describe("service worker runtime", () => {
     let completion: Promise<void> | undefined;
     sw.listeners.activate({ waitUntil: (value: Promise<void>) => { completion = value; } });
     await completion;
-    expect(sw.caches.delete.mock.calls).toEqual([["sara-core-pwa-v4"], ["sara-core-pwa-v5"], ["sara-core-pwa-v6"], ["sara-core-pwa-v7"], ["sara-core-pwa-v8"]]);
+    expect(sw.caches.delete.mock.calls).toEqual([["sara-core-pwa-v4"], ["sara-core-pwa-v5"], ["sara-core-pwa-v6"], ["sara-core-pwa-v7"], ["sara-core-pwa-v8"], ["sara-core-pwa-v9"]]);
     expect(sw.claim).toHaveBeenCalledOnce();
   });
 

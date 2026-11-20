@@ -3,7 +3,7 @@ import { chromium } from "playwright-core";
 import { createServer } from "node:net";
 import { once } from "node:events";
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -106,6 +106,13 @@ try {
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Exportar previsão e avaliação" }).click();
   await (await downloadPromise).saveAs(resolve(artifacts, "forecast-export.json"));
+  assert.deepEqual(JSON.parse(await readFile(resolve(artifacts, "forecast-export.json"), "utf8")), observational);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('[data-testid="forecast-panel"]').scrollIntoViewIfNeeded();
+  const panelBox = await page.locator('[data-testid="forecast-panel"]').boundingBox();
+  assert.ok(panelBox && panelBox.width <= 390, "Forecast panel must fit a phone viewport");
+  await page.screenshot({ path: resolve(artifacts, "forecast-mobile.png"), fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByText("Previsão com observações", { exact: true }).click();
   await page.locator("#invasive-species-select").selectOption("leao");
   const responsePromise = page.waitForResponse((r) => r.url() === `${api}/ecology/invasive` && r.request().method() === "POST", { timeout: 30_000 });

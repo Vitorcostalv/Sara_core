@@ -5,6 +5,9 @@ let app;
 // One origin for the page and API. Database and provider keys stay on the server.
 module.exports = function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
+  if (/^[a-f0-9]{7,40}$/i.test(process.env.VERCEL_GIT_COMMIT_SHA || '')) {
+    res.setHeader('X-Sara-Commit', process.env.VERCEL_GIT_COMMIT_SHA);
+  }
   const url = new URL(req.url, 'http://localhost');
   const route = req.query?.__sara_path ?? url.searchParams.get('__sara_path');
   if (typeof route === 'string') {

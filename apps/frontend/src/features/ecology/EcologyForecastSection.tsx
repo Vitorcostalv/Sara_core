@@ -23,8 +23,9 @@ export function EcologyForecastSection() {
     const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
-    anchor.href = url; anchor.download = "sara-previsao-experimental.json"; anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.href = url; anchor.download = "sara-previsao-experimental.json";
+    document.body.appendChild(anchor); anchor.click(); anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   return (
     <details className="signal-panel" data-testid="forecast-panel">

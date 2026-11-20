@@ -18,6 +18,11 @@ export class HealthService {
 
     return {
       status: database.ok ? "ok" : "degraded",
+      httpStatus: 200,
+      deployment: {
+        commit: process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.RENDER_GIT_COMMIT ?? null,
+        id: process.env.VERCEL_DEPLOYMENT_ID ?? null,
+      },
       service: "sara-core-backend",
       environment: env.nodeEnv,
       timestamp: new Date().toISOString(),

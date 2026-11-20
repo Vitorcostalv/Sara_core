@@ -71,6 +71,14 @@ export function isApiClientError(error: unknown): error is ApiClientError {
 
 export function getApiErrorMessage(error: unknown): string {
   if (isApiClientError(error)) {
+    if (error.payload?.error?.code === "VALIDATION_ERROR") {
+      const details = error.payload.error.details as { fieldErrors?: Record<string, string[]> } | null;
+      const messages = Object.values(details?.fieldErrors ?? {}).flat().filter(value => typeof value === "string");
+      return `Dados inválidos (HTTP ${error.status}). ${messages.join(" ") || "Confira os campos informados."}`;
+    }
+    if (error.payload?.error?.code === "FORECAST_SPECIES_UNKNOWN") {
+      return `Espécie inexistente no catálogo (HTTP ${error.status}). ${error.payload.error.message}`;
+    }
     if (error.status === 401) {
       return "Acesso negado pela API. Verifique a chave de integração configurada para este ambiente.";
     }
@@ -83,6 +91,9 @@ export function getApiErrorMessage(error: unknown): string {
 
     return error.payload?.error?.message ?? error.message;
   }
+  if (error instanceof SyntaxError) return "JSON inválido. Confira a sintaxe antes de gerar a previsão.";
+  if (error instanceof TypeError) return "Não foi possível conectar à API após a tentativa de envio. Confira sua conexão e tente novamente; não houve confirmação de resposta do servidor.";
+  if (error instanceof Error && error.name === "AbortError") return "A API não respondeu no tempo limite. Tente novamente.";
   if (error instanceof Error) {
     return error.message;
   }

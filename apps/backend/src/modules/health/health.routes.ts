@@ -10,7 +10,7 @@ const renderKeepAlive = new RenderKeepAlive(() => ({ enabled: env.renderLlmEnabl
 healthRoutes.get("/ping", async (_req, res) => {
   await renderKeepAlive.ping();
   res.setHeader("Cache-Control", "no-store");
-  res.status(200).json({ message: "oi" });
+  res.status(200).json({ message: "oi", httpStatus: 200 });
 });
 
 healthRoutes.get("/", healthController.getHealth.bind(healthController));

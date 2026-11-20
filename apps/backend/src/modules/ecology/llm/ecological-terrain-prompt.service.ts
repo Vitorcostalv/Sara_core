@@ -44,6 +44,7 @@ interface LlmBiomeExtraction {
 
 // Classification (independente de width/height/seed) — derivada do bioma canônico.
 interface BiomeClassification {
+  minWaterCoveragePct?: number;
   source: TerrainPromptResult["source"];
   inference?: TerrainPromptResult["inference"];
   biomeSlug: string;
@@ -217,6 +218,7 @@ export class EcologicalTerrainPromptService {
       seed,
       reliefStyle: classification.featureHints?.mountainous && classification.reliefStyle !== "ocean" && classification.reliefStyle !== "polar" ? "mountain" as const : classification.reliefStyle,
       seaLevel: classification.seaLevel,
+      minWaterCoveragePct: classification.minWaterCoveragePct,
     };
 
     const terrain = terrainGeneratorService.generate({
@@ -228,6 +230,11 @@ export class EcologicalTerrainPromptService {
     // Amazon or Pantanal scenario must not become Atlantic Forest endemism.
     for (const row of terrain.cells) {
       for (const cell of row) {
+        if (classification.biomeSlug === "caverna") {
+          cell.biomeSuggestion = "caverna";
+          cell.salinityPsu = 0;
+          continue;
+        }
         const forest = ["mata-atlantica", "floresta-tropical-umida", "floresta-tropical-seca"].includes(cell.biomeSuggestion);
         if (["amazonia", "floresta-tropical"].includes(classification.biomeSlug) && cell.biomeSuggestion === "mata-atlantica") {
           cell.biomeSuggestion = "floresta-tropical-umida";
@@ -272,7 +279,7 @@ export class EcologicalTerrainPromptService {
       slug: string,
       biomeName: string,
       interpretation: string,
-      preset: { baseTemperatureC: number; basePrecipitationMm: number; baseHumidityPct: number; reliefStyle?: ReliefStyle; seaLevel?: number }
+      preset: { baseTemperatureC: number; basePrecipitationMm: number; baseHumidityPct: number; reliefStyle?: ReliefStyle; seaLevel?: number; minWaterCoveragePct?: number }
     ): BiomeClassification => ({
       source,
       biomeSlug: slug,
@@ -283,9 +290,19 @@ export class EcologicalTerrainPromptService {
       baseHumidityPct: preset.baseHumidityPct,
       reliefStyle: preset.reliefStyle,
       seaLevel: preset.seaLevel,
+      minWaterCoveragePct: preset.minWaterCoveragePct,
       featureHints: featureHintsFromPrompt(prompt),
     });
 
+    // Explicit catalog names take precedence over model guesses. Ambiguous prose
+    // can still use the classifier; known names must preserve their climate.
+    const named = biomePresetService.findByKeyword(prompt);
+    if (named) {
+      const result = fromPreset("keyword", named.slug, named.preset.displayName,
+        `Ecossistema identificado como "${named.preset.displayName}" pelo catálogo.`, named.preset);
+      cacheClassification(cacheKey, result);
+      return result;
+    }
     // 1. LLM constrangido ao enum (slug rejeitado se não houver preset correspondente).
     const provider = createLlmProvider(env.llmProvider);
     if (provider && env.llmApiKey) {

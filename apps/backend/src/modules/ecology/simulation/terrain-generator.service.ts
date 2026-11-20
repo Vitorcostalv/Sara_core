@@ -59,6 +59,7 @@ export interface TerrainGrid {
 export type ReliefStyle = "default" | "ocean" | "mountain" | "polar";
 
 export interface TerrainInput {
+  minWaterCoveragePct?: number;
   width: number;
   height: number;
   seed: number;
@@ -254,6 +255,17 @@ export class TerrainGeneratorService {
     }
 
     // ── Pass 2: derive temperature/water/biome/etc. on the (carved) heightmap. ──
+    // Wet ecosystem presets need reproducible water habitat even on dry seeds.
+    // Lower the lowest cells before deriving climate/flow, preserving one mask.
+    const minimumWater = Math.ceil(width * height * Math.max(0, Math.min(100, input.minWaterCoveragePct ?? 0)) / 100);
+    if (minimumWater > 0) {
+      const lowest = elevation.flatMap((row, y) => row.map((value, x) => ({ value, x, y })))
+        .sort((a, b) => a.value - b.value || a.y - b.y || a.x - b.x);
+      for (const cell of lowest.slice(0, minimumWater)) {
+        elevation[cell.y]![cell.x] = Math.min(cell.value, seaLevel - 0.02);
+      }
+      carveWaterBasins(elevation, width, height, seaLevel);
+    }
     const cells: TerrainCell[][] = [];
     for (let row = 0; row < height; row++) {
       const rowCells: TerrainCell[] = [];

@@ -25,7 +25,7 @@ export interface EcosystemProfile {
     humidityPct: [number, number];
   };
   substrateNotes: string;
-  water: { presence: WaterPresence; salinityRangePsu: [number, number] };
+  water: { presence: WaterPresence; salinityRangePsu: [number, number]; minCoveragePct?: number };
   /** Basal resource types expected to dominate the productive base. */
   dominantResources: ResourceType[];
   /** Coarse fauna groups expected (taxon/functional tags, for reporting). */
@@ -170,7 +170,7 @@ export const ECOSYSTEM_PROFILES: EcosystemProfile[] = [
     compatibleBiomes: ["caverna"],
     climate: { temperatureRangeC: [18, 24], rainfallMmYear: [0, 100], humidityPct: [85, 100] },
     substrateNotes: "Ambiente afótico, térmica estável; base trófica alóctone (guano, matéria carreada).",
-    water: { presence: "freshwater", salinityRangePsu: [0, 1] },
+    water: { presence: "freshwater", salinityRangePsu: [0, 1], minCoveragePct: 0 },
     dominantResources: ["materia-organica-cavernicola", "detrito"],
     compatibleFaunaGroups: ["troglóbios", "morcegos", "peixes-cavernícolas", "invertebrados"],
     incompatibleConditions: ["luz-solar", "vegetação-fotossintética", "salinidade-marinha"],
@@ -276,7 +276,7 @@ export class EcosystemProfileService {
       profile.medium === "coastal" ||
       profile.medium === "mixed" ||
       profile.water.presence !== "none";
-    if (expectsWater && observed.waterCoveragePct < 5) {
+    if (expectsWater && observed.waterCoveragePct < (profile.water.minCoveragePct ?? 5)) {
       mismatches.push(`${profile.displayName} espera corpos d'água, mas o grid tem ${observed.waterCoveragePct}% de água.`);
     }
 

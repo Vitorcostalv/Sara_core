@@ -6,10 +6,29 @@ import { pool } from "../database/postgres";
 import type { InvasiveScenarioResult } from "../modules/ecology/simulation/invasive-scenario.service";
 import type { EcologicalLlmResult } from "../modules/ecology/llm/ecological-llm.service";
 import { syntheticForecastExample, type EcologicalForecastResult } from "@sara/shared-types";
-
-// These tests require the disposable DB created by scripts/test-local.mjs.
+import type { EcosystemReportResult } from "../modules/ecology/ecosystem-report.service";
 const database = new URL(env.databaseUrl!);
 const localOnly = env.nodeEnv === "test" && database.hostname === "127.0.0.1" && database.pathname === "/sara_test";
+
+test("Production report: the seven tester prompts preserve ecosystem identity through the HTTP report flow", { skip: !localOnly }, async () => {
+  await serverTest(async base => {
+    for (const [prompt, slug] of [["Floresta amazônica úmida", "amazonia"], ["Cerrado com campos e mata de galeria", "cerrado"], ["Caatinga seca", "caatinga"], ["Manguezal costeiro", "mangue"], ["Pantanal com áreas inundáveis", "pantanal"], ["Oceano polar", "oceano-polar"], ["Caverna", "caverna"]]) {
+      const response = await fetch(`${base}/ecology/ecosystem-report`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({prompt, width:20, height:16, seed:41}) });
+      assert.equal(response.status, 200);
+      const { data } = await response.json() as {data:EcosystemReportResult};
+      assert.equal(data.biomeSlug, slug);
+      if (["amazonia", "mangue"].includes(slug!)) assert.ok(!data.report.ecosystemProfile.mismatches.some(m => /grid tem.*água/.test(m)));
+      if (slug === "oceano-polar") assert.ok(data.report.climate.temperatureRangeC[1] < 1);
+      if (slug === "caverna") {
+        assert.ok(data.report.formations.caveCells > 0);
+        assert.equal(data.report.ecosystemProfile.profile?.slug, "caverna-tropical");
+        assert.ok(data.terrain.cells.flat().every(c => c.biomeSuggestion === "caverna"));
+      }
+    }
+  });
+});
+
+// These tests require the disposable DB created by scripts/test-local.mjs.
 after(async () => { await pool.end(); });
 
 async function serverTest(run: (base: string) => Promise<void>) {
@@ -34,6 +53,12 @@ test("Full flow: observational forecast validates evidence, returns hindcast met
     assert.equal(data.source.kind, "synthetic");
     const invalid = await send({ ...input, observations: input.observations.slice(0, 2) });
     assert.equal(invalid.status, 400);
+    const unknown = structuredClone(input);
+    unknown.speciesIds = ["especie-inexistente"];
+    unknown.observations.forEach(o => { o.populations = { "especie-inexistente": 12 }; });
+    const rejected = await send(unknown);
+    assert.equal(rejected.status, 422);
+    assert.equal((await rejected.json() as {error:{code:string}}).error.code, "FORECAST_SPECIES_UNKNOWN");
   });
 });
 

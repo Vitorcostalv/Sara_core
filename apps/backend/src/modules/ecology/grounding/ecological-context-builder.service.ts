@@ -1,5 +1,6 @@
 import { logger } from "../../../logging/logger";
 import { PREDATION_POLICY } from "../simulation/predation-dynamics.service";
+import { listCatalogSpecies } from "../simulation/fauna-definition.service";
 import type { GroundingCategory } from "../ecology.schemas";
 import {
   classifyEcologicalQuery,
@@ -93,6 +94,12 @@ function buildContextPreview(facts: EcologicalGroundingFactPreview[], queryType:
     "- Do not invent species, ecosystems, or ecological facts outside this context.",
     "- If context is insufficient, say exactly: Não encontrei informação suficiente no banco para responder com segurança.",
     PREDATION_POLICY,
+    "Exemplos do catálogo didático (elos modelados, não observações de campo nem ocorrência no ambiente consultado):",
+    ...listCatalogSpecies().flatMap(predator => predator.preySpeciesIds.flatMap(preyId => {
+      const prey = listCatalogSpecies().find(species => species.id === preyId);
+      return prey && prey.preySpeciesIds.length > 0 ? [`${predator.commonName} → ${prey.commonName} → ${listCatalogSpecies().find(species => species.id === prey.preySpeciesIds[0])?.commonName ?? prey.preySpeciesIds[0]}.`] : [];
+    })).slice(0, 3),
+    "Se perguntarem se um predador também pode ser predado, explicite um desses elos e identifique-o como exemplo do catálogo, sem afirmar que ocorre no cenário atual.",
   ];
 
   if (queryType === "speculative") {

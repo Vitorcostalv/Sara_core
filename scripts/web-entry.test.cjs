@@ -15,6 +15,7 @@ require.cache[backendPath] = {
   } },
 };
 process.env.VERCEL_PROJECT_PRODUCTION_URL = 'sara-core.example.com';
+process.env.VERCEL_GIT_COMMIT_SHA = '0123456789abcdef0123456789abcdef01234567';
 const handler = require('../api/index.js');
 
 test('cloud entry preserves paths/query and keeps its integration key server-side', async () => {
@@ -27,6 +28,7 @@ test('cloud entry preserves paths/query and keeps its integration key server-sid
     });
     assert.equal(response.status,200);
     assert.equal(response.headers.get('cache-control'),'no-store');
+    assert.equal(response.headers.get('x-sara-commit'),process.env.VERCEL_GIT_COMMIT_SHA);
     const text = await response.text();
     assert.deepEqual(JSON.parse(text),{path:'/api/v1/ecology/species?page=2'});
     assert.ok(!text.includes(process.env.API_AUTH_KEY));

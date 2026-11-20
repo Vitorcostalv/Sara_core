@@ -1,6 +1,8 @@
 import type { ReliefStyle } from "./terrain-generator.service";
 
 export interface BiomePreset {
+  /** Minimum synthetic water coverage, not a field estimate. */
+  minWaterCoveragePct?: number;
   displayName: string;
   baseTemperatureC: number;
   basePrecipitationMm: number;
@@ -32,6 +34,7 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     keywords: ["pantanal", "planície alagada", "pântano", "wetland brasileiro", "bacia do pantanal"],
   },
   amazonia: {
+    minWaterCoveragePct: 8,
     displayName: "Amazônia",
     baseTemperatureC: 28,
     basePrecipitationMm: 2800,
@@ -63,6 +66,7 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     keywords: ["pampa", "pampas", "campos sulinos", "campanha gaúcha", "gaucha", "pampeano"],
   },
   mangue: {
+    minWaterCoveragePct: 25,
     displayName: "Manguezal",
     baseTemperatureC: 26,
     basePrecipitationMm: 1800,
@@ -119,6 +123,18 @@ const BIOME_PRESETS: Record<string, BiomePreset> = {
     basePrecipitationMm: 550,
     baseHumidityPct: 52,
     keywords: ["mediterrâneo", "mediterraneo", "mediterranean", "chaparral", "maquis"],
+  },
+  "oceano-polar": {
+    minWaterCoveragePct: 80,
+    displayName: "Oceano Polar", baseTemperatureC: -1, basePrecipitationMm: 400,
+    baseHumidityPct: 80, reliefStyle: "ocean", seaLevel: 0.5,
+    description: "oceano frio polar, mar aberto gelado; não é oceano tropical nem calota continental",
+    keywords: ["oceano polar", "ocean polar", "polar ocean", "oceano artico", "oceano antartico", "mar polar"],
+  },
+  caverna: {
+    displayName: "Caverna", baseTemperatureC: 22, basePrecipitationMm: 0,
+    baseHumidityPct: 90, description: "sistema subterrâneo afótico; chuva direta zero no interior, não um bioma superficial",
+    keywords: ["caverna", "cavernas", "gruta", "grutas", "cave", "caves", "subterraneo"],
   },
   oceano: {
     displayName: "Oceano",
@@ -195,10 +211,13 @@ export class BiomePresetService {
 
   findByKeyword(text: string): { slug: string; preset: BiomePreset } | null {
     const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const hasSurfaceBiome = Object.entries(BIOME_PRESETS).some(([slug, preset]) => slug !== "caverna" &&
+      preset.keywords.some(keyword => normalized.includes(keyword.normalize("NFD").replace(/[̀-ͯ]/g, ""))));
     let bestSlug: string | null = null;
     let bestScore = 0;
 
     for (const [slug, preset] of Object.entries(BIOME_PRESETS)) {
+      if (slug === "caverna" && hasSurfaceBiome) continue;
       for (const keyword of preset.keywords) {
         const normalizedKeyword = keyword
           .toLowerCase()

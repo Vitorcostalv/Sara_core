@@ -22,6 +22,7 @@ async function call(path, body) {
 try {
   const health = await call("/health");
   assert.equal(health.status, "ok", "Banco não está saudável.");
+  if (process.env.SARA_EXPECTED_COMMIT) assert.equal(health.deployment?.commit, process.env.SARA_EXPECTED_COMMIT, "SHA servido diferente do commit esperado.");
   assert.equal(health.capabilities?.forecastModel, "observational-log-trend-v1", "A versão nova ainda não está publicada.");
   const forecast = (await call("/ecology/forecast", syntheticForecastExample())).data;
   assert.equal(forecast.source.kind, "synthetic");

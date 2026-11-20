@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PredationProjection, PredationReasoning } from "@sara/shared-types";
 import { env } from "../../../config/env";
+import { AppError } from "../../../core/errors/app-error";
 import { createLlmProvider, type LlmProvider } from "../../llm/llm.provider";
 import { PREDATION_POLICY } from "../simulation/predation-dynamics.service";
 
@@ -38,7 +39,7 @@ export class PredationReasoningService {
         ...buildPredationPrompts(projection),
         model: env.llmModel || provider.defaultModel, apiKey: env.llmApiKey,
         baseUrl: (env.llmBaseUrl ?? provider.defaultBaseUrl).replace(/\/+$/, ""),
-        timeoutMs: Math.min(env.llmTimeoutMs, 12_000),
+        timeoutMs: Math.min(env.llmTimeoutMs, 30_000),
         responseSchema: {
           type: "object", additionalProperties: false, required: ["summary", "actionIds"],
           properties: {
@@ -55,8 +56,12 @@ export class PredationReasoningService {
         return fallback("A LLM alterou ou omitiu ações; explicação determinística preservada.");
       }
       return { source: "llm", summary: parsed.summary, actionIds: expected, warnings: [] };
-    } catch {
-      return fallback("LLM indisponível ou resposta inválida; a simulação mantém as regras determinísticas.");
+    } catch (error) {
+      const details = error instanceof AppError ? error.details as { status?: unknown } | undefined : undefined;
+      const cause = typeof details?.status === "number" ? `provedor HTTP ${details.status}` :
+        error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "tempo limite do provedor" :
+        error instanceof SyntaxError || error instanceof z.ZodError ? "formato da resposta inválido" : "falha de comunicação com o provedor";
+      return fallback(`LLM indisponível: ${cause}; a simulação mantém as regras determinísticas.`);
     }
   }
 }
