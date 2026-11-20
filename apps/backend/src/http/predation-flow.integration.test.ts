@@ -142,3 +142,27 @@ test("Full flow: ecological LLM inspection includes predation rules and sourced 
     assert.equal(data.answer, null);
   });
 });
+
+test("Quota containment suspends text but preserves live scenarios with zero external calls",{skip:!localOnly},async()=>{
+ const before={llmCloudEnabled:env.llmCloudEnabled,llmProvider:env.llmProvider,llmApiKey:env.llmApiKey};
+ const request=globalThis.fetch;let externalCalls=0;
+ Object.assign(env,{llmCloudEnabled:false,llmProvider:"gemini",llmApiKey:"not-a-real-key"});
+ globalThis.fetch=(async(input,init)=>{
+  if(new URL(String(input)).hostname!=="127.0.0.1"){externalCalls++;throw new Error("external request forbidden");}
+  return request(input,init);
+ }) as typeof fetch;
+ try {
+  await serverTest(async base=>{
+   const question=await fetch(`${base}/ecology/generate`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:"O que limita uma presa sem predadores?",ecosystems:["cerrado"]})});
+   assert.equal(question.status,503);
+   assert.equal((await question.json() as {error:{code:string}}).error.code,"LLM_CLOUD_SUSPENDED");
+   const scenario=await fetch(`${base}/ecology/simulate-prompt`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:"Invasão de javalis no Cerrado",width:20,height:16,seed:41})});
+   assert.equal(scenario.status,200);
+   const {data}=await scenario.json() as {data:{result:InvasiveScenarioResult}};
+   assert.equal(data.result.predationReasoning.source,"rules");
+   assert.ok(data.result.phases.length>0);
+   assert.ok(data.result.predationReasoning.warnings.some(w=>w.includes("suspenso")));
+  });
+  assert.equal(externalCalls,0);
+ }finally{Object.assign(env,before);globalThis.fetch=request;}
+});

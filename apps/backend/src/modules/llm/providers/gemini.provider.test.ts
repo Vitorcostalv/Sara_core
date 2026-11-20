@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GeminiLlmProvider } from "./gemini.provider";
+import { AppError } from "../../../core/errors/app-error";
+
+test("Gemini quota exhaustion returns 429 without automatic retries", async () => {
+  const before = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => { calls++; return Response.json({error:{message:"daily quota exceeded"}},{status:429}); }) as typeof fetch;
+  try {
+    await assert.rejects(new GeminiLlmProvider().generateText({systemPrompt:"policy",userPrompt:"data",model:"mock",apiKey:"test",baseUrl:"https://mock.invalid",timeoutMs:1000}),
+      error => error instanceof AppError && error.code === "LLM_QUOTA_EXCEEDED" && error.statusCode === 429);
+    assert.equal(calls,1);
+  } finally {globalThis.fetch = before;}
+});
 
 test("GeminiLlmProvider requests native structured JSON when a schema is supplied", async () => {
   const originalFetch = globalThis.fetch;

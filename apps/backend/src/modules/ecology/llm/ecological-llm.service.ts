@@ -137,6 +137,11 @@ export class EcologicalLlmService {
       return { ...baseResult, answer: null };
     }
 
+    if (!env.llmCloudEnabled) {
+      throw new AppError("LLM_CLOUD_SUSPENDED", 503,
+        "As respostas em texto estão temporariamente pausadas por contenção da quota do provedor. Cenários e previsões continuam disponíveis.");
+    }
+
     // Insufficient grounding: return safe message without calling LLM
     if (!builtContext.coverage.sufficient) {
       ecoLlmLogger.warn(

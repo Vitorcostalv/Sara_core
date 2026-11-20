@@ -93,7 +93,7 @@ test("HTTP integration: health stays public while ecology.generate requires the 
       const pingResponse = await fetch(`${baseUrl}/api/v1/health/ping`);
       assert.equal(pingResponse.status, 200);
       assert.equal(pingResponse.headers.get("cache-control"), "no-store");
-      assert.deepEqual(await pingResponse.json(), { message: "oi", httpStatus: 200 });
+      assert.deepEqual(await pingResponse.json(), { message: "oi", httpStatus: 200, renderHeartbeat: "disabled" });
 
       const unauthorizedResponse = await fetch(`${baseUrl}/api/v1/ecology/generate`, {
         method: "POST",

@@ -1,9 +1,10 @@
 import type { LlmGenerateTextInput, LlmGenerateTextOutput, LlmProvider } from "./llm.provider";
 import { RenderLlmProvider } from "./providers/render.provider";
+import { AppError } from "../../core/errors/app-error";
 
 export interface LocalConfig {enabled:boolean;baseUrl:string|null;apiKey:string|null;timeoutMs:number}
 /** A failed/cold local instance never disables the existing cloud provider. */
-export async function generateWithLocalFallback(primary:LlmProvider,input:LlmGenerateTextInput,local:LocalConfig,
+export async function generateWithLocalFallback(primary:LlmProvider|null,input:LlmGenerateTextInput,local:LocalConfig,
   validateLocal?:(text:string)=>boolean,
   localInput?:Partial<Pick<LlmGenerateTextInput,"systemPrompt"|"responseSchema"|"maxOutputTokens">>,
   normalizeLocal?:(text:string)=>string):Promise<LlmGenerateTextOutput> {
@@ -19,6 +20,7 @@ export async function generateWithLocalFallback(primary:LlmProvider,input:LlmGen
       fallbackReason="local_unavailable_or_invalid";
     }
   }
+  if (!primary) throw new AppError("LLM_CLOUD_SUSPENDED",503,"Fallback externo suspenso; classificação por catálogo continua disponível.");
   const output=await primary.generateText(input);
   return {...output,provider:primary.name,model:input.model,...(fallbackReason?{fallbackReason}:{})};
 }

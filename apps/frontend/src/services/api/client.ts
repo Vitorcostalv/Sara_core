@@ -71,6 +71,7 @@ export function isApiClientError(error: unknown): error is ApiClientError {
 
 export function getApiErrorMessage(error: unknown): string {
   if (isApiClientError(error)) {
+    if (error.payload?.error?.code === "LLM_QUOTA_EXCEEDED") return error.payload.error.message;
     if (error.payload?.error?.code === "VALIDATION_ERROR") {
       const details = error.payload.error.details as { fieldErrors?: Record<string, string[]> } | null;
       const messages = Object.values(details?.fieldErrors ?? {}).flat().filter(value => typeof value === "string");

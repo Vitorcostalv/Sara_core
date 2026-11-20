@@ -9,6 +9,16 @@ const state = () => projectPredationScenario({ natives: [],
   invader: { ...structuredClone(getCatalogSpecies("onca-pintada")!), id: "introduced", populationTarget: 2 },
   habitatCompatible: true, resources: [] });
 
+test("Containment preserves the projection and never instantiates a cloud provider", async () => {
+  const before = env.llmCloudEnabled; env.llmCloudEnabled = false;
+  try {
+    const result = await new PredationReasoningService(() => {throw new Error("cloud must not run");}).explain(state());
+    assert.equal(result.source,"rules");
+    assert.deepEqual(result.actionIds,state().actions.map(a=>a.id));
+    assert.ok(result.warnings[0]?.includes("suspenso"));
+  } finally {env.llmCloudEnabled = before;}
+});
+
 test("Predation LLM: the complete network, control, limitations and permitted actions reach the prompt", () => {
   const projection = state();
   const prompts = buildPredationPrompts(projection);

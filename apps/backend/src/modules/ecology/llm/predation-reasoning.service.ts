@@ -32,6 +32,7 @@ export class PredationReasoningService {
       source: "rules", summary: projection.actions.map((action) => action.reason).join(" "),
       actionIds: expected, warnings: warning ? [warning] : [],
     });
+    if (!env.llmCloudEnabled) return fallback("Provedor externo suspenso temporariamente. Esta explicação usa as regras da simulação.");
     const provider: LlmProvider | null = this.providerFactory(env.llmProvider);
     if (!provider || !env.llmApiKey) return fallback();
     try {

@@ -304,15 +304,15 @@ export class EcologicalTerrainPromptService {
       return result;
     }
     // 1. LLM constrangido ao enum (slug rejeitado se não houver preset correspondente).
-    const provider = createLlmProvider(env.llmProvider);
-    if (provider && env.llmApiKey) {
+    const provider = env.llmCloudEnabled ? createLlmProvider(env.llmProvider) : null;
+    if ((provider && env.llmApiKey) || (env.renderLlmEnabled && env.renderLlmBaseUrl && env.renderLlmApiKey)) {
       try {
         const generation = await generateWithLocalFallback(provider, {
           systemPrompt: SYSTEM_PROMPT,
           userPrompt: prompt,
-          model: env.llmModel || provider.defaultModel,
-          apiKey: env.llmApiKey,
-          baseUrl: normalizeBaseUrl(env.llmBaseUrl ?? provider.defaultBaseUrl),
+          model: env.llmModel || provider?.defaultModel || "sara-qwen-0.5b",
+          apiKey: provider ? env.llmApiKey ?? "" : "",
+          baseUrl: normalizeBaseUrl(env.llmBaseUrl ?? provider?.defaultBaseUrl ?? "https://unused.invalid"),
           timeoutMs: Math.min(env.llmTimeoutMs, 15_000),
           maxOutputTokens: 128,
           responseSchema: {type:"object",properties:{biomeSlug:{type:"string",enum:biomePresetService.listAll().map(p=>p.slug)},displayName:{type:"string"},interpretation:{type:"string"}},required:["biomeSlug","displayName","interpretation"],additionalProperties:false},
@@ -327,7 +327,7 @@ export class EcologicalTerrainPromptService {
           if (preset) {
             terrainPromptLogger.info({ biomeSlug: parsed.biomeSlug, source: "llm", provider:generation.provider, model:generation.model, fallbackReason:generation.fallbackReason }, "Biome extracted via LLM");
             const result = fromPreset("llm", parsed.biomeSlug, parsed.displayName, parsed.interpretation, preset);
-            result.inference={provider:generation.provider ?? provider.name,model:generation.model ?? (env.llmModel || provider.defaultModel),usedFallback:Boolean(generation.fallbackReason)};
+            result.inference={provider:generation.provider ?? provider?.name ?? "render",model:generation.model ?? (env.llmModel || provider?.defaultModel || "sara-qwen-0.5b"),usedFallback:Boolean(generation.fallbackReason)};
             cacheClassification(cacheKey, result);
             return result;
           }

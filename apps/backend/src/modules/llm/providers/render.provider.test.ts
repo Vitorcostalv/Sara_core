@@ -6,6 +6,24 @@ import type { LlmProvider, LlmGenerateTextInput } from "../llm.provider";
 
 const input:LlmGenerateTextInput={systemPrompt:"Use grounded facts",userPrompt:"Amazônia",apiKey:"cloud-test",baseUrl:"https://cloud.test",model:"cloud-model",timeoutMs:1000,responseSchema:{type:"object"}};
 const local={enabled:true,baseUrl:"https://local.test/v1",apiKey:"local-test",timeoutMs:500};
+
+test("own inference remains independent when cloud fallback is suspended",async()=>{
+ const before=globalThis.fetch; let calls=0;
+ globalThis.fetch=(async(url,init)=>{
+  calls++;assert.equal(String(url),"https://local.test/v1/chat/completions");
+  assert.equal(new Headers(init?.headers).get("Authorization"),"Bearer local-test");
+  return Response.json({choices:[{message:{content:'{"biomeSlug":"cerrado"}'},finish_reason:"stop"}]});
+ }) as typeof fetch;
+ try {assert.equal((await generateWithLocalFallback(null,input,local)).provider,"render");assert.equal(calls,1);}
+ finally{globalThis.fetch=before;}
+});
+
+test("own failure with cloud suspended cannot contact a cloud endpoint",async()=>{
+ const before=globalThis.fetch;let calls=0;
+ globalThis.fetch=(async(url)=>{calls++;assert.equal(String(url),"https://local.test/v1/chat/completions");throw new Error("cold start");}) as typeof fetch;
+ try {await assert.rejects(generateWithLocalFallback(null,input,local),/Fallback externo suspenso/);assert.equal(calls,1);}
+ finally{globalThis.fetch=before;}
+});
 test("local inference uses server authentication, structured output and bounded tokens",async()=>{
  const before=globalThis.fetch;let payload:{max_tokens?:number;response_format?:{type:string};stream?:boolean}={};
  globalThis.fetch=(async(url,init)=>{
