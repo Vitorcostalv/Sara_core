@@ -22,7 +22,7 @@ test("Predation LLM: disabled provider returns explicit rules without making an 
   assert.deepEqual(result.actionIds, state().actions.map((a) => a.id));
 });
 
-for (const mode of ["valid", "invented", "omitted", "duplicate", "malformed", "timeout", "overwrite"]) {
+for (const mode of ["valid", "fenced-valid", "fenced-overwrite", "invented", "omitted", "duplicate", "malformed", "timeout", "overwrite"]) {
   test(`Predation LLM: ${mode} response cannot change the simulation`, async () => {
     const oldKey = env.llmApiKey;
     env.llmApiKey = "local-mocked-key";
@@ -31,20 +31,23 @@ for (const mode of ["valid", "invented", "omitted", "duplicate", "malformed", "t
     const ids = projection.actions.map((a) => a.id);
     const service = new PredationReasoningService(() => ({
       name: "gemini", defaultModel: "mock", defaultBaseUrl: "https://mock.invalid",
-      generateText: async () => {
+      generateText: async (request) => {
+        assert.equal(request.responseSchema?.additionalProperties, false);
+        assert.deepEqual(request.responseSchema?.required, ["summary", "actionIds"]);
         if (mode === "timeout") throw new Error("timeout");
         if (mode === "malformed") return { text: "not-json" };
         const actionIds = mode === "invented" ? [...ids, "destroy:ecosystem"] : mode === "omitted" ? [] : mode === "duplicate" ? [...ids, ...ids] : ids;
-        return { text: JSON.stringify({ summary: "Resultado simulado limitado pela alimentação.", actionIds,
-          ...(mode === "overwrite" ? { populations: { introduced: 999999 } } : {}) }) };
+        const text = JSON.stringify({ summary: "Resultado simulado limitado pela alimentação.", actionIds,
+          ...(mode.endsWith("overwrite") ? { populations: { introduced: 999999 } } : {}) });
+        return { text: mode.startsWith("fenced-") ? `\x60\x60\x60json\n${text}\n\x60\x60\x60` : text };
       },
     }));
     try {
       const result = await service.explain(projection);
-      assert.equal(result.source, mode === "valid" ? "llm" : "rules");
+      assert.equal(result.source, ["valid", "fenced-valid"].includes(mode) ? "llm" : "rules");
       assert.deepEqual(result.actionIds, ids);
       assert.deepEqual(projection, original);
-      if (mode !== "valid") assert.ok(result.warnings.length > 0);
+      if (!["valid", "fenced-valid"].includes(mode)) assert.ok(result.warnings.length > 0);
     } finally { env.llmApiKey = oldKey; }
   });
 }

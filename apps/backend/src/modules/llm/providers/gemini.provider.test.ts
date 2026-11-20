@@ -2,6 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { GeminiLlmProvider } from "./gemini.provider";
 
+test("GeminiLlmProvider requests native structured JSON when a schema is supplied", async () => {
+  const originalFetch = globalThis.fetch;
+  const schema = { type: "object", properties: { summary: { type: "string" } }, required: ["summary"] };
+  globalThis.fetch = (async (_url, init) => {
+    const payload = JSON.parse(String(init?.body));
+    assert.equal(payload.generationConfig.responseMimeType, "application/json");
+    assert.deepEqual(payload.generationConfig.responseJsonSchema, schema);
+    return Response.json({ candidates: [{ content: { parts: [{ text: '{"summary":"ok"}' }] } }] });
+  }) as typeof fetch;
+  try {
+    const result = await new GeminiLlmProvider().generateText({ systemPrompt: "policy", userPrompt: "data", model: "mock", apiKey: "test", baseUrl: "https://mock.invalid", timeoutMs: 1000, responseSchema: schema });
+    assert.deepEqual(JSON.parse(result.text), { summary: "ok" });
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test("GeminiLlmProvider sends the grounded request and parses text responses", async () => {
   const provider = new GeminiLlmProvider();
   const originalFetch = globalThis.fetch;

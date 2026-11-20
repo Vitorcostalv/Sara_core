@@ -62,7 +62,8 @@ export class GeminiLlmProvider implements LlmProvider {
       ],
       generationConfig: {
         temperature: 0.2,
-        responseMimeType: "text/plain",
+        responseMimeType: input.responseSchema ? "application/json" : "text/plain",
+        ...(input.responseSchema ? { responseJsonSchema: input.responseSchema } : {}),
       },
     });
 

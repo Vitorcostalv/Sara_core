@@ -39,8 +39,17 @@ export class PredationReasoningService {
         model: env.llmModel || provider.defaultModel, apiKey: env.llmApiKey,
         baseUrl: (env.llmBaseUrl ?? provider.defaultBaseUrl).replace(/\/+$/, ""),
         timeoutMs: Math.min(env.llmTimeoutMs, 12_000),
+        responseSchema: {
+          type: "object", additionalProperties: false, required: ["summary", "actionIds"],
+          properties: {
+            summary: { type: "string", minLength: 1, maxLength: 1600 },
+            actionIds: { type: "array", maxItems: 200, items: { type: "string", ...(expected.length ? { enum: expected } : {}) } },
+          },
+        },
       });
-      const parsed = responseSchema.parse(JSON.parse(result.text));
+      const text = result.text.trim();
+      const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(text);
+      const parsed = responseSchema.parse(JSON.parse(fenced?.[1] ?? text));
       const accepted = new Set(parsed.actionIds);
       if (accepted.size !== parsed.actionIds.length || accepted.size !== expected.length || expected.some((id) => !accepted.has(id))) {
         return fallback("A LLM alterou ou omitiu ações; explicação determinística preservada.");
